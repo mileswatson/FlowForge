@@ -4,18 +4,10 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use create_network_config::create_network_config;
+use train::{train, Algorithm};
 
 mod create_network_config;
-
-#[derive(Subcommand, Clone, Debug)]
-enum Algorithm {
-    /// Train an instance of RemyCC
-    Remy {
-        /// Number of iterations to train for.
-        #[arg(long, default_value_t = 10000)]
-        iters: u32,
-    },
-}
+mod train;
 
 #[derive(Subcommand, Debug)]
 enum Command {
@@ -52,6 +44,10 @@ fn main() -> Result<()> {
     let args = Args::parse();
     match args.command {
         Command::CreateNetworkConfig { output } => create_network_config(&output),
-        Command::Train { .. } => todo!(),
+        Command::Train {
+            config,
+            output,
+            algorithm,
+        } => train(&config, &output, algorithm),
     }
 }
