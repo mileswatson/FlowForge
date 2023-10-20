@@ -2,21 +2,10 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(tag = "type")]
-enum ContinuousDistribution {
-    Uniform { min: f32, max: f32 },
-    Normal { mean: f32, std_dev: f32 },
-}
+use create_network_config::create_network_config;
 
-#[derive(Serialize, Deserialize, Debug)]
-struct NetworkConfig {
-    rtt: ContinuousDistribution,
-    throughput: ContinuousDistribution,
-    loss_rate: ContinuousDistribution,
-}
+mod create_network_config;
 
 #[derive(Subcommand, Clone, Debug)]
 enum Algorithm {
@@ -62,7 +51,7 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
     match args.command {
-        Command::CreateNetworkConfig { .. } => todo!(),
+        Command::CreateNetworkConfig { output } => create_network_config(&output),
         Command::Train { .. } => todo!(),
     }
 }
