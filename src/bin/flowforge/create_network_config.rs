@@ -1,7 +1,7 @@
 use std::{fs::File, path::Path};
 
 use anyhow::Result;
-use flowforge::network::config::{ContinuousDistribution, NetworkConfig};
+use flowforge::{network::config::NetworkConfig, rand::ContinuousDistribution};
 
 pub fn create_network_config(output: &Path) -> Result<()> {
     let output = File::create(output)?;
