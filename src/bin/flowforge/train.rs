@@ -1,8 +1,13 @@
-use std::{fs::File, path::Path};
+use std::{fs::File, marker::PhantomData, path::Path};
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
-use flowforge::{network::config::NetworkConfig, rand::Rng};
+use flowforge::{
+    network::config::NetworkConfig,
+    rand::Rng,
+    trainers::remy::{RemyConfig, RemyTrainer},
+    IgnoreResultTrainer, Trainer,
+};
 
 #[derive(Subcommand, Clone, Debug)]
 pub enum Algorithm {
@@ -14,7 +19,7 @@ pub enum Algorithm {
     },
 }
 
-pub fn train(config: &Path, _output: &Path, _algorithm: Algorithm) -> Result<()> {
+pub fn train(config: &Path, _output: &Path, algorithm: Algorithm) -> Result<()> {
     let file = File::open(config)?;
     let config: NetworkConfig =
         serde_json::from_reader(file).with_context(|| "Config had incorrect format!")?;
@@ -23,6 +28,14 @@ pub fn train(config: &Path, _output: &Path, _algorithm: Algorithm) -> Result<()>
         let network = rng.sample(&config);
         println!("{:?}", &network);
     }
+
+    let trainer: Box<dyn Trainer<()>> = match algorithm {
+        Algorithm::Remy { iters } => Box::new(IgnoreResultTrainer {
+            trainer: RemyTrainer {},
+            marker: PhantomData {},
+        }),
+    };
+
     println!("{:?}", config);
 
     Ok(())
