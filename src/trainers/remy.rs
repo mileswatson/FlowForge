@@ -16,7 +16,9 @@ impl Dna for RemyDna {
 
 pub struct RemyTrainer {}
 
-impl Trainer<RemyDna> for RemyTrainer {
+impl Trainer for RemyTrainer {
+    type Output = RemyDna;
+
     fn train(&self, networks: &[crate::network::Network]) -> RemyDna {
         RemyDna {}
     }

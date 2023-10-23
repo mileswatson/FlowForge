@@ -24,19 +24,16 @@ pub fn train(config: &Path, _output: &Path, algorithm: Algorithm) -> Result<()> 
     let config: NetworkConfig =
         serde_json::from_reader(file).with_context(|| "Config had incorrect format!")?;
     let mut rng = Rng::from_seed(0);
-    for _ in 0..10 {
-        let network = rng.sample(&config);
-        println!("{:?}", &network);
-    }
 
-    let trainer: Box<dyn Trainer<()>> = match algorithm {
+    let networks: Vec<_> = (0..100).map(|_| rng.sample(&config)).collect();
+
+    let trainer: Box<dyn Trainer<Output = ()>> = match algorithm {
         Algorithm::Remy { iters } => Box::new(IgnoreResultTrainer {
             trainer: RemyTrainer {},
-            marker: PhantomData {},
         }),
     };
 
-    println!("{:?}", config);
+    trainer.train(&networks);
 
     Ok(())
 }

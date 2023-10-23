@@ -23,19 +23,22 @@ impl Dna for () {
     }
 }
 
-pub trait Trainer<D: Dna> {
-    fn train(&self, networks: &[Network]) -> D;
+pub trait Trainer {
+    type Output;
+
+    fn train(&self, networks: &[Network]) -> Self::Output;
 }
 
-pub struct IgnoreResultTrainer<T, D: Dna>
+pub struct IgnoreResultTrainer<T>
 where
-    T: Trainer<D>,
+    T: Trainer,
 {
     pub trainer: T,
-    pub marker: PhantomData<D>,
 }
 
-impl<T: Trainer<D>, D: Dna> Trainer<()> for IgnoreResultTrainer<T, D> {
+impl<T: Trainer> Trainer for IgnoreResultTrainer<T> {
+    type Output = ();
+
     fn train(&self, networks: &[Network]) {
         self.trainer.train(networks);
     }
