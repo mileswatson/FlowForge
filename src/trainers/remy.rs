@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Dna, ProgressHandler, Trainer};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct RemyConfig {}
 
 pub struct RemyDna {}

@@ -3,32 +3,51 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use create_network_config::create_network_config;
-use train::{train, Algorithm};
+use create_network_config::create_config;
+use train::train;
 
 mod create_network_config;
 mod train;
 
+#[derive(Subcommand, Debug, Clone)]
+enum TrainerConfigCommand {
+    /// Train an instance of RemyCC
+    Remy,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+enum ConfigCommand {
+    /// Create a default network config
+    Network,
+    #[command(subcommand)]
+    /// Create a trainer config
+    Trainer(TrainerConfigCommand),
+}
+
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Generate a network config file
-    CreateNetworkConfig {
+    /// Generate a network or trainer config file
+    GenConfig {
+        #[command(subcommand)]
+        config_type: ConfigCommand,
+
         /// File to write the network config to
         #[arg(short, long)]
         output: PathBuf,
     },
     /// Tailor a congestion control algorithm for a given network
     Train {
-        /// Network config JSON file
-        #[arg(short, long)]
-        config: PathBuf,
+        /// Trainer config file (JSON)
+        #[arg(long)]
+        trainer: PathBuf,
+
+        /// Network config file (JSON)
+        #[arg(long)]
+        network: PathBuf,
 
         /// File to write congestion control algorithm DNA to
         #[arg(short, long)]
         output: PathBuf,
-
-        #[command(subcommand)]
-        algorithm: Algorithm,
     },
 }
 
@@ -43,11 +62,14 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
     match args.command {
-        Command::CreateNetworkConfig { output } => create_network_config(&output),
-        Command::Train {
-            config,
+        Command::GenConfig {
+            config_type,
             output,
-            algorithm,
-        } => train(&config, &output, algorithm),
+        } => create_config(&config_type, &output),
+        Command::Train {
+            trainer,
+            network,
+            output,
+        } => train(&trainer, &network, &output),
     }
 }

@@ -1,23 +1,23 @@
-use std::{fs::File, path::Path};
+use std::path::Path;
 
 use anyhow::Result;
-use flowforge::{network::config::NetworkConfig, rand::ContinuousDistribution};
+use flowforge::{
+    network::config::NetworkConfig,
+    trainers::{remy::RemyConfig, TrainerConfig},
+    Config,
+};
 
-pub fn create_network_config(output: &Path) -> Result<()> {
-    let output = File::create(output)?;
+use crate::{ConfigCommand, TrainerConfigCommand};
 
-    let config = NetworkConfig {
-        rtt: ContinuousDistribution::Normal {
-            mean: 5e-3,
-            std_dev: 1e-3,
-        },
-        throughput: ContinuousDistribution::Uniform { min: 12., max: 18. },
-        loss_rate: ContinuousDistribution::Normal {
-            mean: 0.1,
-            std_dev: 0.01,
-        },
+pub(super) fn create_config(config_type: &ConfigCommand, output: &Path) -> Result<()> {
+    let config_type = match config_type {
+        ConfigCommand::Network => return NetworkConfig::default().to_json_file(output),
+        ConfigCommand::Trainer(x) => x,
     };
 
-    serde_json::to_writer_pretty(&output, &config)?;
-    Ok(())
+    let trainer_config = match config_type {
+        TrainerConfigCommand::Remy => TrainerConfig::Remy(RemyConfig::default()),
+    };
+
+    trainer_config.to_json_file(output)
 }

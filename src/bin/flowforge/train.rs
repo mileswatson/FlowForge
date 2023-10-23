@@ -1,35 +1,27 @@
-use std::{fs::File, path::Path};
+use std::path::Path;
 
-use anyhow::{Context, Result};
-use clap::Subcommand;
+use anyhow::Result;
 use flowforge::{
     network::config::NetworkConfig,
     rand::Rng,
-    trainers::remy::{RemyConfig, RemyDna, RemyTrainer},
-    Trainer,
+    trainers::{
+        remy::{RemyDna, RemyTrainer},
+        TrainerConfig,
+    },
+    Config, Trainer,
 };
 
-#[derive(Subcommand, Clone, Debug)]
-pub enum Algorithm {
-    /// Train an instance of RemyCC
-    Remy {
-        /// Number of iterations to train for.
-        #[arg(long, default_value_t = 10000)]
-        iters: u32,
-    },
-}
+pub fn train(trainer_config: &Path, network_config: &Path, output: &Path) -> Result<()> {
+    let trainer_config = TrainerConfig::from_json_file(trainer_config)?;
+    let network_config = NetworkConfig::from_json_file(network_config)?;
 
-pub fn train(config: &Path, _output: &Path, algorithm: Algorithm) -> Result<()> {
-    let file = File::open(config)?;
-    let config: NetworkConfig =
-        serde_json::from_reader(file).with_context(|| "Config had incorrect format!")?;
     let mut rng = Rng::from_seed(0);
 
-    let networks: Vec<_> = (0..100).map(|_| rng.sample(&config)).collect();
+    let networks: Vec<_> = (0..100).map(|_| rng.sample(&network_config)).collect();
 
-    let trainer = match algorithm {
-        Algorithm::Remy { iters } => {
-            RemyTrainer::new(&RemyConfig {}).train(&networks, &mut |_: &RemyDna| {})
+    match trainer_config {
+        TrainerConfig::Remy(remy_config) => {
+            RemyTrainer::new(&remy_config).train(&networks, &mut |_: &RemyDna| {});
         }
     };
 

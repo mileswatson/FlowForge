@@ -12,6 +12,22 @@ pub struct NetworkConfig {
     pub loss_rate: ContinuousDistribution,
 }
 
+impl Default for NetworkConfig {
+    fn default() -> Self {
+        Self {
+            rtt: ContinuousDistribution::Normal {
+                mean: 5e-3,
+                std_dev: 1e-3,
+            },
+            throughput: ContinuousDistribution::Uniform { min: 12., max: 18. },
+            loss_rate: ContinuousDistribution::Normal {
+                mean: 0.1,
+                std_dev: 0.01,
+            },
+        }
+    }
+}
+
 impl Distribution<Network> for NetworkConfig {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Network {
         Network {
