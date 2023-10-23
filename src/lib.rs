@@ -12,16 +12,6 @@ pub trait Dna {
     fn deserialize(buf: &[u8]) -> Self;
 }
 
-impl Dna for () {
-    fn serialize(&self) -> Vec<u8> {
-        todo!()
-    }
-
-    fn deserialize(buf: &[u8]) -> Self {
-        todo!()
-    }
-}
-
 pub trait ProgressHandler<D: Dna> {
     fn update_progress(&mut self, d: &D);
 }
