@@ -1,5 +1,8 @@
-use crate::{Dna, Trainer};
+use serde::{Deserialize, Serialize};
 
+use crate::{Dna, ProgressHandler, Trainer};
+
+#[derive(Serialize, Deserialize)]
 pub struct RemyConfig {}
 
 pub struct RemyDna {}
@@ -17,9 +20,20 @@ impl Dna for RemyDna {
 pub struct RemyTrainer {}
 
 impl Trainer for RemyTrainer {
-    type Output = RemyDna;
+    type DNA = RemyDna;
+    type Config = RemyConfig;
 
-    fn train(&self, networks: &[crate::network::Network]) -> RemyDna {
-        RemyDna {}
+    fn new(config: &RemyConfig) -> Self {
+        RemyTrainer {}
+    }
+
+    fn train<H: ProgressHandler<Self::DNA>>(
+        &self,
+        networks: &[crate::network::Network],
+        progress_handler: &mut H,
+    ) -> Self::DNA {
+        let result = RemyDna {};
+        progress_handler.update_progress(&result);
+        result
     }
 }

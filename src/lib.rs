@@ -1,6 +1,5 @@
-use std::marker::PhantomData;
-
 use network::Network;
+use serde::{de::DeserializeOwned, Serialize};
 
 #[warn(clippy::pedantic, clippy::nursery)]
 #[allow(clippy::module_name_repetitions)]
@@ -23,23 +22,25 @@ impl Dna for () {
     }
 }
 
-pub trait Trainer {
-    type Output;
-
-    fn train(&self, networks: &[Network]) -> Self::Output;
+pub trait ProgressHandler<D: Dna> {
+    fn update_progress(&mut self, d: &D);
 }
 
-pub struct IgnoreResultTrainer<T>
-where
-    T: Trainer,
-{
-    pub trainer: T,
-}
-
-impl<T: Trainer> Trainer for IgnoreResultTrainer<T> {
-    type Output = ();
-
-    fn train(&self, networks: &[Network]) {
-        self.trainer.train(networks);
+impl<F: FnMut(&D), D: Dna> ProgressHandler<D> for F {
+    fn update_progress(&mut self, d: &D) {
+        self(d)
     }
+}
+
+pub trait Trainer {
+    type DNA: Dna;
+    type Config: Serialize + DeserializeOwned;
+
+    fn new(config: &Self::Config) -> Self;
+
+    fn train<H: ProgressHandler<Self::DNA>>(
+        &self,
+        networks: &[Network],
+        progress_handler: &mut H,
+    ) -> Self::DNA;
 }

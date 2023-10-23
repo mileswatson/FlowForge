@@ -1,12 +1,12 @@
-use std::{fs::File, marker::PhantomData, path::Path};
+use std::{fs::File, path::Path};
 
 use anyhow::{Context, Result};
 use clap::Subcommand;
 use flowforge::{
     network::config::NetworkConfig,
     rand::Rng,
-    trainers::remy::{RemyConfig, RemyTrainer},
-    IgnoreResultTrainer, Trainer,
+    trainers::remy::{RemyConfig, RemyDna, RemyTrainer},
+    Trainer,
 };
 
 #[derive(Subcommand, Clone, Debug)]
@@ -27,13 +27,11 @@ pub fn train(config: &Path, _output: &Path, algorithm: Algorithm) -> Result<()> 
 
     let networks: Vec<_> = (0..100).map(|_| rng.sample(&config)).collect();
 
-    let trainer: Box<dyn Trainer<Output = ()>> = match algorithm {
-        Algorithm::Remy { iters } => Box::new(IgnoreResultTrainer {
-            trainer: RemyTrainer {},
-        }),
+    let trainer = match algorithm {
+        Algorithm::Remy { iters } => {
+            RemyTrainer::new(&RemyConfig {}).train(&networks, &mut |_: &RemyDna| {})
+        }
     };
-
-    trainer.train(&networks);
 
     Ok(())
 }
