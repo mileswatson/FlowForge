@@ -12,8 +12,8 @@ use flowforge::{
 };
 
 pub fn train(trainer_config: &Path, network_config: &Path, output: &Path) -> Result<()> {
-    let trainer_config = TrainerConfig::from_json_file(trainer_config)?;
-    let network_config = NetworkConfig::from_json_file(network_config)?;
+    let trainer_config = TrainerConfig::load(trainer_config)?;
+    let network_config = NetworkConfig::load(network_config)?;
 
     let mut rng = Rng::from_seed(0);
 

@@ -11,7 +11,7 @@ use crate::{ConfigCommand, TrainerConfigCommand};
 
 pub(super) fn create_config(config_type: &ConfigCommand, output: &Path) -> Result<()> {
     let config_type = match config_type {
-        ConfigCommand::Network => return NetworkConfig::default().to_json_file(output),
+        ConfigCommand::Network => return NetworkConfig::default().save(output),
         ConfigCommand::Trainer(x) => x,
     };
 
@@ -19,5 +19,5 @@ pub(super) fn create_config(config_type: &ConfigCommand, output: &Path) -> Resul
         TrainerConfigCommand::Remy => TrainerConfig::Remy(RemyConfig::default()),
     };
 
-    trainer_config.to_json_file(output)
+    trainer_config.save(output)
 }

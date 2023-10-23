@@ -1,4 +1,8 @@
-use std::{fs::File, path::Path};
+use std::{
+    fs::File,
+    io::{Read, Write},
+    path::Path,
+};
 
 use anyhow::{anyhow, Result};
 use network::Network;
@@ -10,26 +14,33 @@ pub mod network;
 pub mod rand;
 pub mod trainers;
 
-pub trait Config: Serialize + DeserializeOwned {
-    fn to_json_file(&self, path: &Path) -> Result<()>;
+pub struct Json;
+pub struct Custom;
 
-    fn from_json_file(path: &Path) -> Result<Self>;
+pub trait Config<T>: Sized {
+    fn valid_path(path: &Path) -> bool;
+    fn save(&self, path: &Path) -> Result<()>;
+    fn load(path: &Path) -> Result<Self>;
 }
 
-impl<T> Config for T
+impl<T> Config<Json> for T
 where
     T: Serialize + DeserializeOwned,
 {
-    fn to_json_file(&self, path: &Path) -> Result<()> {
-        if path.extension().and_then(|x| x.to_str()) != Some("json") {
+    fn valid_path(path: &Path) -> bool {
+        path.extension().and_then(|x| x.to_str()) != Some("json")
+    }
+
+    fn save(&self, path: &Path) -> Result<()> {
+        if !Self::valid_path(path) {
             return Err(anyhow!("Tried to write config to non-json file!"));
         }
         let mut file = File::create(path)?;
         Ok(serde_json::to_writer_pretty(&mut file, self)?)
     }
 
-    fn from_json_file(path: &Path) -> Result<Self> {
-        if path.extension().and_then(|x| x.to_str()) != Some("json") {
+    fn load(path: &Path) -> Result<Self> {
+        if !Self::valid_path(path) {
             return Err(anyhow!("Tried to read config from non-json file!"));
         }
         let file = File::open(path)?;
@@ -37,9 +48,43 @@ where
     }
 }
 
-pub trait Dna {
-    fn serialize(&self) -> Vec<u8>;
-    fn deserialize(buf: &[u8]) -> Self;
+pub trait Dna: Sized {
+    const NAME: &'static str;
+    fn serialize(&self) -> Result<Vec<u8>>;
+    fn deserialize(buf: &[u8]) -> Result<Self>;
+}
+
+impl<D: Dna> Config<Custom> for D {
+    fn valid_path(path: &Path) -> bool {
+        path.to_str()
+            .map(|x| x.ends_with(&format!(".{}.dna", Self::NAME)))
+            .unwrap_or(false)
+    }
+
+    fn save(&self, path: &Path) -> Result<()> {
+        if !Self::valid_path(path) {
+            return Err(anyhow!(
+                "Tried to save DNA to file with non .{}.dna extension!",
+                Self::NAME
+            ));
+        }
+        let buf = self.serialize()?;
+        let mut file = File::create(path)?;
+        Ok(file.write_all(&buf)?)
+    }
+
+    fn load(path: &Path) -> Result<Self> {
+        if !Self::valid_path(path) {
+            return Err(anyhow!(
+                "Tried to load DNA from file with non .{}.dna extension!",
+                Self::NAME
+            ));
+        }
+        let mut file = File::open(path)?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)?;
+        Self::deserialize(&buf)
+    }
 }
 
 pub trait ProgressHandler<D: Dna> {
@@ -54,7 +99,7 @@ impl<F: FnMut(&D), D: Dna> ProgressHandler<D> for F {
 
 pub trait Trainer {
     type DNA: Dna;
-    type Config: Config;
+    type Config: Config<Json>;
 
     fn new(config: &Self::Config) -> Self;
 
