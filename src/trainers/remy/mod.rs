@@ -1,14 +1,12 @@
 use anyhow::Result;
-use prost::Message;
+use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{Dna, ProgressHandler, Trainer};
 
-use self::remy_buffers::WhiskerTree;
+use self::remy_dna::WhiskerTree;
 
-mod remy_buffers {
-    include!(concat!(env!("OUT_DIR"), "/remy_buffers.rs"));
-}
+include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct RemyConfig {}
@@ -21,14 +19,12 @@ pub struct RemyDna {
 impl Dna for RemyDna {
     const NAME: &'static str = "remy";
     fn serialize(&self) -> Result<Vec<u8>> {
-        let mut buf = Vec::new();
-        self.tree.encode(&mut buf)?;
-        Ok(buf)
+        Ok(self.tree.write_to_bytes()?)
     }
 
     fn deserialize(buf: &[u8]) -> Result<Self> {
         Ok(RemyDna {
-            tree: WhiskerTree::decode(buf)?,
+            tree: WhiskerTree::parse_from_bytes(buf)?,
         })
     }
 }

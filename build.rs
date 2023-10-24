@@ -1,6 +1,15 @@
 use std::io::Result;
 
 fn main() -> Result<()> {
-    prost_build::compile_protos(&["src/trainers/remy/dna.proto"], &["src/"])?;
+    protobuf_codegen::Codegen::new()
+        // Use `protoc` parser, optional.
+        .protoc()
+        // All inputs and imports from the inputs must reside in `includes` directories.
+        .includes(["src/trainers/remy"])
+        // Inputs must reside in some of include paths.
+        .input("src/trainers/remy/remy_dna.proto")
+        // Specify output directory relative to Cargo output directory.
+        .cargo_out_dir("protos")
+        .run_from_script();
     Ok(())
 }
