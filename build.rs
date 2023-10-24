@@ -2,6 +2,7 @@ use std::io::Result;
 
 fn main() -> Result<()> {
     protobuf_codegen::Codegen::new()
+        .pure()
         // All inputs and imports from the inputs must reside in `includes` directories.
         .includes(["src/trainers/remy"])
         // Inputs must reside in some of include paths.
