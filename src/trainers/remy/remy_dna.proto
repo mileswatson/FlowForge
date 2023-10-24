@@ -1,3 +1,5 @@
+/* File copied from original Remy implementation: https://github.com/tcpexmachina/remy/blob/47e5243aa4573dedcbd015b7200a43be1f5ffa0c/dna.proto */
+
 package RemyBuffers;
 
 message WhiskerTree {

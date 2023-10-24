@@ -1,6 +1,10 @@
 [package]
 name = "flowforge"
 version = "0.1.0"
+authors = ["Miles Watson"]
+description = "Use FlowForge to tailor congestion control algorithms to a provided network configuration."
+license = "MIT"
+
 edition = "2021"
 build = "build.rs"
 
