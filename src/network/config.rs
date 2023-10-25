@@ -7,9 +7,9 @@ use super::Network;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NetworkConfig {
-    pub rtt: ContinuousDistribution,
-    pub throughput: ContinuousDistribution,
-    pub loss_rate: ContinuousDistribution,
+    pub rtt: ContinuousDistribution<f32>,
+    pub throughput: ContinuousDistribution<f32>,
+    pub loss_rate: ContinuousDistribution<f32>,
 }
 
 impl Default for NetworkConfig {
