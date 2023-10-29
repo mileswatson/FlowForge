@@ -98,13 +98,13 @@ impl EffectQueue {
     }
 }
 
-pub struct NetworkSimulator {
+pub struct Simulator {
     components: Vec<ComponentWrapper>,
     rng: Rng,
     tick_queue: TickQueue,
 }
 
-impl NetworkSimulator {
+impl Simulator {
     pub fn new(components: Vec<Box<dyn Component>>, rng: Rng) -> Self {
         Self {
             components: components.into_iter().map(ComponentWrapper::new).collect(),
