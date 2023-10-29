@@ -12,6 +12,7 @@ use serde::{de::DeserializeOwned, Serialize};
 #[allow(clippy::module_name_repetitions)]
 pub mod network;
 pub mod rand;
+pub mod simulation;
 pub mod trainers;
 
 pub struct Json;
