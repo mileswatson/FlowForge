@@ -14,9 +14,9 @@ pub enum ContinuousDistribution<F: Float> {
     Exponential { mean: F },
 }
 
-impl<F: Float> Distribution<F> for ContinuousDistribution<F>
+impl<F> Distribution<F> for ContinuousDistribution<F>
 where
-    F: rand_distr::uniform::SampleUniform,
+    F: Float + rand_distr::uniform::SampleUniform,
     rand_distr::Exp1: rand_distr::Distribution<F>,
     rand_distr::StandardNormal: rand_distr::Distribution<F>,
 {
@@ -40,9 +40,9 @@ pub enum DiscreteDistribution<I: PrimInt> {
     Uniform { min: I, max: I },
 }
 
-impl<I: PrimInt> Distribution<I> for DiscreteDistribution<I>
+impl<I> Distribution<I> for DiscreteDistribution<I>
 where
-    I: rand_distr::uniform::SampleUniform,
+    I: PrimInt + rand_distr::uniform::SampleUniform,
 {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> I {
         match self {
@@ -56,12 +56,16 @@ pub struct Rng {
 }
 
 impl Rng {
+    #[must_use]
     pub fn from_seed(seed: u64) -> Rng {
         Rng {
             rng: Xoshiro256PlusPlus::seed_from_u64(seed),
         }
     }
 
+    #[must_use]
+    // Xoshiro256PlusPlus::from_rng is infallible when called with Xoshiro256PlusPlus
+    #[allow(clippy::missing_panics_doc)]
     pub fn create_child(&mut self) -> Rng {
         Rng {
             rng: Xoshiro256PlusPlus::from_rng(&mut self.rng).unwrap(),
@@ -79,12 +83,12 @@ mod tests {
 
     #[test]
     fn rng_determinism() {
-        let seed = 123497239457;
+        let seed = 123_497_239_457;
 
         let mut rng = Rng::from_seed(seed);
         let dist = DiscreteDistribution::Uniform {
             min: 0,
-            max: 1000000,
+            max: 1_000_000,
         };
         let mut v1 = Vec::new();
         v1.push(rng.sample(&dist));
@@ -107,7 +111,7 @@ mod tests {
         v2.push(sample1);
         v2.push(sample2);
 
-        assert_eq!(v1, vec![959039, 834208, 999496, 723315]);
+        assert_eq!(v1, vec![959_039, 834_208, 999_496, 723_315]);
         assert_eq!(v1, v2);
     }
 }

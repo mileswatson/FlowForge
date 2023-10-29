@@ -13,8 +13,8 @@ pub struct NetworkConfig {
 }
 
 impl Default for NetworkConfig {
-    fn default() -> Self {
-        Self {
+    fn default() -> NetworkConfig {
+        NetworkConfig {
             rtt: ContinuousDistribution::Normal {
                 mean: 5e-3,
                 std_dev: 1e-3,

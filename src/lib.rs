@@ -1,3 +1,6 @@
+#![warn(clippy::pedantic, clippy::nursery)]
+#![allow(clippy::module_name_repetitions, clippy::use_self)]
+
 use std::{
     fs::File,
     io::{Read, Write},
@@ -8,8 +11,6 @@ use anyhow::{anyhow, Result};
 use network::Network;
 use serde::{de::DeserializeOwned, Serialize};
 
-#[warn(clippy::pedantic, clippy::nursery)]
-#[allow(clippy::module_name_repetitions)]
 pub mod network;
 pub mod rand;
 pub mod simulation;
@@ -58,8 +59,7 @@ pub trait Dna: Sized {
 impl<D: Dna> Config<Custom> for D {
     fn valid_path(path: &Path) -> bool {
         path.to_str()
-            .map(|x| x.ends_with(&format!(".{}.dna", Self::NAME)))
-            .unwrap_or(false)
+            .is_some_and(|x| x.ends_with(&format!(".{}.dna", Self::NAME)))
     }
 
     fn save(&self, path: &Path) -> Result<()> {
@@ -94,7 +94,7 @@ pub trait ProgressHandler<D: Dna> {
 
 impl<F: FnMut(&D), D: Dna> ProgressHandler<D> for F {
     fn update_progress(&mut self, d: &D) {
-        self(d)
+        self(d);
     }
 }
 

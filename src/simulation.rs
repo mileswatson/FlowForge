@@ -28,8 +28,8 @@ pub struct ComponentWrapper {
 }
 
 impl ComponentWrapper {
-    fn new(component: Box<dyn Component>) -> Self {
-        Self { component }
+    fn new(component: Box<dyn Component>) -> ComponentWrapper {
+        ComponentWrapper { component }
     }
 
     pub fn assert_is<C: Component>(&mut self) -> &mut C {
@@ -52,8 +52,8 @@ struct TickQueue {
 }
 
 impl TickQueue {
-    pub fn new() -> Self {
-        Self {
+    pub fn new() -> TickQueue {
+        TickQueue {
             current_time: 0.,
             queue: PriorityQueue::new(),
         }
@@ -83,8 +83,8 @@ struct EffectQueue {
 }
 
 impl EffectQueue {
-    fn new() -> Self {
-        Self {
+    const fn new() -> EffectQueue {
+        EffectQueue {
             queue: VecDeque::new(),
         }
     }
@@ -105,8 +105,8 @@ pub struct Simulator {
 }
 
 impl Simulator {
-    pub fn new(components: Vec<Box<dyn Component>>, rng: Rng) -> Self {
-        Self {
+    pub fn new(components: Vec<Box<dyn Component>>, rng: Rng) -> Simulator {
+        Simulator {
             components: components.into_iter().map(ComponentWrapper::new).collect(),
             rng,
             tick_queue: TickQueue::new(),

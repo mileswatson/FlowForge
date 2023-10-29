@@ -22,7 +22,7 @@ impl Dna for RemyDna {
         Ok(self.tree.write_to_bytes()?)
     }
 
-    fn deserialize(buf: &[u8]) -> Result<Self> {
+    fn deserialize(buf: &[u8]) -> Result<RemyDna> {
         Ok(RemyDna {
             tree: WhiskerTree::parse_from_bytes(buf)?,
         })
@@ -35,7 +35,7 @@ impl Trainer for RemyTrainer {
     type DNA = RemyDna;
     type Config = RemyConfig;
 
-    fn new(config: &RemyConfig) -> Self {
+    fn new(config: &RemyConfig) -> RemyTrainer {
         RemyTrainer {}
     }
 
