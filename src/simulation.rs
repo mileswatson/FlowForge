@@ -3,11 +3,14 @@ use std::{any::Any, cmp::Reverse, collections::VecDeque};
 use ordered_float::NotNan;
 use priority_queue::PriorityQueue;
 
+use crate::rand::Rng;
+
 pub type Time = f64;
+pub type EffectFn = dyn FnOnce(&mut ComponentWrapper, &mut Rng) -> EffectResult;
 
 pub struct Effect {
     component_index: usize,
-    effect: Box<dyn FnOnce(&mut ComponentWrapper) -> EffectResult>,
+    effect: Box<EffectFn>,
 }
 
 pub struct EffectResult {
@@ -16,7 +19,7 @@ pub struct EffectResult {
 }
 
 pub trait Component: Any {
-    fn tick(&self, time: Time) -> EffectResult;
+    fn tick(&self, time: Time, rng: &mut Rng) -> EffectResult;
     fn as_any(&mut self) -> &mut dyn Any;
 }
 
@@ -97,23 +100,29 @@ impl EffectQueue {
 
 pub struct NetworkSimulator {
     components: Vec<ComponentWrapper>,
+    rng: Rng,
     tick_queue: TickQueue,
 }
 
 impl NetworkSimulator {
-    pub fn new(components: Vec<Box<dyn Component>>) -> Self {
+    pub fn new(components: Vec<Box<dyn Component>>, rng: Rng) -> Self {
         Self {
             components: components.into_iter().map(ComponentWrapper::new).collect(),
+            rng,
             tick_queue: TickQueue::new(),
         }
     }
 
     fn handle_effects(&mut self, effects: &mut EffectQueue) {
-        while let Some(Effect { component_index, effect }) = effects.next() {
+        while let Some(Effect {
+            component_index,
+            effect,
+        }) = effects.next()
+        {
             let EffectResult {
                 next_tick,
                 effects: signals,
-            } = effect(&mut self.components[component_index]);
+            } = effect(&mut self.components[component_index], &mut self.rng);
             self.tick_queue.add_or_update(component_index, next_tick);
             effects.push_all(signals);
         }
@@ -130,7 +139,9 @@ impl NetworkSimulator {
         let EffectResult {
             next_tick,
             effects: signals,
-        } = self.components[component_index].as_component().tick(time);
+        } = self.components[component_index]
+            .as_component()
+            .tick(time, &mut self.rng);
         self.tick_queue.add_or_update(component_index, next_tick);
         effects.push_all(signals);
     }
