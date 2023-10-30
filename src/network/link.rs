@@ -1,50 +1,42 @@
-use std::collections::HashMap;
+use std::fmt::Debug;
 
 use crate::{
     rand::Rng,
-    simulation::{Component, Effect, EffectResult, EventQueue, Time},
+    simulation::{Component, EffectResult, EventQueue, HasVariant, Message, Time},
 };
-
-use super::CanReceive;
 
 pub struct Link<P> {
     destination: usize,
     delay: f64,
     received_count: u64,
-    waiting: HashMap<u64, P>,
-    to_deliver: EventQueue<u64>,
+    to_deliver: EventQueue<u64, P>,
 }
 
-impl<P: 'static> Link<P> {
+impl<P> Link<P>
+where
+    P: 'static,
+{
     #[must_use]
-    pub fn create(destination: usize, delay: f64) -> Box<dyn Component> {
+    pub fn create<E>(destination: usize, delay: f64) -> Box<dyn Component<E>>
+    where
+        E: Debug + HasVariant<P>,
+    {
         Box::new(Link {
             destination,
             delay,
             received_count: 0,
-            waiting: HashMap::<u64, P>::new(),
             to_deliver: EventQueue::new(),
         })
     }
 }
 
-impl<P: 'static> CanReceive<P> for Link<P> {
-    fn receive(&mut self, time: Time, packet: P, _: &mut Rng) -> EffectResult {
-        self.waiting.insert(self.received_count, packet);
-        self.to_deliver
-            .set(self.received_count, Some(time + self.delay));
-        self.received_count += 1;
-        EffectResult {
-            next_tick: self.to_deliver.next_time(),
-            effects: vec![],
-        }
-    }
-}
-
-impl<P: 'static> Component for Link<P> {
-    fn tick(&mut self, _: Time, _: &mut Rng) -> EffectResult {
-        let id = match self.to_deliver.pop_next() {
-            Some(x) => x.1,
+impl<P, E> Component<E> for Link<P>
+where
+    E: Debug + HasVariant<P>,
+{
+    fn tick(&mut self, _: Time, _: &mut Rng) -> EffectResult<E> {
+        let packet = match self.to_deliver.pop_next() {
+            Some(x) => x.2,
             None => {
                 return EffectResult {
                     next_tick: self.to_deliver.next_time(),
@@ -52,17 +44,20 @@ impl<P: 'static> Component for Link<P> {
                 }
             }
         };
-        let packet = self.waiting.remove(&id).unwrap();
         EffectResult {
             next_tick: self.to_deliver.next_time(),
-            effects: vec![Effect::new(
-                self.destination,
-                move |c: &mut dyn CanReceive<P>, time, rng| c.receive(time, packet, rng),
-            )],
+            effects: vec![Message::new(self.destination, packet)],
         }
     }
 
-    fn as_any(&mut self) -> &mut dyn std::any::Any {
-        self
+    fn receive(&mut self, effect: E, time: Time, _rng: &mut Rng) -> EffectResult<E> {
+        let packet = effect.try_into().unwrap();
+        self.to_deliver
+            .insert_or_update(self.received_count, packet, Some(time + self.delay));
+        self.received_count += 1;
+        EffectResult {
+            next_tick: self.to_deliver.next_time(),
+            effects: vec![],
+        }
     }
 }

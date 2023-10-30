@@ -1,4 +1,8 @@
-use std::{any::Any, cmp::Reverse, collections::VecDeque, hash::Hash};
+use std::{
+    cmp::Reverse,
+    collections::{HashMap, VecDeque},
+    hash::Hash,
+};
 
 use ordered_float::NotNan;
 use priority_queue::PriorityQueue;
@@ -6,95 +10,66 @@ use priority_queue::PriorityQueue;
 use crate::rand::Rng;
 
 pub type Time = f64;
-pub type EffectFn = dyn FnOnce(&mut ComponentWrapper, Time, &mut Rng) -> EffectResult;
 
-pub struct Effect {
-    pub component_index: usize,
-    pub effect: Box<EffectFn>,
+pub trait HasVariant<T>: From<T> {
+    fn try_into(self) -> Result<T, Self>;
 }
 
-impl Effect {
-    pub fn new<C>(
-        component_index: usize,
-        effect: impl FnOnce(&mut C, Time, &mut Rng) -> EffectResult + 'static,
-    ) -> Effect
+pub struct Message<E> {
+    pub component_index: usize,
+    pub effect: E,
+}
+
+impl<E> Message<E> {
+    pub fn new<V>(component_index: usize, effect: V) -> Message<E>
     where
-        C: Component + ?Sized,
+        E: From<V>,
     {
-        Effect {
+        Message {
             component_index,
-            effect: Box::new(|c: &mut ComponentWrapper, time, rng| {
-                effect(c.downcast::<C>(), time, rng)
-            }),
+            effect: E::from(effect),
         }
     }
 }
 
-pub struct EffectResult {
+pub struct EffectResult<E> {
     pub next_tick: Option<Time>,
-    pub effects: Vec<Effect>,
+    pub effects: Vec<Message<E>>,
 }
 
-pub trait Component: Any {
-    fn tick(&mut self, time: Time, rng: &mut Rng) -> EffectResult;
-    fn as_any(&mut self) -> &mut dyn Any;
+pub trait Component<E> {
+    fn tick(&mut self, time: Time, rng: &mut Rng) -> EffectResult<E>;
+    fn receive(&mut self, e: E, time: Time, rng: &mut Rng) -> EffectResult<E>;
 }
-
-pub struct ComponentWrapper {
-    component: Box<dyn Component>,
-}
-
-impl ComponentWrapper {
-    fn new(component: Box<dyn Component>) -> ComponentWrapper {
-        ComponentWrapper { component }
-    }
-
-    /// Attempts to downcast into an particular implementation of [`Component`].
-    ///
-    /// # Panics
-    ///
-    /// Panics if the underlying type of the component isn't `C`.
-    pub fn downcast<C: Component + ?Sized>(&mut self) -> &mut C {
-        self.component
-            .as_any()
-            .downcast_mut::<Box<&mut C>>()
-            .unwrap()
-    }
-
-    fn as_component(&mut self) -> &mut dyn Component {
-        &mut *self.component
-    }
-}
-
-pub struct EventQueue<E: Hash + Eq> {
+pub struct EventQueue<I: Hash + Eq, E> {
     current_time: Time,
-    queue: PriorityQueue<E, Reverse<NotNan<Time>>>,
+    waiting: HashMap<I, E>,
+    queue: PriorityQueue<I, Reverse<NotNan<Time>>>,
 }
 
-impl<E: Hash + Eq> EventQueue<E> {
+impl<I: Hash + Eq + Copy, E> EventQueue<I, E> {
     #[must_use]
-    pub fn new() -> EventQueue<E> {
+    pub fn new() -> EventQueue<I, E> {
         EventQueue {
             current_time: 0.,
+            waiting: HashMap::new(),
             queue: PriorityQueue::new(),
         }
     }
 
-    /// Updates the timing of the event if `time` is `Some`, otherwise removes it.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the provided time is before the time of the last-popped event (or 0, if no events were popped).
-    pub fn set(&mut self, event: E, time: Option<Time>) {
-        match time {
-            Some(time) => {
-                assert!(time >= self.current_time);
-                self.queue.push(event, Reverse(NotNan::new(time).unwrap()));
-            }
-            None => {
-                self.queue.remove(&event);
-            }
+    pub fn update(&mut self, id: I, time: Option<Time>) {
+        if let Some(time) = time {
+            assert!(time >= self.current_time);
+            self.queue.push(id, Reverse(NotNan::new(time).unwrap()));
+        } else {
+            self.waiting.remove(&id);
+            self.queue.remove(&id);
         }
+    }
+
+    pub fn insert_or_update(&mut self, id: I, event: E, time: Option<Time>) {
+        self.waiting.insert(id, event);
+        self.update(id, time);
     }
 
     #[must_use]
@@ -102,59 +77,64 @@ impl<E: Hash + Eq> EventQueue<E> {
         self.queue.peek().map(|(_, Reverse(x))| **x)
     }
 
-    pub fn pop_next(&mut self) -> Option<(Time, E)> {
+    pub fn pop_next(&mut self) -> Option<(Time, I, E)> {
         if let Some((component_index, Reverse(time))) = self.queue.pop() {
             self.current_time = *time;
-            Some((*time, component_index))
+            Some((
+                *time,
+                component_index,
+                self.waiting.remove(&component_index).unwrap(),
+            ))
         } else {
             None
         }
     }
 }
 
-impl<E: Hash + Eq> Default for EventQueue<E> {
+impl<I: Hash + Eq + Copy, E> Default for EventQueue<I, E> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-struct EffectQueue {
-    queue: VecDeque<Effect>,
+struct EffectQueue<E> {
+    queue: VecDeque<Message<E>>,
 }
 
-impl EffectQueue {
-    const fn new() -> EffectQueue {
+impl<E> EffectQueue<E> {
+    const fn new() -> EffectQueue<E> {
         EffectQueue {
             queue: VecDeque::new(),
         }
     }
 
-    fn push_all<T: IntoIterator<Item = Effect>>(&mut self, effects: T) {
+    fn push_all<T: IntoIterator<Item = Message<E>>>(&mut self, effects: T) {
         self.queue.extend(effects);
     }
 
-    fn pop_next(&mut self) -> Option<Effect> {
+    fn pop_next(&mut self) -> Option<Message<E>> {
         self.queue.pop_front()
     }
 }
 
-pub struct Simulator {
-    components: Vec<ComponentWrapper>,
+pub struct Simulator<E> {
+    components: Vec<Box<dyn Component<E>>>,
     rng: Rng,
-    tick_queue: EventQueue<usize>,
+    tick_queue: EventQueue<usize, ()>,
 }
 
-impl Simulator {
-    pub fn new(components: Vec<Box<dyn Component>>, rng: Rng) -> Simulator {
+impl<E> Simulator<E> {
+    #[must_use]
+    pub fn new(components: Vec<Box<dyn Component<E>>>, rng: Rng) -> Simulator<E> {
         Simulator {
-            components: components.into_iter().map(ComponentWrapper::new).collect(),
+            components,
             rng,
             tick_queue: EventQueue::new(),
         }
     }
 
-    fn handle_effects(&mut self, time: Time, effects: &mut EffectQueue) {
-        while let Some(Effect {
+    fn handle_effects(&mut self, time: Time, effects: &mut EffectQueue<E>) {
+        while let Some(Message {
             component_index,
             effect,
         }) = effects.pop_next()
@@ -162,8 +142,9 @@ impl Simulator {
             let EffectResult {
                 next_tick,
                 effects: signals,
-            } = effect(&mut self.components[component_index], time, &mut self.rng);
-            self.tick_queue.set(component_index, next_tick);
+            } = self.components[component_index].receive(effect, time, &mut self.rng);
+            self.tick_queue
+                .insert_or_update(component_index, (), next_tick);
             effects.push_all(signals);
         }
     }
@@ -172,15 +153,14 @@ impl Simulator {
         &mut self,
         component_index: usize,
         time: Time,
-        effects: &mut EffectQueue,
+        effects: &mut EffectQueue<E>,
     ) {
         let EffectResult {
             next_tick,
             effects: signals,
-        } = self.components[component_index]
-            .as_component()
-            .tick(time, &mut self.rng);
-        self.tick_queue.set(component_index, next_tick);
+        } = self.components[component_index].tick(time, &mut self.rng);
+        self.tick_queue
+            .insert_or_update(component_index, (), next_tick);
         effects.push_all(signals);
     }
 
@@ -198,9 +178,12 @@ impl Simulator {
         self.handle_effects(time, &mut effects);
     }
 
-    pub fn run(mut self) {
+    pub fn run_until(mut self, end_time: f64) {
         self.first_tick();
-        while let Some((time, component_index)) = self.tick_queue.pop_next() {
+        while let Some((time, component_index, ())) = self.tick_queue.pop_next() {
+            if time >= end_time {
+                break;
+            }
             self.tick(component_index, time);
         }
     }

@@ -1,5 +1,10 @@
 #![warn(clippy::pedantic, clippy::nursery)]
-#![allow(clippy::module_name_repetitions, clippy::use_self)]
+#![allow(
+    clippy::module_name_repetitions,
+    clippy::use_self,
+    clippy::missing_panics_doc,
+    clippy::missing_errors_doc
+)]
 
 use std::{
     fs::File,
@@ -30,7 +35,7 @@ where
     T: Serialize + DeserializeOwned,
 {
     fn valid_path(path: &Path) -> bool {
-        path.extension().and_then(|x| x.to_str()) != Some("json")
+        path.extension().is_some_and(|x| x.to_str() == Some("json"))
     }
 
     fn save(&self, path: &Path) -> Result<()> {
