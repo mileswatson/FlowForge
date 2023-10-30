@@ -4,9 +4,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{Dna, ProgressHandler, Trainer};
 
-use self::remy_dna::WhiskerTree;
+use self::autogen::remy_dna::WhiskerTree;
 
-include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
+#[allow(clippy::all, clippy::pedantic, clippy::nursery)]
+mod autogen {
+    include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
+}
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct RemyConfig {}
