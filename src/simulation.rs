@@ -1,6 +1,7 @@
 use std::{
     cmp::Reverse,
     collections::{HashMap, VecDeque},
+    fmt::Debug,
     hash::Hash,
 };
 
@@ -11,7 +12,7 @@ use crate::rand::Rng;
 
 pub type Time = f64;
 
-pub trait HasVariant<T>: From<T> {
+pub trait HasVariant<T>: From<T> + Debug {
     fn try_into(self) -> Result<T, Self>;
 }
 
@@ -41,6 +42,8 @@ pub trait Component<E> {
     fn tick(&mut self, time: Time, rng: &mut Rng) -> EffectResult<E>;
     fn receive(&mut self, e: E, time: Time, rng: &mut Rng) -> EffectResult<E>;
 }
+
+#[derive(Debug)]
 pub struct EventQueue<I: Hash + Eq, E> {
     current_time: Time,
     waiting: HashMap<I, E>,
@@ -165,6 +168,7 @@ impl<E> Simulator<E> {
     }
 
     fn first_tick(&mut self) {
+        println!("time = 0.0");
         let mut effects = EffectQueue::new();
         for i in 0..self.components.len() {
             self.tick_without_effects(i, 0., &mut effects);
@@ -173,6 +177,7 @@ impl<E> Simulator<E> {
     }
 
     fn tick(&mut self, component_index: usize, time: Time) {
+        println!("time = {}", &time);
         let mut effects = EffectQueue::new();
         self.tick_without_effects(component_index, time, &mut effects);
         self.handle_effects(time, &mut effects);

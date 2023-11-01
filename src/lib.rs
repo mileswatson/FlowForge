@@ -3,7 +3,8 @@
     clippy::module_name_repetitions,
     clippy::use_self,
     clippy::missing_panics_doc,
-    clippy::missing_errors_doc
+    clippy::missing_errors_doc,
+    clippy::suboptimal_flops
 )]
 
 use std::{
