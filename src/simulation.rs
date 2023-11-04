@@ -121,7 +121,7 @@ impl<E> EffectQueue<E> {
 }
 
 pub struct Simulator<'a, E, L> {
-    components: Vec<Box<dyn Component<'a, E>>>,
+    components: Vec<Box<dyn Component<'a, E> + 'a>>,
     rng: Rng,
     tick_queue: EventQueue<usize, ()>,
     logger: L,
@@ -132,7 +132,11 @@ where
     L: Logger,
 {
     #[must_use]
-    pub fn new(components: Vec<Box<dyn Component<E>>>, rng: Rng, logger: L) -> Simulator<E, L> {
+    pub fn new(
+        components: Vec<Box<dyn Component<'a, E> + 'a>>,
+        rng: Rng,
+        logger: L,
+    ) -> Simulator<'a, E, L> {
         Simulator {
             components,
             rng,

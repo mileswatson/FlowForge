@@ -57,6 +57,7 @@ where
             Some(x) => x.2,
             None => return self.effect_result(vec![]),
         };
+        self.logger.log("Delivered packet");
         EffectResult {
             next_tick: self.to_deliver.next_time(),
             effects: vec![Message::new(self.destination, packet)],
@@ -70,7 +71,6 @@ where
             self.to_deliver
                 .insert_or_update(self.received_count, effect, Some(time + self.delay));
             self.received_count += 1;
-            self.logger.log("Delivered packet");
         }
         self.effect_result(vec![])
     }

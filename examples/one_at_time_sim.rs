@@ -1,5 +1,5 @@
 use flowforge::{
-    logging::NothingLogger,
+    logging::LogTable,
     network::{
         link::Link,
         protocols::one_at_time::{Ack, Packet, Receiver, Sender},
@@ -45,17 +45,17 @@ impl HasVariant<Ack> for Msg {
 }
 
 fn main() {
-    let mut logger = NothingLogger {};
+    let table = LogTable::new(5);
     let sim = Simulator::<Msg, _>::new(
         vec![
-            Sender::create(1, NothingLogger {}),
-            Link::create(2, 1.5, 0.1, NothingLogger {}),
-            Receiver::create(3, NothingLogger {}),
-            Link::create(0, 1.5, 0.1, NothingLogger {}),
+            Sender::create(1, table.logger(1)),
+            Link::create(2, 1.5, 0.1, table.logger(2)),
+            Receiver::create(3, table.logger(3)),
+            Link::create(0, 1.5, 0.1, table.logger(4)),
         ],
         Rng::from_seed(1_234_987_348),
-        &mut logger,
+        table.logger(0),
     );
-
-    sim.run_until(10000000.);
+    sim.run_until(100.);
+    println!("{}", table.build());
 }

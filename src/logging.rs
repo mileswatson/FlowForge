@@ -1,3 +1,10 @@
+use std::cell::RefCell;
+
+use tabled::{
+    builder::Builder,
+    settings::{style::HorizontalLine, Style},
+};
+
 pub trait Logger {
     fn log(&mut self, msg: &str);
 }
@@ -39,4 +46,66 @@ impl NothingLogger {
 
 impl Logger for NothingLogger {
     fn log(&mut self, _msg: &str) {}
+}
+
+pub struct LogTable {
+    columns: usize,
+    rows: RefCell<Vec<Vec<String>>>,
+}
+
+impl LogTable {
+    #[must_use]
+    pub const fn new(columns: usize) -> LogTable {
+        LogTable {
+            columns,
+            rows: RefCell::new(Vec::new()),
+        }
+    }
+
+    pub const fn logger(&self, index: usize) -> TableLogger {
+        TableLogger { index, table: self }
+    }
+
+    pub fn write(&self, index: usize, str: String) {
+        let mut row = Vec::with_capacity(self.columns);
+        for _ in 0..index {
+            row.push(String::new());
+        }
+        row.push(str);
+        for _ in index + 1..self.columns {
+            row.push(String::new());
+        }
+        self.rows.borrow_mut().push(row);
+    }
+
+    pub fn build(&self) -> String {
+        let mut builder = Builder::default();
+        let header = (0..self.columns).map(|i| i.to_string());
+        builder.set_header(header);
+        for row in self.rows.borrow().iter() {
+            builder.push_record(row);
+        }
+        let rows = self.rows.borrow();
+        builder
+            .build()
+            .with(
+                Style::rounded().horizontals(
+                    (1..rows.len())
+                        .filter(|i| !rows[i - 1][0].is_empty())
+                        .map(|i| HorizontalLine::new(i, Style::modern().get_horizontal())),
+                ),
+            )
+            .to_string()
+    }
+}
+
+pub struct TableLogger<'a> {
+    index: usize,
+    table: &'a LogTable,
+}
+
+impl Logger for TableLogger<'_> {
+    fn log(&mut self, msg: &str) {
+        self.table.write(self.index, msg.to_owned());
+    }
 }
