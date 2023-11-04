@@ -17,6 +17,7 @@ use anyhow::{anyhow, Result};
 use network::Network;
 use serde::{de::DeserializeOwned, Serialize};
 
+#[macro_use]
 pub mod logging;
 pub mod network;
 pub mod rand;

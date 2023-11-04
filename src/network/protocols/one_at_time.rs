@@ -48,10 +48,10 @@ where
     fn send<E: HasVariant<Packet>>(&mut self, time: Time, resend: bool) -> EffectResult<E> {
         if resend {
             self.last_sent_time = None;
-            self.logger.log(&format!("Resending {}", self.current_seq));
+            log!(self.logger, "Resending {}", self.current_seq);
         } else {
             self.last_sent_time = Some(time);
-            self.logger.log(&format!("Sending {}", self.current_seq));
+            log!(self.logger, "Sending {}", self.current_seq);
         }
         self.next_timeout = Some(time + self.timeout);
         EffectResult {
@@ -73,34 +73,34 @@ where
 {
     fn tick(&mut self, time: Time, _rng: &mut Rng) -> EffectResult<E> {
         self.timeout *= 2.;
-        self.logger.log(&format!(
+        log!(
+            self.logger,
             "Timed out, so adjusted timeout to {}",
             self.timeout
-        ));
+        );
         self.send(time, true)
     }
 
     fn receive(&mut self, e: E, time: Time, _rng: &mut Rng) -> EffectResult<E> {
         let p = HasVariant::<Ack>::try_into(e).unwrap();
         if p.seq != self.current_seq {
-            self.logger
-                .log(&format!("Ignoring duplicate of packet {}", p.seq));
+            log!(self.logger, "Ignoring duplicate of packet {}", p.seq);
             return EffectResult {
                 next_tick: self.next_timeout,
                 effects: vec![],
             };
         }
-        self.logger
-            .log(&format!("Received ack for {}", self.current_seq));
+        log!(self.logger, "Received ack for {}", self.current_seq);
         if let Some(last_sent_time) = self.last_sent_time {
             const ALPHA: f64 = 0.8;
             self.exp_average_rtt =
                 self.exp_average_rtt * ALPHA + (1. - ALPHA) * (time - last_sent_time);
             self.timeout = 2. * self.exp_average_rtt;
-            self.logger.log(&format!(
+            log!(
+                self.logger,
                 "Measured last sent time, so adjusted timeout to {:?}",
                 self.timeout
-            ));
+            );
         }
         self.current_seq += 1;
         self.send(time, false)
@@ -142,7 +142,7 @@ where
 
     fn receive(&mut self, message: E, _time: Time, _rng: &mut Rng) -> EffectResult<E> {
         let Packet { seq } = message.try_into().unwrap();
-        self.logger.log(&format!("Bounced message {seq}"));
+        log!(self.logger, "Bounced message {seq}");
         EffectResult {
             next_tick: None,
             effects: vec![Message::new(self.destination, Ack { seq })],

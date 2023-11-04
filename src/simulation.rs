@@ -177,7 +177,7 @@ where
     }
 
     fn first_tick(&mut self) {
-        self.logger.log("time = 0.0");
+        log!(self.logger, "time = 0.0");
         let mut effects = EffectQueue::new();
         for i in 0..self.components.len() {
             self.tick_without_effects(i, 0., &mut effects);
@@ -186,7 +186,7 @@ where
     }
 
     fn tick(&mut self, component_index: usize, time: Time) {
-        self.logger.log(&format!("time = {}", &time));
+        log!(self.logger, "time = {}", &time);
         let mut effects = EffectQueue::new();
         self.tick_without_effects(component_index, time, &mut effects);
         self.handle_effects(time, &mut effects);

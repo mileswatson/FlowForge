@@ -5,6 +5,15 @@ use tabled::{
     settings::{style::HorizontalLine, Style},
 };
 
+macro_rules! log {
+    ($logger:expr, $fmt_str:literal) => {
+        $logger.log(&format!($fmt_str))
+    };
+    ($logger:expr, $fmt_str:literal, $($args:expr),*) => {
+        $logger.log(&format!($fmt_str, $($args),*))
+    };
+}
+
 pub trait Logger {
     fn log(&mut self, msg: &str);
 }

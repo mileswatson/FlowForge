@@ -57,7 +57,7 @@ where
             Some(x) => x.2,
             None => return self.effect_result(vec![]),
         };
-        self.logger.log("Delivered packet");
+        log!(self.logger, "Delivered packet");
         EffectResult {
             next_tick: self.to_deliver.next_time(),
             effects: vec![Message::new(self.destination, packet)],
@@ -66,7 +66,7 @@ where
 
     fn receive(&mut self, effect: E, time: Time, rng: &mut Rng) -> EffectResult<E> {
         if rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. }) < self.loss {
-            self.logger.log("Dropped packet");
+            log!(self.logger, "Dropped packet");
         } else {
             self.to_deliver
                 .insert_or_update(self.received_count, effect, Some(time + self.delay));
