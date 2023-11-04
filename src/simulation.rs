@@ -38,7 +38,7 @@ pub struct EffectResult<E> {
     pub effects: Vec<Message<E>>,
 }
 
-pub trait Component<'a, E> {
+pub trait Component<E> {
     fn tick(&mut self, time: Time, rng: &mut Rng) -> EffectResult<E>;
     fn receive(&mut self, e: E, time: Time, rng: &mut Rng) -> EffectResult<E>;
 }
@@ -121,7 +121,7 @@ impl<E> EffectQueue<E> {
 }
 
 pub struct Simulator<'a, E, L> {
-    components: Vec<Box<dyn Component<'a, E> + 'a>>,
+    components: Vec<Box<dyn Component<E> + 'a>>,
     rng: Rng,
     tick_queue: EventQueue<usize, ()>,
     logger: L,
@@ -133,7 +133,7 @@ where
 {
     #[must_use]
     pub fn new(
-        components: Vec<Box<dyn Component<'a, E> + 'a>>,
+        components: Vec<Box<dyn Component<E> + 'a>>,
         rng: Rng,
         logger: L,
     ) -> Simulator<'a, E, L> {

@@ -27,7 +27,7 @@ where
         delay: f64,
         loss: f64,
         logger: L,
-    ) -> Box<dyn Component<'a, E> + 'a> {
+    ) -> Box<dyn Component<E> + 'a> {
         Box::new(Link {
             destination,
             delay,
@@ -48,7 +48,7 @@ impl<E, L> Link<E, L> {
     }
 }
 
-impl<E, L> Component<'_, E> for Link<E, L>
+impl<E, L> Component<E> for Link<E, L>
 where
     L: Logger,
 {

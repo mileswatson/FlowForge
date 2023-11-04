@@ -30,7 +30,7 @@ where
     L: Logger + 'a,
 {
     #[must_use]
-    pub fn create<E>(link: usize, logger: L) -> Box<dyn Component<'a, E> + 'a>
+    pub fn create<E>(link: usize, logger: L) -> Box<dyn Component<E> + 'a>
     where
         E: HasVariant<Packet> + HasVariant<Ack>,
     {
@@ -66,7 +66,7 @@ where
     }
 }
 
-impl<'a, E, L> Component<'a, E> for Sender<L>
+impl<'a, E, L> Component<E> for Sender<L>
 where
     E: HasVariant<Packet> + HasVariant<Ack>,
     L: Logger + 'a,
@@ -117,7 +117,7 @@ where
     L: Logger + 'a,
 {
     #[must_use]
-    pub fn create<E>(destination: usize, logger: L) -> Box<dyn Component<'a, E> + 'a>
+    pub fn create<E>(destination: usize, logger: L) -> Box<dyn Component<E> + 'a>
     where
         E: HasVariant<Packet> + HasVariant<Ack>,
     {
@@ -128,7 +128,7 @@ where
     }
 }
 
-impl<'a, E, L> Component<'a, E> for Receiver<L>
+impl<'a, E, L> Component<E> for Receiver<L>
 where
     E: HasVariant<Ack> + HasVariant<Packet>,
     L: Logger + 'a,
