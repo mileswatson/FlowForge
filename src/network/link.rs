@@ -1,43 +1,61 @@
 use std::fmt::Debug;
 
 use crate::{
-    rand::Rng,
+    logging::Logger,
+    rand::{ContinuousDistribution, Rng},
     simulation::{Component, EffectResult, EventQueue, Message, Time},
 };
 
 #[derive(Debug)]
-pub struct Link<E> {
+pub struct Link<E, L> {
     destination: usize,
     delay: f64,
+    loss: f64,
     received_count: u64,
     to_deliver: EventQueue<u64, E>,
+    logger: L,
 }
 
-impl<E> Link<E>
+impl<'a, E, L> Link<E, L>
 where
     E: 'static,
+    L: Logger + 'a,
 {
     #[must_use]
-    pub fn create(destination: usize, delay: f64) -> Box<dyn Component<E>> {
+    pub fn create(
+        destination: usize,
+        delay: f64,
+        loss: f64,
+        logger: L,
+    ) -> Box<dyn Component<'a, E> + 'a> {
         Box::new(Link {
             destination,
             delay,
+            loss,
             received_count: 0,
             to_deliver: EventQueue::new(),
+            logger,
         })
     }
 }
 
-impl<E> Component<E> for Link<E> {
+impl<E, L> Link<E, L> {
+    fn effect_result(&self, effects: Vec<Message<E>>) -> EffectResult<E> {
+        EffectResult {
+            next_tick: self.to_deliver.next_time(),
+            effects,
+        }
+    }
+}
+
+impl<E, L> Component<'_, E> for Link<E, L>
+where
+    L: Logger,
+{
     fn tick(&mut self, _time: Time, _rng: &mut Rng) -> EffectResult<E> {
         let packet = match self.to_deliver.pop_next() {
             Some(x) => x.2,
-            None => {
-                return EffectResult {
-                    next_tick: self.to_deliver.next_time(),
-                    effects: vec![],
-                }
-            }
+            None => return self.effect_result(vec![]),
         };
         EffectResult {
             next_tick: self.to_deliver.next_time(),
@@ -45,13 +63,15 @@ impl<E> Component<E> for Link<E> {
         }
     }
 
-    fn receive(&mut self, effect: E, time: Time, _rng: &mut Rng) -> EffectResult<E> {
-        self.to_deliver
-            .insert_or_update(self.received_count, effect, Some(time + self.delay));
-        self.received_count += 1;
-        EffectResult {
-            next_tick: self.to_deliver.next_time(),
-            effects: vec![],
+    fn receive(&mut self, effect: E, time: Time, rng: &mut Rng) -> EffectResult<E> {
+        if rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. }) < self.loss {
+            self.logger.log("Dropped packet");
+        } else {
+            self.to_deliver
+                .insert_or_update(self.received_count, effect, Some(time + self.delay));
+            self.received_count += 1;
+            self.logger.log("Delivered packet");
         }
+        self.effect_result(vec![])
     }
 }

@@ -8,7 +8,7 @@ use std::{
 use ordered_float::NotNan;
 use priority_queue::PriorityQueue;
 
-use crate::rand::Rng;
+use crate::{logging::Logger, rand::Rng};
 
 pub type Time = f64;
 
@@ -38,7 +38,7 @@ pub struct EffectResult<E> {
     pub effects: Vec<Message<E>>,
 }
 
-pub trait Component<E> {
+pub trait Component<'a, E> {
     fn tick(&mut self, time: Time, rng: &mut Rng) -> EffectResult<E>;
     fn receive(&mut self, e: E, time: Time, rng: &mut Rng) -> EffectResult<E>;
 }
@@ -120,19 +120,24 @@ impl<E> EffectQueue<E> {
     }
 }
 
-pub struct Simulator<E> {
-    components: Vec<Box<dyn Component<E>>>,
+pub struct Simulator<'a, E, L> {
+    components: Vec<Box<dyn Component<'a, E>>>,
     rng: Rng,
     tick_queue: EventQueue<usize, ()>,
+    logger: L,
 }
 
-impl<E> Simulator<E> {
+impl<'a, E, L> Simulator<'a, E, L>
+where
+    L: Logger,
+{
     #[must_use]
-    pub fn new(components: Vec<Box<dyn Component<E>>>, rng: Rng) -> Simulator<E> {
+    pub fn new(components: Vec<Box<dyn Component<E>>>, rng: Rng, logger: L) -> Simulator<E, L> {
         Simulator {
             components,
             rng,
             tick_queue: EventQueue::new(),
+            logger,
         }
     }
 
@@ -168,7 +173,7 @@ impl<E> Simulator<E> {
     }
 
     fn first_tick(&mut self) {
-        println!("time = 0.0");
+        self.logger.log("time = 0.0");
         let mut effects = EffectQueue::new();
         for i in 0..self.components.len() {
             self.tick_without_effects(i, 0., &mut effects);
@@ -177,7 +182,7 @@ impl<E> Simulator<E> {
     }
 
     fn tick(&mut self, component_index: usize, time: Time) {
-        println!("time = {}", &time);
+        self.logger.log(&format!("time = {}", &time));
         let mut effects = EffectQueue::new();
         self.tick_without_effects(component_index, time, &mut effects);
         self.handle_effects(time, &mut effects);
