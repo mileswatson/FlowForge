@@ -1,8 +1,9 @@
+use rustc_hash::{FxHashMap, FxHasher};
 use std::{
     cmp::Reverse,
-    collections::{HashMap, VecDeque},
+    collections::VecDeque,
     fmt::Debug,
-    hash::Hash,
+    hash::{BuildHasherDefault, Hash},
 };
 
 use ordered_float::NotNan;
@@ -52,8 +53,8 @@ pub trait Component<E> {
 #[derive(Debug)]
 pub struct EventQueue<I: Hash + Eq, E> {
     current_time: Time,
-    waiting: HashMap<I, E>,
-    queue: PriorityQueue<I, Reverse<NotNan<Time>>>,
+    waiting: FxHashMap<I, E>,
+    queue: PriorityQueue<I, Reverse<NotNan<Time>>, BuildHasherDefault<FxHasher>>,
 }
 
 impl<I: Hash + Eq + Copy, E> EventQueue<I, E> {
@@ -61,8 +62,8 @@ impl<I: Hash + Eq + Copy, E> EventQueue<I, E> {
     pub fn new() -> EventQueue<I, E> {
         EventQueue {
             current_time: 0.,
-            waiting: HashMap::new(),
-            queue: PriorityQueue::new(),
+            waiting: FxHashMap::default(),
+            queue: PriorityQueue::<_, _, BuildHasherDefault<FxHasher>>::with_default_hasher(),
         }
     }
 
