@@ -7,22 +7,22 @@ use tabled::{
 
 macro_rules! log {
     ($logger:expr, $fmt_str:literal) => {
-        $logger.log(&format!($fmt_str))
+        $logger.log(|| format!($fmt_str))
     };
     ($logger:expr, $fmt_str:literal, $($args:expr),*) => {
-        $logger.log(&format!($fmt_str, $($args),*))
+        $logger.log(|| format!($fmt_str, $($args),*))
     };
 }
 
 pub trait Logger {
-    fn log(&mut self, msg: &str);
+    fn log(&mut self, msg: impl FnOnce() -> String);
 }
 
 impl<'a, T> Logger for &'a mut T
 where
     T: Logger,
 {
-    fn log(&mut self, msg: &str) {
+    fn log(&mut self, msg: impl FnOnce() -> String) {
         T::log(self, msg);
     }
 }
@@ -39,8 +39,8 @@ impl PrintLogger {
 }
 
 impl Logger for PrintLogger {
-    fn log(&mut self, msg: &str) {
-        println!("[{}] {}", self.name, msg);
+    fn log(&mut self, msg: impl FnOnce() -> String) {
+        println!("[{}] {}", self.name, msg());
     }
 }
 
@@ -54,7 +54,7 @@ impl NothingLogger {
 }
 
 impl Logger for NothingLogger {
-    fn log(&mut self, _msg: &str) {}
+    fn log(&mut self, _msg: impl FnOnce() -> String) {}
 }
 
 pub struct LogTable {
@@ -114,7 +114,7 @@ pub struct TableLogger<'a> {
 }
 
 impl Logger for TableLogger<'_> {
-    fn log(&mut self, msg: &str) {
-        self.table.write(self.index, msg.to_owned());
+    fn log(&mut self, msg: impl FnOnce() -> String) {
+        self.table.write(self.index, msg());
     }
 }
