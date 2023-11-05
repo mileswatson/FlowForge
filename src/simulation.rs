@@ -38,9 +38,15 @@ pub struct EffectResult<E> {
     pub effects: Vec<Message<E>>,
 }
 
+pub struct EffectContext<'a> {
+    pub self_index: usize,
+    pub time: Time,
+    pub rng: &'a mut Rng,
+}
+
 pub trait Component<E> {
-    fn tick(&mut self, time: Time, rng: &mut Rng) -> EffectResult<E>;
-    fn receive(&mut self, e: E, time: Time, rng: &mut Rng) -> EffectResult<E>;
+    fn tick(&mut self, context: EffectContext) -> EffectResult<E>;
+    fn receive(&mut self, e: E, context: EffectContext) -> EffectResult<E>;
 }
 
 #[derive(Debug)]
@@ -154,7 +160,14 @@ where
             let EffectResult {
                 next_tick,
                 effects: signals,
-            } = self.components[component_index].receive(effect, time, &mut self.rng);
+            } = self.components[component_index].receive(
+                effect,
+                EffectContext {
+                    self_index: component_index,
+                    time,
+                    rng: &mut self.rng,
+                },
+            );
             self.tick_queue
                 .insert_or_update(component_index, (), next_tick);
             effects.push_all(signals);
@@ -170,7 +183,11 @@ where
         let EffectResult {
             next_tick,
             effects: signals,
-        } = self.components[component_index].tick(time, &mut self.rng);
+        } = self.components[component_index].tick(EffectContext {
+            self_index: component_index,
+            time,
+            rng: &mut self.rng,
+        });
         self.tick_queue
             .insert_or_update(component_index, (), next_tick);
         effects.push_all(signals);

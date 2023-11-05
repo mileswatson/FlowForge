@@ -1,22 +1,27 @@
 use crate::{
     logging::Logger,
-    rand::Rng,
-    simulation::{Component, EffectResult, HasVariant, Message, Time},
+    network::link::Routable,
+    simulation::{Component, EffectContext, EffectResult, HasVariant, Message, Time},
 };
 
 #[derive(Debug)]
 pub struct Packet {
     seq: u64,
+    source: usize,
+    destination: usize,
 }
 
-#[derive(Debug)]
-pub struct Ack {
-    seq: u64,
+impl Routable for Packet {
+    fn pop_next_hop(&mut self) -> usize {
+        self.destination
+    }
 }
 
 #[derive(Debug)]
 pub struct Sender<L> {
+    index: usize,
     link: usize,
+    destination: usize,
     current_seq: u64,
     next_timeout: Option<Time>,
     last_sent_time: Option<Time>,
@@ -30,12 +35,19 @@ where
     L: Logger + 'a,
 {
     #[must_use]
-    pub fn create<E>(link: usize, logger: L) -> Box<dyn Component<E> + 'a>
+    pub fn create<E>(
+        index: usize,
+        link: usize,
+        destination: usize,
+        logger: L,
+    ) -> Box<dyn Component<E> + 'a>
     where
-        E: HasVariant<Packet> + HasVariant<Ack>,
+        E: HasVariant<Packet>,
     {
         Box::new(Sender {
+            index,
             link,
+            destination,
             current_seq: 0,
             next_timeout: None,
             last_sent_time: None,
@@ -60,6 +72,8 @@ where
                 self.link,
                 Packet {
                     seq: self.current_seq,
+                    source: self.index,
+                    destination: self.destination,
                 },
             )],
         }
@@ -68,10 +82,10 @@ where
 
 impl<'a, E, L> Component<E> for Sender<L>
 where
-    E: HasVariant<Packet> + HasVariant<Ack>,
+    E: HasVariant<Packet>,
     L: Logger + 'a,
 {
-    fn tick(&mut self, time: Time, _rng: &mut Rng) -> EffectResult<E> {
+    fn tick(&mut self, EffectContext { time, .. }: EffectContext) -> EffectResult<E> {
         self.timeout *= 2.;
         log!(
             self.logger,
@@ -81,8 +95,8 @@ where
         self.send(time, true)
     }
 
-    fn receive(&mut self, e: E, time: Time, _rng: &mut Rng) -> EffectResult<E> {
-        let p = HasVariant::<Ack>::try_into(e).unwrap();
+    fn receive(&mut self, e: E, EffectContext { time, .. }: EffectContext) -> EffectResult<E> {
+        let p = HasVariant::<Packet>::try_into(e).unwrap();
         if p.seq != self.current_seq {
             log!(self.logger, "Ignoring duplicate of packet {}", p.seq);
             return EffectResult {
@@ -119,7 +133,7 @@ where
     #[must_use]
     pub fn create<E>(destination: usize, logger: L) -> Box<dyn Component<E> + 'a>
     where
-        E: HasVariant<Packet> + HasVariant<Ack>,
+        E: HasVariant<Packet>,
     {
         Box::new(Receiver {
             destination,
@@ -130,22 +144,38 @@ where
 
 impl<'a, E, L> Component<E> for Receiver<L>
 where
-    E: HasVariant<Ack> + HasVariant<Packet>,
+    E: HasVariant<Packet>,
     L: Logger + 'a,
 {
-    fn tick(&mut self, _time: Time, _rng: &mut Rng) -> EffectResult<E> {
+    fn tick(&mut self, _: EffectContext) -> EffectResult<E> {
         EffectResult {
             next_tick: None,
             effects: vec![],
         }
     }
 
-    fn receive(&mut self, message: E, _time: Time, _rng: &mut Rng) -> EffectResult<E> {
-        let Packet { seq } = message.try_into().unwrap();
+    fn receive<'b>(
+        &mut self,
+        message: E,
+        EffectContext { self_index, .. }: EffectContext,
+    ) -> EffectResult<E> {
+        let Packet {
+            source,
+            destination,
+            seq,
+        } = message.try_into().unwrap();
+        assert_eq!(destination, self_index);
         log!(self.logger, "Bounced message {seq}");
         EffectResult {
             next_tick: None,
-            effects: vec![Message::new(self.destination, Ack { seq })],
+            effects: vec![Message::new(
+                self.destination,
+                Packet {
+                    seq,
+                    source: self_index,
+                    destination: source,
+                },
+            )],
         }
     }
 }
