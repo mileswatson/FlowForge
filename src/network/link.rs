@@ -3,10 +3,8 @@ use std::{collections::VecDeque, fmt::Debug};
 use crate::{
     logging::Logger,
     rand::{ContinuousDistribution, Rng},
-    simulation::{
-        earliest, Component, EffectContext, EffectResult, EventQueue, HasVariant, Message, Rate,
-        Time, TimeSpan,
-    },
+    simulation::{Component, EffectContext, EffectResult, EventQueue, HasVariant, Message},
+    time::{earliest, Rate, Time, TimeSpan},
 };
 
 pub trait Routable {

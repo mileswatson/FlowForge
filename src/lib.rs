@@ -22,6 +22,7 @@ pub mod logging;
 pub mod network;
 pub mod rand;
 pub mod simulation;
+pub mod time;
 pub mod trainers;
 
 pub struct Json;

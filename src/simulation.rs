@@ -2,132 +2,17 @@ use rustc_hash::{FxHashMap, FxHasher};
 use std::{
     cmp::Reverse,
     collections::VecDeque,
-    fmt::{Debug, Display},
+    fmt::Debug,
     hash::{BuildHasherDefault, Hash},
-    ops::{Add, Mul, MulAssign, Sub},
 };
 
-use ordered_float::NotNan;
 use priority_queue::PriorityQueue;
 
-use crate::{logging::Logger, rand::Rng};
-
-pub type Float = f64;
-
-#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
-pub struct TimeSpan {
-    ts: Float,
-}
-
-impl TimeSpan {
-    #[must_use]
-    pub const fn new(ts: Float) -> TimeSpan {
-        TimeSpan { ts }
-    }
-}
-
-impl Add for TimeSpan {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        TimeSpan::new(self.ts + rhs.ts)
-    }
-}
-
-impl Mul<TimeSpan> for Float {
-    type Output = TimeSpan;
-
-    fn mul(self, rhs: TimeSpan) -> Self::Output {
-        TimeSpan::new(self * rhs.ts)
-    }
-}
-
-impl MulAssign<Float> for TimeSpan {
-    fn mul_assign(&mut self, rhs: Float) {
-        self.ts *= rhs;
-    }
-}
-
-impl Display for TimeSpan {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}s", self.ts)
-    }
-}
-
-#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
-pub struct Rate {
-    r: Float,
-}
-
-impl Rate {
-    #[must_use]
-    pub const fn new(r: Float) -> Rate {
-        Rate { r }
-    }
-
-    #[must_use]
-    pub fn period(&self) -> TimeSpan {
-        TimeSpan::new(1. / self.r)
-    }
-}
-
-impl Display for Rate {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}s^-1", self.r)
-    }
-}
-
-#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
-pub struct Time {
-    t: Float,
-}
-
-impl Time {
-    pub const MIN: Time = Time { t: Float::MIN };
-
-    const fn from_sim_start(t: Float) -> Time {
-        Time { t }
-    }
-
-    #[must_use]
-    pub const fn sim_start() -> Time {
-        Time::from_sim_start(0.)
-    }
-}
-
-impl Sub<Time> for Time {
-    type Output = TimeSpan;
-
-    fn sub(self, Time { t }: Time) -> Self::Output {
-        TimeSpan::new(self.t - t)
-    }
-}
-
-impl Add<TimeSpan> for Time {
-    type Output = Time;
-
-    fn add(self, TimeSpan { ts }: TimeSpan) -> Self::Output {
-        Time::from_sim_start(self.t + ts)
-    }
-}
-
-impl Display for Time {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}t", self.t)
-    }
-}
-
-#[must_use]
-pub fn earliest(times: &[Option<Time>]) -> Option<Time> {
-    times
-        .iter()
-        .fold(None, |prev, current| match (prev, *current) {
-            (Some(Time { t: t1 }), Some(Time { t: t2 })) => {
-                Some(Time::from_sim_start(Float::min(t1, t2)))
-            }
-            (m, None) | (None, m) => m,
-        })
-}
+use crate::{
+    logging::Logger,
+    rand::Rng,
+    time::{Time, TimeSpan},
+};
 
 pub trait HasVariant<T>: From<T> + Debug {
     fn try_into(self) -> Result<T, Self>;
@@ -170,7 +55,7 @@ pub trait Component<E> {
 pub struct EventQueue<I: Hash + Eq, E> {
     current_time: Time,
     waiting: FxHashMap<I, E>,
-    queue: PriorityQueue<I, Reverse<NotNan<Float>>, BuildHasherDefault<FxHasher>>,
+    queue: PriorityQueue<I, Reverse<Time>, BuildHasherDefault<FxHasher>>,
 }
 
 impl<I: Hash + Eq + Copy, E> EventQueue<I, E> {
@@ -186,7 +71,7 @@ impl<I: Hash + Eq + Copy, E> EventQueue<I, E> {
     pub fn update(&mut self, id: I, time: Option<Time>) {
         if let Some(time) = time {
             assert!(time >= self.current_time);
-            self.queue.push(id, Reverse(NotNan::new(time.t).unwrap()));
+            self.queue.push(id, Reverse(time));
         } else {
             self.waiting.remove(&id);
             self.queue.remove(&id);
@@ -200,16 +85,14 @@ impl<I: Hash + Eq + Copy, E> EventQueue<I, E> {
 
     #[must_use]
     pub fn next_time(&self) -> Option<Time> {
-        self.queue
-            .peek()
-            .map(|(_, Reverse(x))| Time::from_sim_start(**x))
+        self.queue.peek().map(|(_, Reverse(x))| *x)
     }
 
     pub fn pop_next(&mut self) -> Option<(Time, I, E)> {
         if let Some((component_index, Reverse(time))) = self.queue.pop() {
-            self.current_time = Time::from_sim_start(*time);
+            self.current_time = time;
             Some((
-                Time::from_sim_start(*time),
+                time,
                 component_index,
                 self.waiting.remove(&component_index).unwrap(),
             ))

@@ -1,7 +1,8 @@
 use crate::{
     logging::Logger,
     network::link::Routable,
-    simulation::{Component, EffectContext, EffectResult, HasVariant, Message, Time, TimeSpan},
+    simulation::{Component, EffectContext, EffectResult, HasVariant, Message},
+    time::{Time, TimeSpan},
 };
 
 #[derive(Debug)]

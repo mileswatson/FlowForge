@@ -5,7 +5,8 @@ use flowforge::{
         protocols::one_at_time::{Packet, Receiver, Sender},
     },
     rand::Rng,
-    simulation::{HasVariant, Rate, Simulator, TimeSpan},
+    simulation::{HasVariant, Simulator},
+    time::{Rate, TimeSpan},
 };
 
 #[derive(Debug)]
