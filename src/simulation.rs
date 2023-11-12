@@ -13,6 +13,16 @@ use crate::{logging::Logger, rand::Rng};
 
 pub type Time = f64;
 
+#[must_use]
+pub fn earliest(times: &[Option<Time>]) -> Option<Time> {
+    times
+        .iter()
+        .fold(None, |prev, current| match (prev, *current) {
+            (Some(x), Some(y)) => Some(f64::min(x, y)),
+            (m, None) | (None, m) => m,
+        })
+}
+
 pub trait HasVariant<T>: From<T> + Debug {
     fn try_into(self) -> Result<T, Self>;
 }
