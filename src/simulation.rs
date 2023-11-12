@@ -14,22 +14,34 @@ use crate::{
     time::{Time, TimeSpan},
 };
 
+#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
+pub struct ComponentId {
+    index: usize,
+}
+
+impl ComponentId {
+    #[must_use]
+    pub const fn new(index: usize) -> ComponentId {
+        ComponentId { index }
+    }
+}
+
 pub trait HasVariant<T>: From<T> + Debug {
     fn try_into(self) -> Result<T, Self>;
 }
 
 pub struct Message<E> {
-    pub component_index: usize,
+    pub component_id: ComponentId,
     pub effect: E,
 }
 
 impl<E> Message<E> {
-    pub fn new<V>(component_index: usize, effect: V) -> Message<E>
+    pub fn new<V>(component_id: ComponentId, effect: V) -> Message<E>
     where
         E: From<V>,
     {
         Message {
-            component_index,
+            component_id,
             effect: E::from(effect),
         }
     }
@@ -41,7 +53,7 @@ pub struct EffectResult<E> {
 }
 
 pub struct EffectContext<'a> {
-    pub self_index: usize,
+    pub self_id: ComponentId,
     pub time: Time,
     pub rng: &'a mut Rng,
 }
@@ -89,12 +101,12 @@ impl<I: Hash + Eq + Copy, E> EventQueue<I, E> {
     }
 
     pub fn pop_next(&mut self) -> Option<(Time, I, E)> {
-        if let Some((component_index, Reverse(time))) = self.queue.pop() {
+        if let Some((component_id, Reverse(time))) = self.queue.pop() {
             self.current_time = time;
             Some((
                 time,
-                component_index,
-                self.waiting.remove(&component_index).unwrap(),
+                component_id,
+                self.waiting.remove(&component_id).unwrap(),
             ))
         } else {
             None
@@ -131,7 +143,7 @@ impl<E> EffectQueue<E> {
 pub struct Simulator<'a, E, L> {
     components: Vec<Box<dyn Component<E> + 'a>>,
     rng: Rng,
-    tick_queue: EventQueue<usize, ()>,
+    tick_queue: EventQueue<ComponentId, ()>,
     logger: L,
 }
 
@@ -155,43 +167,43 @@ where
 
     fn handle_effects(&mut self, time: Time, effects: &mut EffectQueue<E>) {
         while let Some(Message {
-            component_index,
+            component_id,
             effect,
         }) = effects.pop_next()
         {
             let EffectResult {
                 next_tick,
                 effects: signals,
-            } = self.components[component_index].receive(
+            } = self.components[component_id.index].receive(
                 effect,
                 EffectContext {
-                    self_index: component_index,
+                    self_id: component_id,
                     time,
                     rng: &mut self.rng,
                 },
             );
             self.tick_queue
-                .insert_or_update(component_index, (), next_tick);
+                .insert_or_update(component_id, (), next_tick);
             effects.push_all(signals);
         }
     }
 
     fn tick_without_effects(
         &mut self,
-        component_index: usize,
+        component_id: ComponentId,
         time: Time,
         effects: &mut EffectQueue<E>,
     ) {
         let EffectResult {
             next_tick,
             effects: signals,
-        } = self.components[component_index].tick(EffectContext {
-            self_index: component_index,
+        } = self.components[component_id.index].tick(EffectContext {
+            self_id: component_id,
             time,
             rng: &mut self.rng,
         });
         self.tick_queue
-            .insert_or_update(component_index, (), next_tick);
+            .insert_or_update(component_id, (), next_tick);
         effects.push_all(signals);
     }
 
@@ -200,26 +212,26 @@ where
         let sim_start = Time::sim_start();
         let mut effects = EffectQueue::new();
         for i in 0..self.components.len() {
-            self.tick_without_effects(i, sim_start, &mut effects);
+            self.tick_without_effects(ComponentId::new(i), sim_start, &mut effects);
         }
         self.handle_effects(sim_start, &mut effects);
     }
 
-    fn tick(&mut self, component_index: usize, time: Time) {
+    fn tick(&mut self, component_id: ComponentId, time: Time) {
         log!(self.logger, "time = {}", &time);
         let mut effects = EffectQueue::new();
-        self.tick_without_effects(component_index, time, &mut effects);
+        self.tick_without_effects(component_id, time, &mut effects);
         self.handle_effects(time, &mut effects);
     }
 
     pub fn run_for(mut self, timespan: TimeSpan) {
         let end_time = Time::sim_start() + timespan;
         self.first_tick();
-        while let Some((time, component_index, ())) = self.tick_queue.pop_next() {
+        while let Some((time, component_id, ())) = self.tick_queue.pop_next() {
             if time >= end_time {
                 break;
             }
-            self.tick(component_index, time);
+            self.tick(component_id, time);
         }
     }
 }

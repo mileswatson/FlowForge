@@ -3,12 +3,14 @@ use std::{collections::VecDeque, fmt::Debug};
 use crate::{
     logging::Logger,
     rand::{ContinuousDistribution, Rng},
-    simulation::{Component, EffectContext, EffectResult, EventQueue, HasVariant, Message},
+    simulation::{
+        Component, ComponentId, EffectContext, EffectResult, EventQueue, HasVariant, Message,
+    },
     time::{earliest, Rate, Time, TimeSpan},
 };
 
 pub trait Routable {
-    fn pop_next_hop(&mut self) -> usize;
+    fn pop_next_hop(&mut self) -> ComponentId;
 }
 
 #[derive(Debug)]

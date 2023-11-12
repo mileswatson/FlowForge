@@ -5,7 +5,7 @@ use flowforge::{
         protocols::one_at_time::{Packet, Receiver, Sender},
     },
     rand::Rng,
-    simulation::{HasVariant, Simulator},
+    simulation::{ComponentId, HasVariant, Simulator},
     time::{Rate, TimeSpan},
 };
 
@@ -32,7 +32,12 @@ fn main() {
     let table = LogTable::new(5);
     let sim = Simulator::<Msg, _>::new(
         vec![
-            Sender::create(0, 1, 2, table.logger(1)),
+            Sender::create(
+                ComponentId::new(0),
+                ComponentId::new(1),
+                ComponentId::new(2),
+                table.logger(1),
+            ),
             Link::create(
                 TimeSpan::new(1.5),
                 Rate::new(0.2),
@@ -40,7 +45,7 @@ fn main() {
                 Some(1),
                 table.logger(2),
             ),
-            Receiver::create(3, table.logger(3)),
+            Receiver::create(ComponentId::new(3), table.logger(3)),
             Link::create(
                 TimeSpan::new(1.5),
                 Rate::new(0.2),

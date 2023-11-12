@@ -1,28 +1,28 @@
 use crate::{
     logging::Logger,
     network::link::Routable,
-    simulation::{Component, EffectContext, EffectResult, HasVariant, Message},
+    simulation::{Component, ComponentId, EffectContext, EffectResult, HasVariant, Message},
     time::{Time, TimeSpan},
 };
 
 #[derive(Debug)]
 pub struct Packet {
     seq: u64,
-    source: usize,
-    destination: usize,
+    source: ComponentId,
+    destination: ComponentId,
 }
 
 impl Routable for Packet {
-    fn pop_next_hop(&mut self) -> usize {
+    fn pop_next_hop(&mut self) -> ComponentId {
         self.destination
     }
 }
 
 #[derive(Debug)]
 pub struct Sender<L> {
-    index: usize,
-    link: usize,
-    destination: usize,
+    index: ComponentId,
+    link: ComponentId,
+    destination: ComponentId,
     current_seq: u64,
     next_timeout: Option<Time>,
     last_sent_time: Option<Time>,
@@ -37,9 +37,9 @@ where
 {
     #[must_use]
     pub fn create<E>(
-        index: usize,
-        link: usize,
-        destination: usize,
+        index: ComponentId,
+        link: ComponentId,
+        destination: ComponentId,
         logger: L,
     ) -> Box<dyn Component<E> + 'a>
     where
@@ -128,7 +128,7 @@ where
 }
 
 pub struct Receiver<L> {
-    destination: usize,
+    destination: ComponentId,
     logger: L,
 }
 
@@ -137,7 +137,7 @@ where
     L: Logger + 'a,
 {
     #[must_use]
-    pub fn create<E>(destination: usize, logger: L) -> Box<dyn Component<E> + 'a>
+    pub fn create<E>(destination: ComponentId, logger: L) -> Box<dyn Component<E> + 'a>
     where
         E: HasVariant<Packet>,
     {
@@ -163,14 +163,14 @@ where
     fn receive<'b>(
         &mut self,
         message: E,
-        EffectContext { self_index, .. }: EffectContext,
+        EffectContext { self_id, .. }: EffectContext,
     ) -> EffectResult<E> {
         let Packet {
             source,
             destination,
             seq,
         } = message.try_into().unwrap();
-        assert_eq!(destination, self_index);
+        assert_eq!(destination, self_id);
         log!(self.logger, "Bounced message {seq}");
         EffectResult {
             next_tick: None,
@@ -178,7 +178,7 @@ where
                 self.destination,
                 Packet {
                     seq,
-                    source: self_index,
+                    source: self_id,
                     destination: source,
                 },
             )],
