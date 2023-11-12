@@ -4,7 +4,8 @@ use crate::{
     logging::Logger,
     rand::{ContinuousDistribution, Rng},
     simulation::{
-        earliest, Component, EffectContext, EffectResult, EventQueue, HasVariant, Message, Time,
+        earliest, Component, EffectContext, EffectResult, EventQueue, HasVariant, Message, Rate,
+        Time, TimeSpan,
     },
 };
 
@@ -14,8 +15,8 @@ pub trait Routable {
 
 #[derive(Debug)]
 pub struct Link<P, L> {
-    delay: f64,
-    packet_rate: f64,
+    delay: TimeSpan,
+    packet_rate: Rate,
     loss: f64,
     buffer_size: Option<usize>,
     received_count: u64,
@@ -32,8 +33,8 @@ where
 {
     #[must_use]
     pub fn create<E>(
-        delay: f64,
-        packet_rate: f64,
+        delay: TimeSpan,
+        packet_rate: Rate,
         loss: f64,
         buffer_size: Option<usize>,
         logger: L,
@@ -98,7 +99,7 @@ where
                 self.received_count += 1;
             }
             // Don't dispatch another packet until this time
-            self.next_dispatch = Some(time + 1. / self.packet_rate);
+            self.next_dispatch = Some(time + self.packet_rate.period());
         } else {
             // No packets in the buffer, so next one can dispatch immediately
             self.next_dispatch = None;
@@ -131,7 +132,9 @@ where
     P: Routable,
 {
     fn tick(&mut self, EffectContext { time, rng, .. }: EffectContext) -> EffectResult<E> {
-        assert!(self.next_tick().map_or(time == 0., |t| time == t));
+        assert!(self
+            .next_tick()
+            .map_or(time == Time::sim_start(), |t| time == t));
         let mut effects = Vec::new();
         if let Some(msg) = self.try_deliver::<E>(time) {
             effects.push(msg);

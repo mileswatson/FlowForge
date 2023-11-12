@@ -1,7 +1,7 @@
 use crate::{
     logging::Logger,
     network::link::Routable,
-    simulation::{Component, EffectContext, EffectResult, HasVariant, Message, Time},
+    simulation::{Component, EffectContext, EffectResult, HasVariant, Message, Time, TimeSpan},
 };
 
 #[derive(Debug)]
@@ -25,8 +25,8 @@ pub struct Sender<L> {
     current_seq: u64,
     next_timeout: Option<Time>,
     last_sent_time: Option<Time>,
-    timeout: Time,
-    exp_average_rtt: Time,
+    timeout: TimeSpan,
+    exp_average_rtt: TimeSpan,
     logger: L,
 }
 
@@ -51,8 +51,8 @@ where
             current_seq: 0,
             next_timeout: None,
             last_sent_time: None,
-            timeout: 1.0,
-            exp_average_rtt: 0.5,
+            timeout: TimeSpan::new(1.0),
+            exp_average_rtt: TimeSpan::new(0.5),
             logger,
         })
     }
@@ -108,11 +108,11 @@ where
         if let Some(last_sent_time) = self.last_sent_time {
             const ALPHA: f64 = 0.8;
             self.exp_average_rtt =
-                self.exp_average_rtt * ALPHA + (1. - ALPHA) * (time - last_sent_time);
+                ALPHA * self.exp_average_rtt + (1. - ALPHA) * (time - last_sent_time);
             self.timeout = 2. * self.exp_average_rtt;
             log!(
                 self.logger,
-                "Measured last sent time, so adjusted timeout to {:?}",
+                "Measured last sent time, so adjusted timeout to {}",
                 self.timeout
             );
         }
