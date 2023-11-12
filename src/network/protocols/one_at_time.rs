@@ -79,6 +79,11 @@ where
             )],
         }
     }
+
+    fn record_rtt(&mut self, ts: TimeSpan) {
+        const ALPHA: f64 = 0.8;
+        self.exp_average_rtt = ALPHA * self.exp_average_rtt + (1. - ALPHA) * ts;
+    }
 }
 
 impl<'a, E, L> Component<E> for Sender<L>
@@ -87,12 +92,14 @@ where
     L: Logger + 'a,
 {
     fn tick(&mut self, EffectContext { time, .. }: EffectContext) -> EffectResult<E> {
+        self.record_rtt(self.timeout);
         self.timeout *= 2.;
         log!(
             self.logger,
             "Timed out, so adjusted timeout to {}",
             self.timeout
         );
+
         self.send(time, true)
     }
 
@@ -107,9 +114,7 @@ where
         }
         log!(self.logger, "Received ack for {}", self.current_seq);
         if let Some(last_sent_time) = self.last_sent_time {
-            const ALPHA: f64 = 0.8;
-            self.exp_average_rtt =
-                ALPHA * self.exp_average_rtt + (1. - ALPHA) * (time - last_sent_time);
+            self.record_rtt(time - last_sent_time);
             self.timeout = 2. * self.exp_average_rtt;
             log!(
                 self.logger,
