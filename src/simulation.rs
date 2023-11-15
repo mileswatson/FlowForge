@@ -1,9 +1,12 @@
 use rustc_hash::{FxHashMap, FxHasher};
 use std::{
+    cell::{Ref, RefCell, RefMut},
     cmp::Reverse,
     collections::VecDeque,
     fmt::Debug,
     hash::{BuildHasherDefault, Hash},
+    ops::{Deref, DerefMut},
+    rc::Rc,
 };
 
 use priority_queue::PriorityQueue;
@@ -13,6 +16,95 @@ use crate::{
     rand::Rng,
     time::{Time, TimeSpan},
 };
+
+pub enum DynComponent<'a, E> {
+    Owned(Box<dyn Component<E>>),
+    Shared(Rc<RefCell<dyn Component<E>>>),
+    Ref(&'a mut (dyn Component<E> + 'a)),
+}
+
+impl<'a, E> DynComponent<'a, E> {
+    #[must_use]
+    pub fn new<T: Component<E> + 'static>(value: T) -> DynComponent<'a, E> {
+        DynComponent::Owned(Box::new(value))
+    }
+
+    #[must_use]
+    pub fn owned(value: Box<dyn Component<E>>) -> DynComponent<'a, E> {
+        DynComponent::Owned(value)
+    }
+
+    #[must_use]
+    pub fn shared(value: Rc<RefCell<dyn Component<E>>>) -> DynComponent<'a, E> {
+        DynComponent::Shared(value)
+    }
+
+    #[must_use]
+    pub fn reference(value: &'a mut dyn Component<E>) -> DynComponent<'a, E> {
+        DynComponent::Ref(value)
+    }
+}
+
+pub enum DynComponentRef<'a, E> {
+    Ref(&'a dyn Component<E>),
+    ScopedRef(Ref<'a, dyn Component<E>>),
+}
+
+pub enum DynComponentRefMut<'a, E> {
+    Ref(&'a mut (dyn Component<E>)),
+    ScopedRef(RefMut<'a, dyn Component<E>>),
+}
+
+impl<'a, E> DynComponent<'a, E> {
+    #[must_use]
+    pub fn borrow(&self) -> DynComponentRef<E> {
+        match self {
+            DynComponent::Owned(x) => DynComponentRef::Ref(x.as_ref()),
+            DynComponent::Shared(x) => DynComponentRef::ScopedRef(x.borrow()),
+            DynComponent::Ref(r) => DynComponentRef::Ref(*r),
+        }
+    }
+
+    #[must_use]
+    pub fn borrow_mut(&mut self) -> DynComponentRefMut<E> {
+        match self {
+            DynComponent::Owned(x) => DynComponentRefMut::Ref(x.as_mut()),
+            DynComponent::Shared(x) => DynComponentRefMut::ScopedRef(x.borrow_mut()),
+            DynComponent::Ref(r) => DynComponentRefMut::Ref(*r),
+        }
+    }
+}
+
+impl<'a, E> Deref for DynComponentRef<'a, E> {
+    type Target = dyn Component<E> + 'a;
+
+    fn deref(&self) -> &(dyn Component<E> + 'a) {
+        match self {
+            DynComponentRef::Ref(r) => *r,
+            DynComponentRef::ScopedRef(s) => &**s,
+        }
+    }
+}
+
+impl<'a, E> Deref for DynComponentRefMut<'a, E> {
+    type Target = dyn Component<E> + 'a;
+
+    fn deref(&self) -> &(dyn Component<E> + 'a) {
+        match self {
+            DynComponentRefMut::Ref(r) => *r,
+            DynComponentRefMut::ScopedRef(s) => &**s,
+        }
+    }
+}
+
+impl<'a, E> DerefMut for DynComponentRefMut<'a, E> {
+    fn deref_mut(&mut self) -> &mut (dyn Component<E> + 'a) {
+        match self {
+            DynComponentRefMut::Ref(r) => *r,
+            DynComponentRefMut::ScopedRef(s) => &mut **s,
+        }
+    }
+}
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
 pub struct ComponentId {
@@ -26,8 +118,17 @@ impl ComponentId {
     }
 }
 
-pub trait HasVariant<T>: From<T> + Debug {
+pub trait HasVariant<T>: From<T> + Debug + Sync + 'static {
     fn try_into(self) -> Result<T, Self>;
+}
+
+impl<E> HasVariant<E> for E
+where
+    E: Debug + Sync + 'static,
+{
+    fn try_into(self) -> Result<E, Self> {
+        Ok(self)
+    }
 }
 
 pub struct Message<E> {
@@ -141,8 +242,8 @@ impl<E> EffectQueue<E> {
 }
 
 pub struct Simulator<'a, E, L> {
-    components: Vec<Box<dyn Component<E> + 'a>>,
-    rng: Rng,
+    components: Vec<DynComponent<'a, E>>,
+    rng: &'a mut Rng,
     tick_queue: EventQueue<ComponentId, ()>,
     logger: L,
 }
@@ -153,8 +254,8 @@ where
 {
     #[must_use]
     pub fn new(
-        components: Vec<Box<dyn Component<E> + 'a>>,
-        rng: Rng,
+        components: Vec<DynComponent<'a, E>>,
+        rng: &'a mut Rng,
         logger: L,
     ) -> Simulator<'a, E, L> {
         Simulator {
@@ -174,12 +275,12 @@ where
             let EffectResult {
                 next_tick,
                 effects: signals,
-            } = self.components[component_id.index].receive(
+            } = self.components[component_id.index].borrow_mut().receive(
                 effect,
                 EffectContext {
                     self_id: component_id,
                     time,
-                    rng: &mut self.rng,
+                    rng: self.rng,
                 },
             );
             self.tick_queue
@@ -197,11 +298,13 @@ where
         let EffectResult {
             next_tick,
             effects: signals,
-        } = self.components[component_id.index].tick(EffectContext {
-            self_id: component_id,
-            time,
-            rng: &mut self.rng,
-        });
+        } = self.components[component_id.index]
+            .borrow_mut()
+            .tick(EffectContext {
+                self_id: component_id,
+                time,
+                rng: self.rng,
+            });
         self.tick_queue
             .insert_or_update(component_id, (), next_tick);
         effects.push_all(signals);

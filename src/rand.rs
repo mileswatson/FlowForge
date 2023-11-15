@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContinuousDistribution<F: Float> {
+    Always { value: F },
     Uniform { min: F, max: F },
     Normal { mean: F, std_dev: F },
     Exponential { mean: F },
@@ -29,6 +30,7 @@ where
             ContinuousDistribution::Exponential { mean } => {
                 rng.sample(Exp::new(F::one() / *mean).unwrap())
             }
+            ContinuousDistribution::Always { value } => *value,
         }
     }
 }
@@ -37,7 +39,13 @@ where
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DiscreteDistribution<I: PrimInt> {
     /// A max-exclusive uniform distribution in the range [min, max).
-    Uniform { min: I, max: I },
+    Uniform {
+        min: I,
+        max: I,
+    },
+    Always {
+        value: I,
+    },
 }
 
 impl<I> Distribution<I> for DiscreteDistribution<I>
@@ -47,6 +55,7 @@ where
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> I {
         match self {
             DiscreteDistribution::Uniform { min, max } => rng.sample(Uniform::new(min, max)),
+            DiscreteDistribution::Always { value } => *value,
         }
     }
 }

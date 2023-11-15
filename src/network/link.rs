@@ -6,10 +6,10 @@ use crate::{
     simulation::{
         Component, ComponentId, EffectContext, EffectResult, EventQueue, HasVariant, Message,
     },
-    time::{earliest, Rate, Time, TimeSpan},
+    time::{earliest_opt, Rate, Time, TimeSpan},
 };
 
-pub trait Routable {
+pub trait Routable: Sync + 'static {
     fn pop_next_hop(&mut self) -> ComponentId;
 }
 
@@ -32,17 +32,14 @@ where
     P: Routable + 'a,
 {
     #[must_use]
-    pub fn create<E>(
+    pub fn create(
         delay: TimeSpan,
         packet_rate: Rate,
         loss: f64,
         buffer_size: Option<usize>,
         logger: L,
-    ) -> Box<dyn Component<E> + 'a>
-    where
-        E: 'a + HasVariant<P>,
-    {
-        Box::new(Link {
+    ) -> Self {
+        Link {
             delay,
             packet_rate,
             loss,
@@ -52,7 +49,7 @@ where
             buffer: VecDeque::new(),
             to_deliver: EventQueue::new(),
             logger,
-        })
+        }
     }
 }
 
@@ -62,7 +59,7 @@ where
     P: Routable,
 {
     fn next_tick(&self) -> Option<Time> {
-        earliest(&[self.to_deliver.next_time(), self.next_dispatch])
+        earliest_opt(&[self.to_deliver.next_time(), self.next_dispatch])
     }
 
     fn no_effects<E>(&self) -> EffectResult<E> {

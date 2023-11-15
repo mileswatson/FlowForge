@@ -2,7 +2,7 @@ use anyhow::Result;
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
-use crate::{Dna, ProgressHandler, Trainer};
+use crate::{rand::Rng, Dna, ProgressHandler, Trainer};
 
 use self::autogen::remy_dna::WhiskerTree;
 
@@ -34,21 +34,21 @@ impl Dna for RemyDna {
 
 pub struct RemyTrainer {}
 
-impl Trainer for RemyTrainer {
-    type DNA = RemyDna;
+impl Trainer<RemyDna> for RemyTrainer {
     type Config = RemyConfig;
 
     fn new(config: &RemyConfig) -> RemyTrainer {
         RemyTrainer {}
     }
 
-    fn train<H: ProgressHandler<Self::DNA>>(
+    fn train<H: ProgressHandler<RemyDna>>(
         &self,
         networks: &[crate::network::Network],
         progress_handler: &mut H,
-    ) -> Self::DNA {
+        rng: &mut Rng,
+    ) -> RemyDna {
         let result = RemyDna::default();
-        progress_handler.update_progress(&result);
+        progress_handler.update_progress(1., Some(&result));
         result
     }
 }

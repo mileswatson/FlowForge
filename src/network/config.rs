@@ -1,15 +1,20 @@
 use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
 
-use crate::rand::ContinuousDistribution;
+use crate::{
+    rand::{ContinuousDistribution, DiscreteDistribution},
+    time::{Float, Rate, TimeSpan},
+};
 
 use super::Network;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NetworkConfig {
-    pub rtt: ContinuousDistribution<f32>,
-    pub throughput: ContinuousDistribution<f32>,
-    pub loss_rate: ContinuousDistribution<f32>,
+    pub rtt: ContinuousDistribution<Float>,
+    pub packet_rate: ContinuousDistribution<Float>,
+    pub loss_rate: ContinuousDistribution<Float>,
+    pub buffer_size: Option<DiscreteDistribution<usize>>,
+    pub num_senders: DiscreteDistribution<usize>,
 }
 
 impl Default for NetworkConfig {
@@ -19,11 +24,13 @@ impl Default for NetworkConfig {
                 mean: 5e-3,
                 std_dev: 1e-3,
             },
-            throughput: ContinuousDistribution::Uniform { min: 12., max: 18. },
+            packet_rate: ContinuousDistribution::Uniform { min: 12., max: 18. },
             loss_rate: ContinuousDistribution::Normal {
                 mean: 0.1,
                 std_dev: 0.01,
             },
+            buffer_size: None,
+            num_senders: DiscreteDistribution::Uniform { min: 1, max: 3 },
         }
     }
 }
@@ -31,9 +38,11 @@ impl Default for NetworkConfig {
 impl Distribution<Network> for NetworkConfig {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Network {
         Network {
-            rtt: rng.sample(&self.rtt),
-            throughput: rng.sample(&self.throughput),
+            rtt: TimeSpan::new(rng.sample(&self.rtt)),
+            packet_rate: Rate::new(rng.sample(&self.packet_rate)),
             loss_rate: rng.sample(&self.loss_rate),
+            buffer_size: self.buffer_size.as_ref().map(|d| rng.sample(d)),
+            num_senders: rng.sample(&self.num_senders),
         }
     }
 }

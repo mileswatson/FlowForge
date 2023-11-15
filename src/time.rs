@@ -124,7 +124,12 @@ impl Display for Time {
 }
 
 #[must_use]
-pub fn earliest(times: &[Option<Time>]) -> Option<Time> {
+pub fn earliest(times: &[Time]) -> Time {
+    times.iter().copied().min().unwrap_or(Time::MIN)
+}
+
+#[must_use]
+pub fn earliest_opt(times: &[Option<Time>]) -> Option<Time> {
     times
         .iter()
         .fold(None, |prev, current| match (prev, *current) {

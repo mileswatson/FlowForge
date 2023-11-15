@@ -15,6 +15,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use network::Network;
+use rand::Rng;
 use serde::{de::DeserializeOwned, Serialize};
 
 #[macro_use]
@@ -59,7 +60,7 @@ where
     }
 }
 
-pub trait Dna: Sized {
+pub trait Dna: Sized + Send + Sync {
     const NAME: &'static str;
     fn serialize(&self) -> Result<Vec<u8>>;
     fn deserialize(buf: &[u8]) -> Result<Self>;
@@ -97,25 +98,25 @@ impl<D: Dna> Config<Custom> for D {
     }
 }
 
-pub trait ProgressHandler<D: Dna> {
-    fn update_progress(&mut self, d: &D);
+pub trait ProgressHandler<D: Dna>: Send {
+    fn update_progress(&mut self, fraction_completed: f32, top_scorer: Option<&D>);
 }
 
-impl<F: FnMut(&D), D: Dna> ProgressHandler<D> for F {
-    fn update_progress(&mut self, d: &D) {
-        self(d);
+impl<D: Dna, F: FnMut(f32, Option<&D>) + Send> ProgressHandler<D> for F {
+    fn update_progress(&mut self, fraction_completed: f32, top_scorer: Option<&D>) {
+        self(fraction_completed, top_scorer);
     }
 }
 
-pub trait Trainer {
-    type DNA: Dna;
+pub trait Trainer<D>
+where
+    D: Dna,
+{
     type Config: Config<Json>;
 
     fn new(config: &Self::Config) -> Self;
 
-    fn train<H: ProgressHandler<Self::DNA>>(
-        &self,
-        networks: &[Network],
-        progress_handler: &mut H,
-    ) -> Self::DNA;
+    fn train<H>(&self, networks: &[Network], progress_handler: &mut H, rng: &mut Rng) -> D
+    where
+        H: ProgressHandler<D>;
 }

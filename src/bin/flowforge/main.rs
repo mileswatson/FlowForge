@@ -13,6 +13,8 @@ mod train;
 enum TrainerConfigCommand {
     /// Train an instance of RemyCC
     Remy,
+    /// Train a DelayMultiplier agent using a genetic algorithm
+    DelayMultiplier,
 }
 
 #[derive(Subcommand, Debug, Clone)]

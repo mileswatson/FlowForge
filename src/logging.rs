@@ -44,12 +44,12 @@ impl Logger for PrintLogger {
     }
 }
 
-pub struct NothingLogger {}
+pub struct NothingLogger;
 
 impl NothingLogger {
     #[must_use]
     pub const fn new() -> NothingLogger {
-        NothingLogger {}
+        NothingLogger
     }
 }
 

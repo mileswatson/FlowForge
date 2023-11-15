@@ -5,6 +5,7 @@ use flowforge::{
     network::config::NetworkConfig,
     rand::Rng,
     trainers::{
+        delay_multiplier::{DelayMultiplierDna, DelayMultiplierTrainer},
         remy::{RemyDna, RemyTrainer},
         TrainerConfig,
     },
@@ -20,8 +21,23 @@ pub fn train(trainer_config: &Path, network_config: &Path, output: &Path) -> Res
     let networks: Vec<_> = (0..100).map(|_| rng.sample(&network_config)).collect();
 
     match trainer_config {
-        TrainerConfig::Remy(remy_config) => {
-            RemyTrainer::new(&remy_config).train(&networks, &mut |_: &RemyDna| {});
+        TrainerConfig::Remy(cfg) => {
+            RemyTrainer::new(&cfg).train(
+                &networks,
+                &mut |progress, d: Option<&RemyDna>| {},
+                &mut rng,
+            );
+        }
+        TrainerConfig::DelayMultiplier(cfg) => {
+            DelayMultiplierTrainer::new(&cfg).train(
+                &networks,
+                &mut |progress, d: Option<&DelayMultiplierDna>| {
+                    if let Some(d) = d {
+                        println!("{:?}", d);
+                    }
+                },
+                &mut rng,
+            );
         }
     };
 
