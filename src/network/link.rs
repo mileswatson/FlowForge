@@ -87,7 +87,7 @@ where
             if rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. }) < self.loss {
                 log!(self.logger, "Dropped packet (loss)");
             } else {
-                log!(self.logger, "transmitted packet");
+                log!(self.logger, "Transmitted packet");
                 self.to_deliver.insert_or_update(
                     self.received_count,
                     packet,
