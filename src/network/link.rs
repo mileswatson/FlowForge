@@ -20,7 +20,7 @@ pub struct Link<P, L> {
     loss: f64,
     buffer_size: Option<usize>,
     received_count: u64,
-    next_dispatch: Option<Time>,
+    next_transmit: Option<Time>,
     buffer: VecDeque<P>,
     to_deliver: EventQueue<u64, P>,
     logger: L,
@@ -45,7 +45,7 @@ where
             loss,
             buffer_size,
             received_count: 0,
-            next_dispatch: None,
+            next_transmit: None,
             buffer: VecDeque::new(),
             to_deliver: EventQueue::new(),
             logger,
@@ -59,7 +59,7 @@ where
     P: Routable,
 {
     fn next_tick(&self) -> Option<Time> {
-        earliest_opt(&[self.to_deliver.next_time(), self.next_dispatch])
+        earliest_opt(&[self.to_deliver.next_time(), self.next_transmit])
     }
 
     fn no_effects<E>(&self) -> EffectResult<E> {
@@ -76,9 +76,9 @@ where
         }
     }
 
-    fn try_dispatch(&mut self, time: Time, rng: &mut Rng) {
+    fn try_transmit(&mut self, time: Time, rng: &mut Rng) {
         // If there is a planned buffer release then wait for it
-        if self.next_dispatch.map_or(false, |t| t != time) {
+        if self.next_transmit.map_or(false, |t| t != time) {
             return;
         }
 
@@ -87,7 +87,7 @@ where
             if rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. }) < self.loss {
                 log!(self.logger, "Dropped packet (loss)");
             } else {
-                log!(self.logger, "Dispatched packet");
+                log!(self.logger, "transmitted packet");
                 self.to_deliver.insert_or_update(
                     self.received_count,
                     packet,
@@ -95,11 +95,11 @@ where
                 );
                 self.received_count += 1;
             }
-            // Don't dispatch another packet until this time
-            self.next_dispatch = Some(time + self.packet_rate.period());
+            // Don't transmit another packet until this time
+            self.next_transmit = Some(time + self.packet_rate.period());
         } else {
-            // No packets in the buffer, so next one can dispatch immediately
-            self.next_dispatch = None;
+            // No packets in the buffer, so next one can transmit immediately
+            self.next_transmit = None;
         }
     }
 
@@ -136,7 +136,7 @@ where
         if let Some(msg) = self.try_deliver::<E>(time) {
             effects.push(msg);
         }
-        self.try_dispatch(time, rng);
+        self.try_transmit(time, rng);
         self.effects(effects)
     }
 
@@ -154,7 +154,7 @@ where
         } else {
             log!(self.logger, "Buffered packet");
             self.buffer.push_back(packet);
-            self.try_dispatch(time, rng);
+            self.try_transmit(time, rng);
         }
         self.no_effects()
     }
