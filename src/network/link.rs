@@ -4,7 +4,7 @@ use crate::{
     logging::Logger,
     rand::{ContinuousDistribution, Rng},
     simulation::{
-        Component, ComponentId, EffectContext, EffectResult, EventQueue, HasVariant, Message,
+        Component, ComponentId, EffectContext, EffectResult, HasVariant, Message,
     },
     time::{earliest_opt, Rate, Time, TimeSpan},
 };
@@ -19,10 +19,9 @@ pub struct Link<P, L> {
     packet_rate: Rate,
     loss: f64,
     buffer_size: Option<usize>,
-    received_count: u64,
     next_transmit: Option<Time>,
     buffer: VecDeque<P>,
-    to_deliver: EventQueue<u64, P>,
+    transmitting: VecDeque<(P, Time)>,
     logger: L,
 }
 
@@ -44,10 +43,9 @@ where
             packet_rate,
             loss,
             buffer_size,
-            received_count: 0,
             next_transmit: None,
             buffer: VecDeque::new(),
-            to_deliver: EventQueue::new(),
+            transmitting: VecDeque::new(),
             logger,
         }
     }
@@ -59,7 +57,7 @@ where
     P: Routable,
 {
     fn next_tick(&self) -> Option<Time> {
-        earliest_opt(&[self.to_deliver.next_time(), self.next_transmit])
+        earliest_opt(&[self.next_transmit, self.transmitting.front().map(|x| x.1)])
     }
 
     fn no_effects<E>(&self) -> EffectResult<E> {
@@ -76,48 +74,44 @@ where
         }
     }
 
-    fn try_transmit(&mut self, time: Time, rng: &mut Rng) {
+    fn try_transmit(&mut self, time: Time) {
         // If there is a planned buffer release then wait for it
         if self.next_transmit.map_or(false, |t| t != time) {
             return;
         }
 
-        if let Some(packet) = self.buffer.pop_front() {
-            // Randomly drop packets to simulate loss
-            if rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. }) < self.loss {
-                log!(self.logger, "Dropped packet (loss)");
-            } else {
-                log!(self.logger, "Transmitted packet");
-                self.to_deliver.insert_or_update(
-                    self.received_count,
-                    packet,
-                    Some(time + self.delay),
-                );
-                self.received_count += 1;
+        match self.buffer.pop_front() {
+            Some(p) => {
+                self.transmitting.push_back((p, time + self.delay));
+                // Don't transmit another packet until this time
+                self.next_transmit = Some(time + self.packet_rate.period());
             }
-            // Don't transmit another packet until this time
-            self.next_transmit = Some(time + self.packet_rate.period());
-        } else {
-            // No packets in the buffer, so next one can transmit immediately
-            self.next_transmit = None;
+            None => {
+                // No packets in the buffer, so next one can transmit immediately
+                self.next_transmit = None;
+            }
         }
     }
 
     #[must_use]
-    fn try_deliver<E>(&mut self, time: Time) -> Option<Message<E>>
+    fn try_deliver<E>(&mut self, time: Time, rng: &mut Rng) -> Option<Message<E>>
     where
         E: HasVariant<P>,
     {
-        if Some(time) == self.to_deliver.next_time() {
-            let mut packet = match self.to_deliver.pop_next() {
-                Some(x) => x.2,
-                None => return None,
-            };
-            log!(self.logger, "Delivered packet");
-            let next_hop = packet.pop_next_hop();
-            Some(Message::new(next_hop, packet))
-        } else {
-            None
+        match self.transmitting.front() {
+            Some((_,t)) if t == &time => {
+                let (mut packet, _) = self.transmitting.pop_front().unwrap();
+                // Randomly drop packets to simulate loss
+                if rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. }) < self.loss {
+                    log!(self.logger, "Dropped packet (loss)");
+                    None
+                } else {
+                    log!(self.logger, "Delivered packet");
+                    let next_hop = packet.pop_next_hop();
+                    Some(Message::new(next_hop, packet))
+                }
+            },
+            _ => None,
         }
     }
 }
@@ -129,21 +123,18 @@ where
     P: Routable,
 {
     fn tick(&mut self, EffectContext { time, rng, .. }: EffectContext) -> EffectResult<E> {
-        assert!(self
-            .next_tick()
-            .map_or(time == Time::sim_start(), |t| time == t));
         let mut effects = Vec::new();
-        if let Some(msg) = self.try_deliver::<E>(time) {
+        if let Some(msg) = self.try_deliver::<E>(time, rng) {
             effects.push(msg);
         }
-        self.try_transmit(time, rng);
+        self.try_transmit(time);
         self.effects(effects)
     }
 
     fn receive(
         &mut self,
         effect: E,
-        EffectContext { time, rng, .. }: EffectContext,
+        ctx: EffectContext,
     ) -> EffectResult<E> {
         let packet = HasVariant::<P>::try_into(effect).unwrap();
         if self
@@ -151,11 +142,11 @@ where
             .is_some_and(|limit| self.buffer.len() == limit)
         {
             log!(self.logger, "Dropped packet (buffer full)");
+            self.no_effects()
         } else {
             log!(self.logger, "Buffered packet");
             self.buffer.push_back(packet);
-            self.try_transmit(time, rng);
+            self.tick(ctx)
         }
-        self.no_effects()
     }
 }
