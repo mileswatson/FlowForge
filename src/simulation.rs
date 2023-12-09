@@ -7,6 +7,7 @@ use std::{
     hash::{BuildHasherDefault, Hash},
     ops::{Deref, DerefMut},
     rc::Rc,
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 use priority_queue::PriorityQueue;
@@ -109,12 +110,13 @@ impl<'a, E> DerefMut for DynComponentRefMut<'a, E> {
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
 pub struct ComponentId {
     index: usize,
+    sim_id: u64,
 }
 
 impl ComponentId {
     #[must_use]
-    pub const fn new(index: usize) -> ComponentId {
-        ComponentId { index }
+    const fn new(index: usize, sim_id: u64) -> ComponentId {
+        ComponentId { index, sim_id }
     }
 }
 
@@ -241,7 +243,79 @@ impl<E> EffectQueue<E> {
     }
 }
 
+static NUM_SIMULATORS: AtomicU64 = AtomicU64::new(0);
+
+pub struct ComponentSlot<'a, 'b, E> {
+    index: usize,
+    builder: &'b SimulatorBuilder<'a, E>,
+}
+
+impl<'a, 'b, E> ComponentSlot<'a, 'b, E> {
+    #[must_use]
+    pub const fn id(&self) -> ComponentId {
+        ComponentId::new(self.index, self.builder.id)
+    }
+
+    #[allow(clippy::must_use_candidate)]
+    pub fn set(self, component: DynComponent<'a, E>) -> ComponentId {
+        let mut components = self.builder.components.borrow_mut();
+        assert!(components[self.index].is_none());
+        components[self.index] = Some(component);
+        self.id()
+    }
+}
+
+#[derive(Default)]
+pub struct SimulatorBuilder<'a, E> {
+    id: u64,
+    components: RefCell<Vec<Option<DynComponent<'a, E>>>>,
+}
+
+impl<'a, E> SimulatorBuilder<'a, E> {
+    #[must_use]
+    pub fn new() -> SimulatorBuilder<'a, E> {
+        SimulatorBuilder {
+            id: NUM_SIMULATORS.fetch_add(1, Ordering::Relaxed),
+            components: RefCell::new(Vec::new()),
+        }
+    }
+
+    pub fn insert(&self, component: DynComponent<'a, E>) -> ComponentId {
+        let mut components = self.components.borrow_mut();
+        let id = ComponentId::new(components.len(), self.id);
+        components.push(Some(component));
+        id
+    }
+
+    pub fn reserve_slot<'b>(&'b self) -> ComponentSlot<'a, 'b, E> {
+        let mut components = self.components.borrow_mut();
+        let index = components.len();
+        components.push(None);
+        ComponentSlot {
+            index,
+            builder: self,
+        }
+    }
+
+    pub fn build<L>(self, rng: &'a mut Rng, logger: L) -> Simulator<'a, E, L> {
+        let components = self
+            .components
+            .into_inner()
+            .into_iter()
+            .map(Option::unwrap)
+            .collect();
+        Simulator {
+            id: self.id,
+            components,
+            rng,
+            tick_queue: EventQueue::new(),
+            logger,
+        }
+    }
+}
+
 pub struct Simulator<'a, E, L> {
+    id: u64,
     components: Vec<DynComponent<'a, E>>,
     rng: &'a mut Rng,
     tick_queue: EventQueue<ComponentId, ()>,
@@ -252,20 +326,6 @@ impl<'a, E, L> Simulator<'a, E, L>
 where
     L: Logger,
 {
-    #[must_use]
-    pub fn new(
-        components: Vec<DynComponent<'a, E>>,
-        rng: &'a mut Rng,
-        logger: L,
-    ) -> Simulator<'a, E, L> {
-        Simulator {
-            components,
-            rng,
-            tick_queue: EventQueue::new(),
-            logger,
-        }
-    }
-
     fn handle_effects(&mut self, time: Time, effects: &mut EffectQueue<E>) {
         while let Some(Message {
             component_id,
@@ -295,6 +355,7 @@ where
         time: Time,
         effects: &mut EffectQueue<E>,
     ) {
+        assert_eq!(component_id.sim_id, self.id);
         let EffectResult {
             next_tick,
             effects: signals,
@@ -315,7 +376,7 @@ where
         let sim_start = Time::sim_start();
         let mut effects = EffectQueue::new();
         for i in 0..self.components.len() {
-            self.tick_without_effects(ComponentId::new(i), sim_start, &mut effects);
+            self.tick_without_effects(ComponentId::new(i, self.id), sim_start, &mut effects);
         }
         self.handle_effects(sim_start, &mut effects);
     }

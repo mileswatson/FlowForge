@@ -4,9 +4,9 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    network::{link::Routable, Network, SimProperties},
+    network::{link::Routable, Network, NetworkSlots},
     rand::Rng,
-    simulation::{DynComponent, HasVariant},
+    simulation::HasVariant,
     time::{Float, TimeSpan},
     Dna, ProgressHandler, Trainer,
 };
@@ -36,16 +36,15 @@ pub struct GeneticTrainer<E, P> {
     packet: PhantomData<P>,
 }
 
-pub struct Components<'a, E: 'static> {
-    pub senders: Vec<DynComponent<'a, E>>,
-    pub receiver: DynComponent<'a, E>,
-    pub get_score: Box<dyn FnOnce() -> Float>,
-}
-
 pub trait GeneticDna<E>: Dna {
     fn new_random(rng: &mut Rng) -> Self;
 
-    fn generate_components(&self, sim_properties: SimProperties, rng: &mut Rng) -> Components<E>;
+    /// Populates senders and receiver slots, and returns a ``get_score`` function
+    fn populate_components(
+        &self,
+        network_slots: NetworkSlots<E>,
+        rng: &mut Rng,
+    ) -> Box<dyn FnOnce() -> Float>;
 
     #[must_use]
     fn spawn_child(&self, rng: &mut Rng) -> Self;
@@ -106,13 +105,9 @@ where
                 .par_bridge()
                 .map(|(d, mut rng)| {
                     let score_network = |n: &Network| {
-                        let Components {
-                            senders,
-                            receiver,
-                            get_score,
-                        } = d.generate_components(n.sim_properties(), &mut rng);
                         update_progress();
-                        let sim = n.to_sim::<E, P>(&mut rng, senders, receiver);
+                        let (sim, get_score) =
+                            n.to_sim(&mut rng, |slots, rng| d.populate_components(slots, rng));
                         sim.run_for(self.run_for);
                         get_score()
                     };

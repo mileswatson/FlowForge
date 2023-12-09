@@ -5,7 +5,7 @@ use flowforge::{
         protocols::delay_multiplier::{Packet, Receiver, Sender},
     },
     rand::Rng,
-    simulation::{ComponentId, DynComponent, HasVariant, Simulator},
+    simulation::{DynComponent, HasVariant, SimulatorBuilder},
     time::{Rate, TimeSpan},
 };
 
@@ -30,11 +30,17 @@ impl HasVariant<Packet> for Msg {
 
 fn main() {
     let table = LogTable::new(5);
-    let mut rng = Rng::from_seed(1_234_987_348);
+    let builder = SimulatorBuilder::<Msg>::new();
+
+    let sender_slot = builder.reserve_slot();
+    let link1_slot = builder.reserve_slot();
+    let receiver_slot = builder.reserve_slot();
+    let link2_slot = builder.reserve_slot();
+
     let mut sender = Sender::new::<Msg>(
-        ComponentId::new(0),
-        ComponentId::new(1),
-        ComponentId::new(2),
+        sender_slot.id(),
+        link1_slot.id(),
+        receiver_slot.id(),
         2.0,
         TimeSpan::new(0.),
         table.logger(1),
@@ -46,7 +52,7 @@ fn main() {
         Some(1),
         table.logger(2),
     );
-    let mut receiver = Receiver::new::<Msg>(ComponentId::new(3), table.logger(3));
+    let mut receiver = Receiver::new::<Msg>(link2_slot.id(), table.logger(3));
     let mut link2 = Link::<Packet, _>::create(
         TimeSpan::new(1.5),
         Rate::new(0.2),
@@ -54,16 +60,14 @@ fn main() {
         Some(1),
         table.logger(4),
     );
-    let sim = Simulator::<Msg, _>::new(
-        vec![
-            DynComponent::reference(&mut sender),
-            DynComponent::reference(&mut link1),
-            DynComponent::reference(&mut receiver),
-            DynComponent::reference(&mut link2),
-        ],
-        &mut rng,
-        table.logger(0),
-    );
+
+    sender_slot.set(DynComponent::Ref(&mut sender));
+    link1_slot.set(DynComponent::Ref(&mut link1));
+    receiver_slot.set(DynComponent::Ref(&mut receiver));
+    link2_slot.set(DynComponent::Ref(&mut link2));
+
+    let mut rng = Rng::from_seed(1_234_987_348);
+    let sim = builder.build(&mut rng, table.logger(0));
     sim.run_for(TimeSpan::new(100.));
     println!("{}", table.build());
 }

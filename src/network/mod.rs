@@ -1,7 +1,9 @@
 use crate::{
     logging::NothingLogger,
     rand::Rng,
-    simulation::{ComponentId, DynComponent, HasVariant, Simulator},
+    simulation::{
+        ComponentId, ComponentSlot, DynComponent, HasVariant, Simulator, SimulatorBuilder,
+    },
     time::{Float, Rate, TimeSpan},
 };
 
@@ -21,52 +23,48 @@ pub struct Network {
     pub num_senders: usize,
 }
 
-pub struct SimProperties {
-    pub sender_ids: Vec<ComponentId>,
+pub struct NetworkSlots<'a, 'b, E> {
+    pub sender_slots: Vec<ComponentSlot<'a, 'b, E>>,
     pub sender_link_id: ComponentId,
-    pub receiver_id: ComponentId,
+    pub receiver_slot: ComponentSlot<'a, 'b, E>,
     pub receiver_link_id: ComponentId,
 }
 
 impl Network {
-    pub fn sim_properties(&self) -> SimProperties {
-        SimProperties {
-            sender_ids: (0..self.num_senders).map(ComponentId::new).collect(),
-            sender_link_id: ComponentId::new(self.num_senders),
-            receiver_id: ComponentId::new(self.num_senders + 1),
-            receiver_link_id: ComponentId::new(self.num_senders + 2),
-        }
-    }
-
     #[must_use]
-    pub fn to_sim<'a, E, P>(
+    pub fn to_sim<'a, E, P, R>(
         &self,
         rng: &'a mut Rng,
-        senders: Vec<DynComponent<'a, E>>,
-        receiver: DynComponent<'a, E>,
-    ) -> Simulator<'a, E, NothingLogger>
+        populate_components: impl FnOnce(NetworkSlots<'a, '_, E>, &mut Rng) -> R,
+    ) -> (Simulator<'a, E, NothingLogger>, R)
     where
         E: HasVariant<P> + 'a,
         P: Routable + 'a,
     {
-        let mut components: Vec<_> = senders;
-        components.extend([
-            DynComponent::new(Link::create(
+        let builder = SimulatorBuilder::new();
+        let slots = NetworkSlots {
+            sender_slots: (0..self.num_senders)
+                .map(|_| builder.reserve_slot())
+                .collect(),
+            sender_link_id: builder.insert(DynComponent::new(Link::create(
                 0.5 * self.rtt,
                 self.packet_rate,
                 self.loss_rate,
                 self.buffer_size,
                 NothingLogger,
-            )),
-            receiver,
-            DynComponent::new(Link::create(
+            ))),
+            receiver_slot: builder.reserve_slot(),
+            receiver_link_id: builder.insert(DynComponent::new(Link::create(
                 0.5 * self.rtt,
                 self.packet_rate,
                 self.loss_rate,
                 self.buffer_size,
                 NothingLogger,
-            )),
-        ]);
-        Simulator::<E, _>::new(components, rng, NothingLogger)
+            ))),
+        };
+
+        let r = populate_components(slots, rng);
+
+        (builder.build(rng, NothingLogger), r)
     }
 }

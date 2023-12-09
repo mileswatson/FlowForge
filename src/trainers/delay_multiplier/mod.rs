@@ -4,14 +4,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     logging::NothingLogger,
-    network::protocols::delay_multiplier::{Packet, Receiver, Sender},
+    network::{
+        protocols::delay_multiplier::{Packet, Receiver, Sender},
+        NetworkSlots,
+    },
     rand::{ContinuousDistribution, Rng},
     simulation::DynComponent,
     time::TimeSpan,
     Dna, Trainer,
 };
 
-use super::genetic::{self, GeneticConfig, GeneticDna, GeneticTrainer};
+use super::genetic::{GeneticConfig, GeneticDna, GeneticTrainer};
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct DelayMultiplierConfig {
@@ -46,53 +49,51 @@ impl GeneticDna<Packet> for DelayMultiplierDna {
         }
     }
 
-    fn generate_components(
-        &self,
-        sim_properties: crate::network::SimProperties,
-        rng: &mut Rng,
-    ) -> genetic::Components<Packet> {
-        let senders: Vec<Rc<_>> = sim_properties
-            .sender_ids
-            .into_iter()
-            .map(|id| {
-                Rc::new(RefCell::new(Sender::new::<Packet>(
-                    id,
-                    sim_properties.sender_link_id,
-                    sim_properties.receiver_id,
-                    self.multiplier,
-                    TimeSpan::new(
-                        rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 10. }),
-                    ),
-                    NothingLogger,
-                )))
-            })
-            .collect();
-        #[allow(clippy::cast_precision_loss)]
-        genetic::Components {
-            senders: senders
-                .iter()
-                .map(|x| DynComponent::shared(x.clone()))
-                .collect(),
-            receiver: DynComponent::owned(Box::new(Receiver::new::<Packet>(
-                sim_properties.receiver_link_id,
-                NothingLogger,
-            ))),
-            get_score: Box::new(move || {
-                /*senders
-                .iter()
-                .map(|s| s.borrow().packets() as f64)
-                .sum::<f64>()
-                / senders.len() as f64*/
-                senders.iter().map(|s| s.borrow().packets()).min().unwrap() as f64
-            }),
-        }
-    }
-
     fn spawn_child(&self, rng: &mut Rng) -> Self {
         DelayMultiplierDna {
             multiplier: self.multiplier
                 * rng.sample(&ContinuousDistribution::Uniform { min: 0.9, max: 1.1 }),
         }
+    }
+
+    fn populate_components(
+        &self,
+        network_slots: NetworkSlots<Packet>,
+        rng: &mut Rng,
+    ) -> Box<dyn FnOnce() -> crate::time::Float> {
+        let senders: Vec<Rc<_>> = network_slots
+            .sender_slots
+            .into_iter()
+            .map(|slot| {
+                let sender = Rc::new(RefCell::new(Sender::new::<Packet>(
+                    slot.id(),
+                    network_slots.sender_link_id,
+                    network_slots.receiver_slot.id(),
+                    self.multiplier,
+                    TimeSpan::new(
+                        rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 10. }),
+                    ),
+                    NothingLogger,
+                )));
+                slot.set(DynComponent::shared(sender.clone()));
+                sender
+            })
+            .collect();
+        network_slots
+            .receiver_slot
+            .set(DynComponent::owned(Box::new(Receiver::new::<Packet>(
+                network_slots.receiver_link_id,
+                NothingLogger,
+            ))));
+        #[allow(clippy::cast_precision_loss)]
+        Box::new(move || {
+            /*senders
+            .iter()
+            .map(|s| s.borrow().packets() as f64)
+            .sum::<f64>()
+            / senders.len() as f64*/
+            senders.iter().map(|s| s.borrow().packets()).min().unwrap() as f64
+        })
     }
 }
 

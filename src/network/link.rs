@@ -3,9 +3,7 @@ use std::{collections::VecDeque, fmt::Debug};
 use crate::{
     logging::Logger,
     rand::{ContinuousDistribution, Rng},
-    simulation::{
-        Component, ComponentId, EffectContext, EffectResult, HasVariant, Message,
-    },
+    simulation::{Component, ComponentId, EffectContext, EffectResult, HasVariant, Message},
     time::{earliest_opt, Rate, Time, TimeSpan},
 };
 
@@ -99,18 +97,17 @@ where
         E: HasVariant<P>,
     {
         match self.transmitting.front() {
-            Some((_,t)) if t == &time => {
+            Some((_, t)) if t == &time => {
                 let (mut packet, _) = self.transmitting.pop_front().unwrap();
                 // Randomly drop packets to simulate loss
                 if rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. }) < self.loss {
                     log!(self.logger, "Dropped packet (loss)");
                     None
                 } else {
-                    log!(self.logger, "Delivered packet");
                     let next_hop = packet.pop_next_hop();
                     Some(Message::new(next_hop, packet))
                 }
-            },
+            }
             _ => None,
         }
     }
@@ -131,11 +128,7 @@ where
         self.effects(effects)
     }
 
-    fn receive(
-        &mut self,
-        effect: E,
-        ctx: EffectContext,
-    ) -> EffectResult<E> {
+    fn receive(&mut self, effect: E, ctx: EffectContext) -> EffectResult<E> {
         let packet = HasVariant::<P>::try_into(effect).unwrap();
         if self
             .buffer_size
