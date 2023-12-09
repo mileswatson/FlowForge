@@ -10,6 +10,7 @@ use self::link::{Link, Routable};
 pub mod config;
 pub mod link;
 pub mod protocols;
+pub mod toggler;
 
 #[derive(Debug)]
 pub struct Network {
