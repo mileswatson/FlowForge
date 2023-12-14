@@ -75,6 +75,7 @@ pub struct Time {
 
 impl Time {
     pub const MIN: Time = Time { t: Float::MIN };
+    pub const MAX: Time = Time { t: Float::MAX };
 
     #[must_use]
     pub const fn from_sim_start(t: Float) -> Time {
@@ -135,6 +136,23 @@ pub fn earliest_opt(times: &[Option<Time>]) -> Option<Time> {
         .fold(None, |prev, current| match (prev, *current) {
             (Some(Time { t: t1 }), Some(Time { t: t2 })) => {
                 Some(Time::from_sim_start(Float::min(t1, t2)))
+            }
+            (m, None) | (None, m) => m,
+        })
+}
+
+#[must_use]
+pub fn latest(times: &[Time]) -> Time {
+    times.iter().copied().max().unwrap_or(Time::MAX)
+}
+
+#[must_use]
+pub fn latest_opt(times: &[Option<Time>]) -> Option<Time> {
+    times
+        .iter()
+        .fold(None, |prev, current| match (prev, *current) {
+            (Some(Time { t: t1 }), Some(Time { t: t2 })) => {
+                Some(Time::from_sim_start(Float::max(t1, t2)))
             }
             (m, None) | (None, m) => m,
         })

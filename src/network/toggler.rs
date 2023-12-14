@@ -1,14 +1,16 @@
 use crate::{
     rand::{ContinuousDistribution, Rng},
-    simulation::{Component, ComponentId, EffectResult, HasVariant, Message},
+    simulation::{Component, ComponentId, EffectContext, HasVariant, Message},
     time::{Float, Time, TimeSpan},
 };
 
+#[derive(PartialEq, Eq)]
 pub enum Toggle {
     Enable,
     Disable,
 }
 
+#[derive(Debug)]
 pub struct Toggler {
     target: ComponentId,
     enabled: bool,
@@ -38,10 +40,11 @@ impl<E> Component<E> for Toggler
 where
     E: HasVariant<Toggle>,
 {
-    fn tick(
-        &mut self,
-        context: crate::simulation::EffectContext,
-    ) -> crate::simulation::EffectResult<E> {
+    fn tick(&mut self, context: EffectContext) -> Vec<Message<E>> {
+        assert_eq!(
+            Some(context.time),
+            Component::<E>::next_tick(self, context.time)
+        );
         let mut effects = Vec::new();
         if context.time == self.next_toggle {
             self.enabled = !self.enabled;
@@ -54,20 +57,14 @@ where
             };
             self.next_toggle = context.time + TimeSpan::new(context.rng.sample(&dist));
         }
-        EffectResult {
-            next_tick: Some(self.next_toggle),
-            effects,
-        }
+        effects
     }
 
-    fn receive(
-        &mut self,
-        _e: E,
-        _context: crate::simulation::EffectContext,
-    ) -> crate::simulation::EffectResult<E> {
-        EffectResult {
-            next_tick: Some(self.next_toggle),
-            effects: Vec::new(),
-        }
+    fn receive(&mut self, _e: E, _context: EffectContext) -> Vec<Message<E>> {
+        panic!()
+    }
+
+    fn next_tick(&self, _time: Time) -> Option<Time> {
+        Some(self.next_toggle)
     }
 }

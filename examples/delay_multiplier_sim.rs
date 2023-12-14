@@ -2,10 +2,14 @@ use flowforge::{
     logging::LogTable,
     network::{
         link::Link,
-        protocols::delay_multiplier::{Packet, Receiver, Sender},
+        protocols::{
+            delay_multiplier::LossySender,
+            window::lossy_window::{LossyBouncer, Packet},
+        },
+        toggler::Toggle,
     },
     rand::Rng,
-    simulation::{DynComponent, HasVariant, SimulatorBuilder},
+    simulation::{DynComponent, MaybeHasVariant, SimulatorBuilder},
     time::{Rate, TimeSpan},
 };
 
@@ -20,11 +24,17 @@ impl From<Packet> for Msg {
     }
 }
 
-impl HasVariant<Packet> for Msg {
+impl MaybeHasVariant<Packet> for Msg {
     fn try_into(self) -> Result<Packet, Self> {
         match self {
             Msg::Packet(p) => Ok(p),
         }
+    }
+}
+
+impl MaybeHasVariant<Toggle> for Msg {
+    fn try_into(self) -> Result<Toggle, Self> {
+        Err(self)
     }
 }
 
@@ -37,26 +47,26 @@ fn main() {
     let receiver_slot = builder.reserve_slot();
     let link2_slot = builder.reserve_slot();
 
-    let mut sender = Sender::new::<Msg>(
+    let mut sender = LossySender::new(
         sender_slot.id(),
         link1_slot.id(),
         receiver_slot.id(),
         2.0,
-        TimeSpan::new(0.),
+        false,
         table.logger(1),
     );
     let mut link1 = Link::<Packet, _>::create(
         TimeSpan::new(1.5),
         Rate::new(0.2),
-        0.01,
+        0.1,
         Some(1),
         table.logger(2),
     );
-    let mut receiver = Receiver::new::<Msg>(link2_slot.id(), table.logger(3));
+    let mut receiver = LossyBouncer::new(link2_slot.id(), table.logger(3));
     let mut link2 = Link::<Packet, _>::create(
         TimeSpan::new(1.5),
         Rate::new(0.2),
-        0.01,
+        0.1,
         Some(1),
         table.logger(4),
     );

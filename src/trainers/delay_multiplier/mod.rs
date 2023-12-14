@@ -5,12 +5,12 @@ use serde::{Deserialize, Serialize};
 use crate::{
     logging::NothingLogger,
     network::{
-        protocols::delay_multiplier::{Packet, Receiver, Sender},
+        protocols::{delay_multiplier::LossySender, window::lossy_window::Packet},
+        toggler::Toggle,
         NetworkSlots,
     },
     rand::{ContinuousDistribution, Rng},
-    simulation::DynComponent,
-    time::TimeSpan,
+    simulation::{DynComponent, MaybeHasVariant},
     Dna, Trainer,
 };
 
@@ -28,6 +28,12 @@ pub struct DelayMultiplierTrainer {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DelayMultiplierDna {
     multiplier: f64,
+}
+
+impl MaybeHasVariant<Toggle> for Packet {
+    fn try_into(self) -> Result<Toggle, Self> {
+        Err(self)
+    }
 }
 
 impl Dna for DelayMultiplierDna {
@@ -65,26 +71,18 @@ impl GeneticDna<Packet> for DelayMultiplierDna {
             .sender_slots
             .into_iter()
             .map(|slot| {
-                let sender = Rc::new(RefCell::new(Sender::new::<Packet>(
+                let sender = Rc::new(RefCell::new(LossySender::new(
                     slot.id(),
                     network_slots.sender_link_id,
-                    network_slots.receiver_slot.id(),
+                    slot.id(),
                     self.multiplier,
-                    TimeSpan::new(
-                        rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 10. }),
-                    ),
+                    false,
                     NothingLogger,
                 )));
                 slot.set(DynComponent::shared(sender.clone()));
                 sender
             })
             .collect();
-        network_slots
-            .receiver_slot
-            .set(DynComponent::owned(Box::new(Receiver::new::<Packet>(
-                network_slots.receiver_link_id,
-                NothingLogger,
-            ))));
         #[allow(clippy::cast_precision_loss)]
         Box::new(move || {
             /*senders

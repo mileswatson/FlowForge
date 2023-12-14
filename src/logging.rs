@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::{cell::RefCell, fmt::Debug};
 
 use tabled::{
     builder::Builder,
@@ -14,7 +14,7 @@ macro_rules! log {
     };
 }
 
-pub trait Logger {
+pub trait Logger: Debug {
     fn log(&mut self, msg: impl FnOnce() -> String);
 }
 
@@ -27,6 +27,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct PrintLogger {
     name: String,
 }
@@ -44,6 +45,7 @@ impl Logger for PrintLogger {
     }
 }
 
+#[derive(Debug)]
 pub struct NothingLogger;
 
 impl NothingLogger {
@@ -60,6 +62,14 @@ impl Logger for NothingLogger {
 pub struct LogTable {
     columns: usize,
     rows: RefCell<Vec<Vec<String>>>,
+}
+
+impl Debug for LogTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LogTable")
+            .field("columns", &self.columns)
+            .finish_non_exhaustive()
+    }
 }
 
 impl LogTable {
@@ -108,6 +118,7 @@ impl LogTable {
     }
 }
 
+#[derive(Debug)]
 pub struct TableLogger<'a> {
     index: usize,
     table: &'a LogTable,

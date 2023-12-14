@@ -3,11 +3,11 @@ use std::{collections::VecDeque, fmt::Debug};
 use crate::{
     logging::Logger,
     rand::{ContinuousDistribution, Rng},
-    simulation::{Component, ComponentId, EffectContext, EffectResult, HasVariant, Message},
-    time::{earliest_opt, Rate, Time, TimeSpan},
+    simulation::{Component, ComponentId, EffectContext, HasVariant, Message},
+    time::{earliest_opt, latest, Rate, Time, TimeSpan},
 };
 
-pub trait Routable: Sync + 'static {
+pub trait Routable: Sync + 'static + Debug {
     fn pop_next_hop(&mut self) -> ComponentId;
 }
 
@@ -17,7 +17,7 @@ pub struct Link<P, L> {
     packet_rate: Rate,
     loss: f64,
     buffer_size: Option<usize>,
-    next_transmit: Option<Time>,
+    earliest_transmit: Time,
     buffer: VecDeque<P>,
     transmitting: VecDeque<(P, Time)>,
     logger: L,
@@ -41,7 +41,7 @@ where
             packet_rate,
             loss,
             buffer_size,
-            next_transmit: None,
+            earliest_transmit: Time::MIN,
             buffer: VecDeque::new(),
             transmitting: VecDeque::new(),
             logger,
@@ -54,40 +54,16 @@ where
     L: Logger,
     P: Routable,
 {
-    fn next_tick(&self) -> Option<Time> {
-        earliest_opt(&[self.next_transmit, self.transmitting.front().map(|x| x.1)])
-    }
-
-    fn no_effects<E>(&self) -> EffectResult<E> {
-        EffectResult {
-            next_tick: self.next_tick(),
-            effects: vec![],
-        }
-    }
-
-    fn effects<E>(&self, effects: Vec<Message<E>>) -> EffectResult<E> {
-        EffectResult {
-            next_tick: self.next_tick(),
-            effects,
-        }
-    }
-
     fn try_transmit(&mut self, time: Time) {
         // If there is a planned buffer release then wait for it
-        if self.next_transmit.map_or(false, |t| t != time) {
+        if time < self.earliest_transmit {
             return;
         }
 
-        match self.buffer.pop_front() {
-            Some(p) => {
-                self.transmitting.push_back((p, time + self.delay));
-                // Don't transmit another packet until this time
-                self.next_transmit = Some(time + self.packet_rate.period());
-            }
-            None => {
-                // No packets in the buffer, so next one can transmit immediately
-                self.next_transmit = None;
-            }
+        if let Some(p) = self.buffer.pop_front() {
+            self.transmitting.push_back((p, time + self.delay));
+            // Don't transmit another packet until this time
+            self.earliest_transmit = time + self.packet_rate.period();
         }
     }
 
@@ -119,27 +95,37 @@ where
     E: HasVariant<P>,
     P: Routable,
 {
-    fn tick(&mut self, EffectContext { time, rng, .. }: EffectContext) -> EffectResult<E> {
+    fn tick(&mut self, EffectContext { time, rng, .. }: EffectContext) -> Vec<Message<E>> {
+        assert_eq!(Some(time), Component::<E>::next_tick(self, time));
         let mut effects = Vec::new();
         if let Some(msg) = self.try_deliver::<E>(time, rng) {
             effects.push(msg);
         }
         self.try_transmit(time);
-        self.effects(effects)
+        effects
     }
 
-    fn receive(&mut self, effect: E, ctx: EffectContext) -> EffectResult<E> {
-        let packet = HasVariant::<P>::try_into(effect).unwrap();
+    fn receive(&mut self, effect: E, _ctx: EffectContext) -> Vec<Message<E>> {
+        let packet = effect.try_into().unwrap();
         if self
             .buffer_size
             .is_some_and(|limit| self.buffer.len() == limit)
         {
             log!(self.logger, "Dropped packet (buffer full)");
-            self.no_effects()
         } else {
             log!(self.logger, "Buffered packet");
             self.buffer.push_back(packet);
-            self.tick(ctx)
         }
+        vec![]
+    }
+
+    fn next_tick(&self, time: Time) -> Option<Time> {
+        let next_try_transmit = if self.buffer.is_empty() {
+            None
+        } else {
+            Some(latest(&[time, self.earliest_transmit]))
+        };
+        let next_try_deliver = self.transmitting.front().map(|x| x.1);
+        earliest_opt(&[next_try_transmit, next_try_deliver])
     }
 }

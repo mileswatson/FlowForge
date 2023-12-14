@@ -26,8 +26,6 @@ pub struct Network {
 pub struct NetworkSlots<'a, 'b, E> {
     pub sender_slots: Vec<ComponentSlot<'a, 'b, E>>,
     pub sender_link_id: ComponentId,
-    pub receiver_slot: ComponentSlot<'a, 'b, E>,
-    pub receiver_link_id: ComponentId,
 }
 
 impl Network {
@@ -47,14 +45,6 @@ impl Network {
                 .map(|_| builder.reserve_slot())
                 .collect(),
             sender_link_id: builder.insert(DynComponent::new(Link::create(
-                0.5 * self.rtt,
-                self.packet_rate,
-                self.loss_rate,
-                self.buffer_size,
-                NothingLogger,
-            ))),
-            receiver_slot: builder.reserve_slot(),
-            receiver_link_id: builder.insert(DynComponent::new(Link::create(
                 0.5 * self.rtt,
                 self.packet_rate,
                 self.loss_rate,

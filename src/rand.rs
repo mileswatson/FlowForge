@@ -60,6 +60,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct Rng {
     rng: Xoshiro256PlusPlus,
 }

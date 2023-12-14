@@ -18,6 +18,7 @@ use crate::{
     time::{Time, TimeSpan},
 };
 
+#[derive(Debug)]
 pub enum DynComponent<'a, E> {
     Owned(Box<dyn Component<E>>),
     Shared(Rc<RefCell<dyn Component<E>>>),
@@ -120,18 +121,42 @@ impl ComponentId {
     }
 }
 
-pub trait HasVariant<T>: From<T> + Debug + Sync + 'static {
+pub trait MaybeHasVariant<T>: Sized + Debug + Sync + 'static {
     fn try_into(self) -> Result<T, Self>;
+    fn try_case<F, C, R>(self, ctx: C, f: F) -> Result<R, (Self, C)>
+    where
+        F: FnOnce(T, C) -> R,
+    {
+        match self.try_into() {
+            Ok(t) => Ok(f(t, ctx)),
+            Err(s) => Err((s, ctx)),
+        }
+    }
 }
 
-impl<E> HasVariant<E> for E
+pub fn try_case<E, T, F, C, R>(f: F) -> impl FnOnce((E, C)) -> Result<R, (E, C)>
 where
-    E: Debug + Sync + 'static,
+    E: MaybeHasVariant<T>,
+    F: FnOnce(T, C) -> R,
 {
-    fn try_into(self) -> Result<E, Self> {
+    |(e, ctx): (E, C)| match e.try_into() {
+        Ok(t) => Ok(f(t, ctx)),
+        Err(e) => Err((e, ctx)),
+    }
+}
+
+impl<T> MaybeHasVariant<T> for T
+where
+    T: Sized + Debug + Sync + 'static,
+{
+    fn try_into(self) -> Result<T, Self> {
         Ok(self)
     }
 }
+
+pub trait HasVariant<T>: From<T> + MaybeHasVariant<T> {}
+
+impl<E, T> HasVariant<T> for E where E: From<T> + MaybeHasVariant<T> {}
 
 pub struct Message<E> {
     pub component_id: ComponentId,
@@ -150,20 +175,17 @@ impl<E> Message<E> {
     }
 }
 
-pub struct EffectResult<E> {
-    pub next_tick: Option<Time>,
-    pub effects: Vec<Message<E>>,
-}
-
+#[derive(Debug)]
 pub struct EffectContext<'a> {
     pub self_id: ComponentId,
     pub time: Time,
     pub rng: &'a mut Rng,
 }
 
-pub trait Component<E> {
-    fn tick(&mut self, context: EffectContext) -> EffectResult<E>;
-    fn receive(&mut self, e: E, context: EffectContext) -> EffectResult<E>;
+pub trait Component<E>: Debug {
+    fn next_tick(&self, time: Time) -> Option<Time>;
+    fn tick(&mut self, context: EffectContext) -> Vec<Message<E>>;
+    fn receive(&mut self, e: E, context: EffectContext) -> Vec<Message<E>>;
 }
 
 #[derive(Debug)]
@@ -324,18 +346,18 @@ pub struct Simulator<'a, E, L> {
 
 impl<'a, E, L> Simulator<'a, E, L>
 where
+    E: Debug,
     L: Logger,
 {
-    fn handle_effects(&mut self, time: Time, effects: &mut EffectQueue<E>) {
+    fn handle_messages(&mut self, time: Time, effects: &mut EffectQueue<E>) {
         while let Some(Message {
             component_id,
             effect,
         }) = effects.pop_next()
         {
-            let EffectResult {
-                next_tick,
-                effects: signals,
-            } = self.components[component_id.index].borrow_mut().receive(
+            assert_eq!(component_id.sim_id, self.id);
+            let mut component = self.components[component_id.index].borrow_mut();
+            let messages = component.receive(
                 effect,
                 EffectContext {
                     self_id: component_id,
@@ -343,54 +365,51 @@ where
                     rng: self.rng,
                 },
             );
+            let next_tick = component.next_tick(time);
             self.tick_queue
                 .insert_or_update(component_id, (), next_tick);
-            effects.push_all(signals);
+            effects.push_all(messages);
         }
     }
 
-    fn tick_without_effects(
+    fn tick_without_messages(
         &mut self,
         component_id: ComponentId,
         time: Time,
         effects: &mut EffectQueue<E>,
     ) {
         assert_eq!(component_id.sim_id, self.id);
-        let EffectResult {
-            next_tick,
-            effects: signals,
-        } = self.components[component_id.index]
-            .borrow_mut()
-            .tick(EffectContext {
-                self_id: component_id,
-                time,
-                rng: self.rng,
-            });
+        let mut component = self.components[component_id.index].borrow_mut();
+        let messages = component.tick(EffectContext {
+            self_id: component_id,
+            time,
+            rng: self.rng,
+        });
+        let next_tick = component.next_tick(time);
         self.tick_queue
             .insert_or_update(component_id, (), next_tick);
-        effects.push_all(signals);
-    }
-
-    fn first_tick(&mut self) {
-        log!(self.logger, "time = 0.0");
-        let sim_start = Time::sim_start();
-        let mut effects = EffectQueue::new();
-        for i in 0..self.components.len() {
-            self.tick_without_effects(ComponentId::new(i, self.id), sim_start, &mut effects);
-        }
-        self.handle_effects(sim_start, &mut effects);
+        effects.push_all(messages);
     }
 
     fn tick(&mut self, component_id: ComponentId, time: Time) {
         log!(self.logger, "time = {}", &time);
         let mut effects = EffectQueue::new();
-        self.tick_without_effects(component_id, time, &mut effects);
-        self.handle_effects(time, &mut effects);
+        self.tick_without_messages(component_id, time, &mut effects);
+        self.handle_messages(time, &mut effects);
     }
 
     pub fn run_for(mut self, timespan: TimeSpan) {
         let end_time = Time::sim_start() + timespan;
-        self.first_tick();
+        self.components
+            .iter()
+            .enumerate()
+            .for_each(|(idx, component)| {
+                self.tick_queue.insert_or_update(
+                    ComponentId::new(idx, self.id),
+                    (),
+                    component.borrow().next_tick(Time::sim_start()),
+                );
+            });
         while let Some((time, component_id, ())) = self.tick_queue.pop_next() {
             if time >= end_time {
                 break;
