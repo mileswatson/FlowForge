@@ -1,12 +1,14 @@
 use std::fmt::Debug;
 
 use crate::{
+    average::{DisabledRateMeter, EnabledRateMeter, Mean, RateMeterNeverEnabled},
+    flow::{Flow, FlowNeverActive, FlowProperties, NoPacketsAcked},
     logging::Logger,
     network::{link::Routable, toggler::Toggle},
     simulation::{
         try_case, Component, ComponentId, EffectContext, HasVariant, MaybeHasVariant, Message,
     },
-    time::{latest, Time, TimeSpan},
+    time::{latest, Rate, Time, TimeSpan},
 };
 
 #[derive(Debug)]
@@ -29,6 +31,8 @@ pub trait LossyWindowBehavior<L>: Debug {
 #[derive(Debug)]
 struct WaitingForEnable {
     packets_sent: u64,
+    average_throughput: DisabledRateMeter,
+    average_rtt: Mean<TimeSpan>,
 }
 
 #[derive(Debug)]
@@ -38,10 +42,17 @@ struct Enabled<B> {
     settings: LossyWindowSettings,
     packets_sent: u64,
     behavior: B,
+    average_throughput: EnabledRateMeter,
+    average_rtt: Mean<TimeSpan>,
 }
 
 impl<B> Enabled<B> {
-    fn new<L>(behavior: B, packets_sent: u64) -> Self
+    fn new<L>(
+        behavior: B,
+        packets_sent: u64,
+        average_throughput: EnabledRateMeter,
+        average_rtt: Mean<TimeSpan>,
+    ) -> Self
     where
         B: LossyWindowBehavior<L>,
     {
@@ -51,6 +62,8 @@ impl<B> Enabled<B> {
             settings: behavior.initial_settings(),
             packets_sent,
             behavior,
+            average_throughput,
+            average_rtt,
         }
     }
 
@@ -145,19 +158,23 @@ where
             link,
             destination,
             state: if wait_for_enable {
-                WaitingForEnable { packets_sent: 0 }.into()
+                WaitingForEnable {
+                    packets_sent: 0,
+                    average_throughput: DisabledRateMeter::new(),
+                    average_rtt: Mean::new(),
+                }
+                .into()
             } else {
-                Enabled::new(new_behavior(), 0).into()
+                Enabled::new(
+                    new_behavior(),
+                    0,
+                    EnabledRateMeter::new(Time::sim_start()),
+                    Mean::new(),
+                )
+                .into()
             },
             new_behavior,
             logger,
-        }
-    }
-
-    pub const fn packets(&self) -> u64 {
-        match self.state {
-            LossyWindowState::WaitingForEnable(WaitingForEnable { packets_sent })
-            | LossyWindowState::Enabled(Enabled { packets_sent, .. }) => packets_sent,
         }
     }
 
@@ -174,8 +191,12 @@ where
                 behavior,
                 settings,
                 greatest_ack,
+                average_rtt,
+                average_throughput,
                 ..
             }) => {
+                average_rtt.record(time - packet.sent_time);
+                average_throughput.record_event();
                 behavior.ack_received(settings, packet.sent_time, time, &mut self.logger);
                 log!(self.logger, "Received packet {}", packet.seq);
                 *greatest_ack = (*greatest_ack).max(packet.seq);
@@ -183,19 +204,39 @@ where
         }
     }
 
-    fn receive_toggle(&mut self, toggle: Toggle, _: EffectContext) {
-        match (&mut self.state, toggle) {
+    fn receive_toggle(&mut self, toggle: Toggle, EffectContext { time, .. }: EffectContext) {
+        match (&self.state, toggle) {
             (
-                LossyWindowState::WaitingForEnable(WaitingForEnable { packets_sent }),
+                LossyWindowState::WaitingForEnable(WaitingForEnable {
+                    packets_sent,
+                    average_throughput,
+                    average_rtt,
+                }),
                 Toggle::Enable,
             ) => {
                 log!(self.logger, "Enabled");
-                self.state = Enabled::new((self.new_behavior)(), *packets_sent).into();
+                self.state = Enabled::new(
+                    (self.new_behavior)(),
+                    *packets_sent,
+                    average_throughput.clone().enable(time),
+                    average_rtt.clone(),
+                )
+                .into();
             }
-            (LossyWindowState::Enabled(Enabled { packets_sent, .. }), Toggle::Disable) => {
+            (
+                LossyWindowState::Enabled(Enabled {
+                    packets_sent,
+                    average_throughput,
+                    average_rtt,
+                    ..
+                }),
+                Toggle::Disable,
+            ) => {
                 log!(self.logger, "Disabled");
                 self.state = WaitingForEnable {
                     packets_sent: *packets_sent,
+                    average_throughput: average_throughput.clone().disable(time),
+                    average_rtt: average_rtt.clone(),
                 }
                 .into();
             }
@@ -220,6 +261,26 @@ where
                 }
             }
             LossyWindowState::WaitingForEnable(_) => panic!(),
+        }
+    }
+
+    fn average_throughput(&self, current_time: Time) -> Result<Rate, RateMeterNeverEnabled> {
+        match &self.state {
+            LossyWindowState::WaitingForEnable(WaitingForEnable {
+                average_throughput, ..
+            }) => average_throughput.current_value(),
+            LossyWindowState::Enabled(Enabled {
+                average_throughput, ..
+            }) => average_throughput.current_value(current_time),
+        }
+    }
+
+    fn average_rtt(&self) -> Result<TimeSpan, NoPacketsAcked> {
+        match &self.state {
+            LossyWindowState::WaitingForEnable(WaitingForEnable { average_rtt, .. })
+            | LossyWindowState::Enabled(Enabled { average_rtt, .. }) => {
+                average_rtt.value().ok_or(NoPacketsAcked {})
+            }
         }
     }
 }
@@ -252,6 +313,21 @@ where
             .or_else(try_case(|toggle, ctx| self.receive_toggle(toggle, ctx)))
             .unwrap();
         vec![]
+    }
+}
+
+impl<B, L> Flow for LossyWindowSender<B, L>
+where
+    B: LossyWindowBehavior<L>,
+    L: Logger,
+{
+    fn properties(&self, current_time: Time) -> Result<FlowProperties, FlowNeverActive> {
+        self.average_throughput(current_time)
+            .map_err(|_| FlowNeverActive {})
+            .map(|average_throughput| FlowProperties {
+                average_throughput,
+                average_rtt: self.average_rtt(),
+            })
     }
 }
 

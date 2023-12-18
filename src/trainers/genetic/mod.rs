@@ -1,13 +1,14 @@
-use std::{iter::repeat, marker::PhantomData, sync::Mutex};
+use std::{iter::repeat, marker::PhantomData, rc::Rc, sync::Mutex};
 
 use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    network::{link::Routable, Network, NetworkSlots},
+    flow::{Flow, UtilityFunction},
+    network::{link::Routable, toggler::Toggle, Network, NetworkSlots},
     rand::Rng,
     simulation::HasVariant,
-    time::{Float, TimeSpan},
+    time::{Float, Time, TimeSpan},
     Dna, ProgressHandler, Trainer,
 };
 
@@ -44,7 +45,7 @@ pub trait GeneticDna<E>: Dna {
         &self,
         network_slots: NetworkSlots<E>,
         rng: &mut Rng,
-    ) -> Box<dyn FnOnce() -> Float>;
+    ) -> Vec<Rc<dyn Flow>>;
 
     #[must_use]
     fn spawn_child(&self, rng: &mut Rng) -> Self;
@@ -53,7 +54,7 @@ pub trait GeneticDna<E>: Dna {
 impl<D, E, P> Trainer<D> for GeneticTrainer<E, P>
 where
     D: GeneticDna<E>,
-    E: HasVariant<P>,
+    E: HasVariant<P> + HasVariant<Toggle>,
     P: Routable,
 {
     type Config = GeneticConfig;
@@ -70,7 +71,8 @@ where
 
     fn train<H>(
         &self,
-        networks: &[crate::network::Network],
+        networks: &[Network],
+        utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
     ) -> D
@@ -104,12 +106,15 @@ where
                 .map(|d| (d, rng.create_child()))
                 .par_bridge()
                 .map(|(d, mut rng)| {
-                    let score_network = |n: &Network| {
+                    let score_network = |n: &Network| -> Float {
                         update_progress();
-                        let (sim, get_score) =
-                            n.to_sim(&mut rng, |slots, rng| d.populate_components(slots, rng));
+                        let (sim, flows) = n.to_sim::<_, P, _>(&mut rng, |slots, rng| {
+                            d.populate_components(slots, rng)
+                        });
                         sim.run_for(self.run_for);
-                        get_score()
+                        utility_function
+                            .total_utility(&flows, Time::sim_start() + self.run_for)
+                            .unwrap_or(Float::MIN)
                     };
                     #[allow(clippy::cast_precision_loss)]
                     let score =

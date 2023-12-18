@@ -2,6 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use flowforge::{
+    flow::UtilityConfig,
     network::config::NetworkConfig,
     rand::Rng,
     trainers::{
@@ -12,9 +13,15 @@ use flowforge::{
     Config, Trainer,
 };
 
-pub fn train(trainer_config: &Path, network_config: &Path, output: &Path) -> Result<()> {
+pub fn train(
+    trainer_config: &Path,
+    network_config: &Path,
+    utility_config: &Path,
+    output: &Path,
+) -> Result<()> {
     let trainer_config = TrainerConfig::load(trainer_config)?;
     let network_config = NetworkConfig::load(network_config)?;
+    let utility_config = UtilityConfig::load(utility_config)?;
 
     let mut rng = Rng::from_seed(0);
 
@@ -24,6 +31,7 @@ pub fn train(trainer_config: &Path, network_config: &Path, output: &Path) -> Res
         TrainerConfig::Remy(cfg) => {
             RemyTrainer::new(&cfg).train(
                 &networks,
+                utility_config.inner(),
                 &mut |progress, d: Option<&RemyDna>| {},
                 &mut rng,
             );
@@ -31,6 +39,7 @@ pub fn train(trainer_config: &Path, network_config: &Path, output: &Path) -> Res
         TrainerConfig::DelayMultiplier(cfg) => {
             DelayMultiplierTrainer::new(&cfg).train(
                 &networks,
+                utility_config.inner(),
                 &mut |progress, d: Option<&DelayMultiplierDna>| {
                     if let Some(d) = d {
                         println!("{:?}", d);

@@ -4,7 +4,7 @@ use crate::{
     time::{Float, Time, TimeSpan},
 };
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Debug)]
 pub enum Toggle {
     Enable,
     Disable,

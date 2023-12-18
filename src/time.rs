@@ -1,7 +1,9 @@
 use std::{
     fmt::Display,
-    ops::{Add, Mul, MulAssign, Sub},
+    ops::{Add, Div, Mul, MulAssign, Sub},
 };
+
+use rand_distr::num_traits::Zero;
 
 pub type Float = f64;
 
@@ -14,6 +16,26 @@ impl TimeSpan {
     #[must_use]
     pub const fn new(ts: Float) -> TimeSpan {
         TimeSpan { ts }
+    }
+
+    #[must_use]
+    pub const fn value(&self) -> Float {
+        self.ts
+    }
+
+    #[must_use]
+    pub fn is_negative(&self) -> bool {
+        self.ts < 0.
+    }
+}
+
+impl Zero for TimeSpan {
+    fn zero() -> Self {
+        TimeSpan::new(0.)
+    }
+
+    fn is_zero(&self) -> bool {
+        self.ts == 0.
     }
 }
 
@@ -39,6 +61,14 @@ impl MulAssign<Float> for TimeSpan {
     }
 }
 
+impl Div<Float> for TimeSpan {
+    type Output = TimeSpan;
+
+    fn div(self, rhs: Float) -> Self::Output {
+        TimeSpan::new(self.ts / rhs)
+    }
+}
+
 impl Display for TimeSpan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}s", self.ts)
@@ -59,6 +89,19 @@ impl Rate {
     #[must_use]
     pub fn period(&self) -> TimeSpan {
         TimeSpan::new(1. / self.r)
+    }
+
+    #[must_use]
+    pub const fn value(&self) -> Float {
+        self.r
+    }
+}
+
+impl std::ops::Div<TimeSpan> for Float {
+    type Output = Rate;
+
+    fn div(self, rhs: TimeSpan) -> Self::Output {
+        Rate { r: self / rhs.ts }
     }
 }
 

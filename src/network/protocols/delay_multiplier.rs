@@ -1,13 +1,14 @@
 use crate::{
+    average::EWMA,
+    flow::{Flow, FlowNeverActive, FlowProperties},
     logging::Logger,
     network::toggler::Toggle,
     simulation::{Component, ComponentId, EffectContext, HasVariant, MaybeHasVariant, Message},
     time::{Float, Time, TimeSpan},
 };
 
-use super::window::{
-    lossy_window::{LossyWindowBehavior, LossyWindowSender, LossyWindowSettings, Packet},
-    EWMA,
+use super::window::lossy_window::{
+    LossyWindowBehavior, LossyWindowSender, LossyWindowSettings, Packet,
 };
 
 #[derive(Debug)]
@@ -74,15 +75,6 @@ where
     }
 }
 
-impl<L> LossySender<L>
-where
-    L: Logger,
-{
-    pub const fn packets(&self) -> u64 {
-        self.0.packets()
-    }
-}
-
 impl<E, L> Component<E> for LossySender<L>
 where
     E: HasVariant<Packet> + MaybeHasVariant<Toggle>,
@@ -98,5 +90,14 @@ where
 
     fn next_tick(&self, time: Time) -> Option<Time> {
         Component::<E>::next_tick(&self.0, time)
+    }
+}
+
+impl<L> Flow for LossySender<L>
+where
+    L: Logger,
+{
+    fn properties(&self, current_time: Time) -> Result<FlowProperties, FlowNeverActive> {
+        self.0.properties(current_time)
     }
 }

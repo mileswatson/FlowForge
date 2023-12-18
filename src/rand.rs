@@ -6,7 +6,7 @@ use rand_distr::{
 use rand_xoshiro::Xoshiro256PlusPlus;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContinuousDistribution<F: Float> {
     Always { value: F },
@@ -35,7 +35,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DiscreteDistribution<I: PrimInt> {
     /// A max-exclusive uniform distribution in the range [min, max).

@@ -3,10 +3,10 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use create_network_config::create_config;
+use create_config::create_config;
 use train::train;
 
-mod create_network_config;
+mod create_config;
 mod train;
 
 #[derive(Subcommand, Debug, Clone)]
@@ -18,12 +18,21 @@ enum TrainerConfigCommand {
 }
 
 #[derive(Subcommand, Debug, Clone)]
+enum UtilityConfigCommand {
+    ProportionalThroughputDelayFairness,
+    MinimiseFixedLengthFileTransfer,
+}
+
+#[derive(Subcommand, Debug, Clone)]
 enum ConfigCommand {
     /// Create a default network config
     Network,
     #[command(subcommand)]
     /// Create a trainer config
     Trainer(TrainerConfigCommand),
+    #[command(subcommand)]
+    /// Create a utility config
+    Utility(UtilityConfigCommand),
 }
 
 #[derive(Subcommand, Debug)]
@@ -46,6 +55,10 @@ enum Command {
         /// Network config file (JSON)
         #[arg(long)]
         network: PathBuf,
+
+        /// Utility function config file (JSON)
+        #[arg(long)]
+        utility: PathBuf,
 
         /// File to write congestion control algorithm DNA to
         #[arg(short, long)]
@@ -71,7 +84,8 @@ fn main() -> Result<()> {
         Command::Train {
             trainer,
             network,
+            utility,
             output,
-        } => train(&trainer, &network, &output),
+        } => train(&trainer, &network, &utility, &output),
     }
 }

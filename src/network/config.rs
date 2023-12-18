@@ -15,6 +15,8 @@ pub struct NetworkConfig {
     pub loss_rate: ContinuousDistribution<Float>,
     pub buffer_size: Option<DiscreteDistribution<usize>>,
     pub num_senders: DiscreteDistribution<usize>,
+    pub off_time: ContinuousDistribution<Float>,
+    pub on_time: ContinuousDistribution<Float>,
 }
 
 impl Default for NetworkConfig {
@@ -31,6 +33,8 @@ impl Default for NetworkConfig {
             },
             buffer_size: None,
             num_senders: DiscreteDistribution::Uniform { min: 1, max: 3 },
+            off_time: ContinuousDistribution::Exponential { mean: 5. },
+            on_time: ContinuousDistribution::Exponential { mean: 5. },
         }
     }
 }
@@ -43,6 +47,8 @@ impl Distribution<Network> for NetworkConfig {
             loss_rate: rng.sample(&self.loss_rate),
             buffer_size: self.buffer_size.as_ref().map(|d| rng.sample(d)),
             num_senders: rng.sample(&self.num_senders),
+            off_time: self.off_time.clone(),
+            on_time: self.on_time.clone(),
         }
     }
 }

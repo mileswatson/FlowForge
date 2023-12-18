@@ -14,12 +14,15 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use flow::UtilityFunction;
 use network::Network;
 use rand::Rng;
 use serde::{de::DeserializeOwned, Serialize};
 
 #[macro_use]
 pub mod logging;
+pub mod average;
+pub mod flow;
 pub mod network;
 pub mod rand;
 pub mod simulation;
@@ -116,7 +119,13 @@ where
 
     fn new(config: &Self::Config) -> Self;
 
-    fn train<H>(&self, networks: &[Network], progress_handler: &mut H, rng: &mut Rng) -> D
+    fn train<H>(
+        &self,
+        networks: &[Network],
+        utility_function: &dyn UtilityFunction,
+        progress_handler: &mut H,
+        rng: &mut Rng,
+    ) -> D
     where
         H: ProgressHandler<D>;
 }
