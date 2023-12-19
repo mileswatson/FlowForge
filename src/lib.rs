@@ -15,7 +15,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use flow::UtilityFunction;
-use network::Network;
+use network::config::NetworkConfig;
 use rand::Rng;
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -121,7 +121,7 @@ where
 
     fn train<H>(
         &self,
-        networks: &[Network],
+        network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,

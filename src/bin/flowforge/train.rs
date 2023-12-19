@@ -25,12 +25,10 @@ pub fn train(
 
     let mut rng = Rng::from_seed(0);
 
-    let networks: Vec<_> = (0..100).map(|_| rng.sample(&network_config)).collect();
-
     match trainer_config {
         TrainerConfig::Remy(cfg) => {
             RemyTrainer::new(&cfg).train(
-                &networks,
+                &network_config,
                 utility_config.inner(),
                 &mut |progress, d: Option<&RemyDna>| {},
                 &mut rng,
@@ -38,11 +36,11 @@ pub fn train(
         }
         TrainerConfig::DelayMultiplier(cfg) => {
             DelayMultiplierTrainer::new(&cfg).train(
-                &networks,
+                &network_config,
                 utility_config.inner(),
                 &mut |progress, d: Option<&DelayMultiplierDna>| {
                     if let Some(d) = d {
-                        println!("{:?}", d);
+                        println!("{} {:?}", progress, d);
                     }
                 },
                 &mut rng,

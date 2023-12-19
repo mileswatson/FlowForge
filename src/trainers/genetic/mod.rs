@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     flow::{Flow, UtilityFunction},
-    network::{link::Routable, toggler::Toggle, Network, NetworkSlots},
+    network::{config::NetworkConfig, link::Routable, toggler::Toggle, Network, NetworkSlots},
     rand::Rng,
     simulation::HasVariant,
     time::{Float, Time, TimeSpan},
@@ -17,6 +17,7 @@ pub struct GeneticConfig {
     iters: usize,
     population_size: usize,
     run_for: Float,
+    networks_per_iter: usize,
 }
 
 impl Default for GeneticConfig {
@@ -25,6 +26,7 @@ impl Default for GeneticConfig {
             iters: 100,
             population_size: 1000,
             run_for: 1000.,
+            networks_per_iter: 100,
         }
     }
 }
@@ -33,6 +35,7 @@ pub struct GeneticTrainer<E, P> {
     iters: usize,
     population_size: usize,
     run_for: TimeSpan,
+    networks_per_iter: usize,
     event: PhantomData<E>,
     packet: PhantomData<P>,
 }
@@ -64,6 +67,7 @@ where
             iters: config.iters,
             population_size: config.population_size,
             run_for: TimeSpan::new(config.run_for),
+            networks_per_iter: config.networks_per_iter,
             event: PhantomData,
             packet: PhantomData,
         }
@@ -71,7 +75,7 @@ where
 
     fn train<H>(
         &self,
-        networks: &[Network],
+        network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
@@ -89,14 +93,14 @@ where
             handle.0 += 1;
             #[allow(clippy::cast_precision_loss)]
             let progress = handle.0 as f32
-                / (self.population_size as f32 * self.iters as f32 * networks.len() as f32);
+                / (self.population_size as f32 * self.iters as f32 * self.networks_per_iter as f32);
             handle.1.update_progress(progress, None);
         };
         let update_best = |best: &D| {
             let mut handle = progress.lock().unwrap();
             #[allow(clippy::cast_precision_loss)]
             let progress = handle.0 as f32
-                / (self.population_size as f32 * self.iters as f32 * networks.len() as f32);
+                / (self.population_size as f32 * self.iters as f32 * self.networks_per_iter as f32);
             handle.1.update_progress(progress, Some(best));
         };
         let update_progress = &increment_progress;
@@ -106,6 +110,9 @@ where
                 .map(|d| (d, rng.create_child()))
                 .par_bridge()
                 .map(|(d, mut rng)| {
+                    let networks: Vec<_> = (0..self.networks_per_iter)
+                        .map(|_| rng.sample(network_config))
+                        .collect();
                     let score_network = |n: &Network| -> Float {
                         update_progress();
                         let (sim, flows) = n.to_sim::<_, P, _>(&mut rng, |slots, rng| {

@@ -6,6 +6,7 @@ use crate::{
     flow::{Flow, UtilityFunction},
     logging::NothingLogger,
     network::{
+        config::NetworkConfig,
         protocols::{delay_multiplier::LossySender, window::lossy_window::Packet},
         toggler::Toggle,
         NetworkSlots,
@@ -128,7 +129,7 @@ impl Trainer<DelayMultiplierDna> for DelayMultiplierTrainer {
 
     fn train<H>(
         &self,
-        networks: &[crate::network::Network],
+        network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
@@ -137,6 +138,6 @@ impl Trainer<DelayMultiplierDna> for DelayMultiplierTrainer {
         H: crate::ProgressHandler<DelayMultiplierDna>,
     {
         self.genetic_trainer
-            .train(networks, utility_function, progress_handler, rng)
+            .train(network_config, utility_function, progress_handler, rng)
     }
 }

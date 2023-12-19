@@ -2,7 +2,7 @@ use anyhow::Result;
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
-use crate::{flow::UtilityFunction, rand::Rng, Dna, ProgressHandler, Trainer};
+use crate::{flow::UtilityFunction, rand::Rng, Dna, ProgressHandler, Trainer, network::config::NetworkConfig};
 
 use self::autogen::remy_dna::WhiskerTree;
 
@@ -43,7 +43,7 @@ impl Trainer<RemyDna> for RemyTrainer {
 
     fn train<H: ProgressHandler<RemyDna>>(
         &self,
-        networks: &[crate::network::Network],
+        network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
