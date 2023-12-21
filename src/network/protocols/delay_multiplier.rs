@@ -17,7 +17,7 @@ struct Behavior {
     rtt: EWMA<TimeSpan>,
 }
 
-impl<L> LossyWindowBehavior<L> for Behavior
+impl<L> LossyWindowBehavior<'static, L> for Behavior
 where
     L: Logger,
 {
@@ -35,17 +35,18 @@ where
         received_time: Time,
         logger: &mut L,
     ) {
-        self.rtt.update(received_time - sent_time);
-        log!(logger, "Updated intersend_delay to {}", self.rtt.value());
+        let rtt = self.rtt.update(received_time - sent_time);
+        let intersend_delay = self.multiplier * rtt;
+        log!(logger, "Updated intersend_delay to {}", intersend_delay);
         *current = LossyWindowSettings {
-            intersend_delay: self.multiplier * self.rtt.value(),
+            intersend_delay,
             ..*current
         };
     }
 }
 
 #[derive(Debug)]
-pub struct LossySender<L>(LossyWindowSender<Behavior, L>)
+pub struct LossySender<L>(LossyWindowSender<'static, Behavior, L>)
 where
     L: Logger;
 
@@ -67,7 +68,7 @@ where
             destination,
             Box::new(move || Behavior {
                 multiplier,
-                rtt: EWMA::new(1. / 8., TimeSpan::new(1.)),
+                rtt: EWMA::new(1. / 8.),
             }),
             wait_for_enable,
             logger,

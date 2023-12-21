@@ -5,10 +5,10 @@ use crate::time::Float;
 use super::autogen::remy_dna::{Memory, MemoryRange, Whisker, WhiskerTree};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct Point {
-    ack_ewma: Float,
-    send_ewma: Float,
-    rtt_ratio: Float,
+pub struct Point {
+    pub ack_ewma: Float,
+    pub send_ewma: Float,
+    pub rtt_ratio: Float,
 }
 
 impl Point {
@@ -45,11 +45,39 @@ impl From<MessageField<Memory>> for Point {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct Cube {
+    min: Point,
+    max: Point,
+}
+
+impl Default for Cube {
+    fn default() -> Self {
+        Self {
+            min: Point::MIN,
+            max: Point::MAX,
+        }
+    }
+}
+
+fn within(min: Float, x: Float, max: Float) -> bool {
+    min <= x && x < max
+}
+
+impl Cube {
+    #[must_use]
+    pub fn contains(&self, point: &Point) -> bool {
+        within(self.min.rtt_ratio, point.rtt_ratio, self.max.rtt_ratio)
+            && within(self.min.ack_ewma, point.ack_ewma, self.max.ack_ewma)
+            && within(self.min.send_ewma, point.send_ewma, self.max.send_ewma)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
-pub(super) struct Action {
-    window_multiplier: Float,
-    window_increment: i32,
-    intersend_ms: Float,
+pub struct Action {
+    pub window_multiplier: Float,
+    pub window_increment: i32,
+    pub intersend_ms: Float,
     num_accesses: u64,
     epoch: u64,
 }
@@ -81,82 +109,86 @@ impl From<MessageField<Whisker>> for Action {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(super) enum RuleTree {
-    Node {
-        min: Point,
-        max: Point,
-        children: Box<[RuleTree; 8]>,
-    },
-    Leaf {
-        min: Point,
-        max: Point,
-        action: Action,
-    },
+enum RuleTreeVariant {
+    Node(Box<[RuleTree; 8]>),
+    Leaf(Action),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct RuleTree {
+    domain: Cube,
+    variant: RuleTreeVariant,
+}
+
+impl RuleTree {
+    pub fn action(&self, point: &Point) -> Option<&Action> {
+        if !self.domain.contains(point) {
+            return None;
+        }
+        match &self.variant {
+            RuleTreeVariant::Node(children) => children.iter().find_map(|x| x.action(point)),
+            RuleTreeVariant::Leaf(action) => Some(action),
+        }
+    }
 }
 
 impl Default for RuleTree {
     fn default() -> Self {
-        RuleTree::Leaf {
-            action: Action {
+        RuleTree {
+            domain: Cube::default(),
+            variant: RuleTreeVariant::Leaf(Action {
                 window_multiplier: 1.,
                 window_increment: 1,
                 intersend_ms: 0.01,
                 num_accesses: 0,
                 epoch: 0,
-            },
-            min: Point::MIN,
-            max: Point::MAX,
+            }),
         }
     }
 }
 
 impl From<RuleTree> for WhiskerTree {
     fn from(value: RuleTree) -> Self {
-        match value {
-            RuleTree::Node { min, max, children } => {
-                let mut tree = WhiskerTree::new();
+        let mut tree = WhiskerTree::new();
+        let domain = tree.domain.mut_or_insert_default();
+        domain.lower = MessageField::some(value.domain.min.clone().into());
+        domain.upper = MessageField::some(value.domain.max.clone().into());
+        match value.variant {
+            RuleTreeVariant::Node(children) => {
                 tree.children = children.into_iter().map(Into::into).collect();
-                let domain = tree.domain.mut_or_insert_default();
-                domain.lower = MessageField::some(min.into());
-                domain.upper = MessageField::some(max.into());
-                tree
             }
-            RuleTree::Leaf { action, min, max } => {
-                let mut tree = WhiskerTree::new();
-
-                tree.leaf = MessageField::some(Whisker::create(&action, min.clone(), max.clone()));
-                let domain = tree.domain.mut_or_insert_default();
-                domain.lower = MessageField::some(min.into());
-                domain.upper = MessageField::some(max.into());
-                tree
+            RuleTreeVariant::Leaf(action) => {
+                tree.leaf = MessageField::some(Whisker::create(
+                    &action,
+                    value.domain.min,
+                    value.domain.max,
+                ));
             }
-        }
+        };
+        tree
     }
 }
 
 impl From<WhiskerTree> for RuleTree {
     fn from(value: WhiskerTree) -> Self {
-        if value.leaf.is_some() {
-            RuleTree::Leaf {
-                min: value.domain.lower.clone().into(),
-                max: value.domain.upper.clone().into(),
-                action: value.leaf.into(),
-            }
+        let domain = Cube {
+            min: value.domain.lower.clone().into(),
+            max: value.domain.upper.clone().into(),
+        };
+        let variant = if value.leaf.is_some() {
+            RuleTreeVariant::Leaf(value.leaf.into())
         } else {
-            RuleTree::Node {
-                min: value.domain.lower.clone().into(),
-                max: value.domain.upper.clone().into(),
-                children: Box::new(
-                    value
-                        .children
-                        .into_iter()
-                        .map(Into::into)
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .expect("vector of length 8"),
-                ),
-            }
-        }
+            RuleTreeVariant::Node(Box::new(
+                value
+                    .children
+                    .into_iter()
+                    .map(Into::into)
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .expect("vector of length 8"),
+            ))
+        };
+        RuleTree { domain, variant }
     }
 }
 

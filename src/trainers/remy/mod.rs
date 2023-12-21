@@ -5,12 +5,16 @@ use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    flow::UtilityFunction, network::config::NetworkConfig, rand::Rng, Dna, ProgressHandler, Trainer,
+    flow::UtilityFunction, network::config::NetworkConfig, rand::Rng, time::Float, Dna,
+    ProgressHandler, Trainer,
 };
 
 pub mod rule_tree;
 
-use self::{autogen::remy_dna::WhiskerTree, rule_tree::RuleTree};
+use self::{
+    autogen::remy_dna::WhiskerTree,
+    rule_tree::{Action, Point, RuleTree},
+};
 
 #[allow(clippy::all, clippy::pedantic, clippy::nursery)]
 mod autogen {
@@ -18,13 +22,24 @@ mod autogen {
 }
 
 #[derive(Serialize, Deserialize, Default)]
-pub struct RemyConfig {}
-
-type Type = RuleTree;
+pub struct RemyConfig {
+    epochs: usize,
+    run_sim_for: Float,
+    networks_per_iter: usize,
+}
 
 #[derive(Default, Debug, Clone, PartialEq)]
 pub struct RemyDna {
-    tree: Type,
+    tree: RuleTree,
+}
+
+impl RemyDna {
+    #[must_use]
+    pub fn action(&self, point: &Point) -> &Action {
+        self.tree
+            .action(point)
+            .unwrap_or_else(|| panic!("Point {point:?} to be within the valid range"))
+    }
 }
 
 impl Dna for RemyDna {

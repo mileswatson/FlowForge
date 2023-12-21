@@ -17,7 +17,7 @@ pub struct LossyWindowSettings {
     pub intersend_delay: TimeSpan,
 }
 
-pub trait LossyWindowBehavior<L>: Debug {
+pub trait LossyWindowBehavior<'a, L>: Debug {
     fn initial_settings(&self) -> LossyWindowSettings;
     fn ack_received(
         &mut self,
@@ -47,14 +47,14 @@ struct Enabled<B> {
 }
 
 impl<B> Enabled<B> {
-    fn new<L>(
+    fn new<'a, L>(
         behavior: B,
         packets_sent: u64,
         average_throughput: EnabledRateMeter,
         average_rtt: Mean<TimeSpan>,
     ) -> Self
     where
-        B: LossyWindowBehavior<L>,
+        B: LossyWindowBehavior<'a, L>,
     {
         Self {
             last_send: Time::MIN,
@@ -111,12 +111,12 @@ impl Routable for Packet {
     }
 }
 
-pub struct LossyWindowSender<B, L>
+pub struct LossyWindowSender<'a, B, L>
 where
-    B: LossyWindowBehavior<L>,
+    B: LossyWindowBehavior<'a, L>,
     L: Logger,
 {
-    new_behavior: Box<dyn Fn() -> B>,
+    new_behavior: Box<dyn (Fn() -> B) + 'a>,
     id: ComponentId,
     link: ComponentId,
     destination: ComponentId,
@@ -124,9 +124,9 @@ where
     logger: L,
 }
 
-impl<B, L> Debug for LossyWindowSender<B, L>
+impl<'a, B, L> Debug for LossyWindowSender<'a, B, L>
 where
-    B: LossyWindowBehavior<L>,
+    B: LossyWindowBehavior<'a, L>,
     L: Logger,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -140,19 +140,19 @@ where
     }
 }
 
-impl<B, L> LossyWindowSender<B, L>
+impl<'a, B, L> LossyWindowSender<'a, B, L>
 where
-    B: LossyWindowBehavior<L>,
+    B: LossyWindowBehavior<'a, L>,
     L: Logger,
 {
     pub fn new(
         id: ComponentId,
         link: ComponentId,
         destination: ComponentId,
-        new_behavior: Box<dyn Fn() -> B>,
+        new_behavior: Box<dyn (Fn() -> B) + 'a>,
         wait_for_enable: bool,
         logger: L,
-    ) -> LossyWindowSender<B, L> {
+    ) -> LossyWindowSender<'a, B, L> {
         LossyWindowSender {
             id,
             link,
@@ -285,10 +285,10 @@ where
     }
 }
 
-impl<E, B, L> Component<E> for LossyWindowSender<B, L>
+impl<'a, E, B, L> Component<E> for LossyWindowSender<'a, B, L>
 where
     E: HasVariant<Packet> + MaybeHasVariant<Toggle>,
-    B: LossyWindowBehavior<L>,
+    B: LossyWindowBehavior<'a, L>,
     L: Logger,
 {
     fn next_tick(&self, time: Time) -> Option<Time> {
@@ -316,9 +316,9 @@ where
     }
 }
 
-impl<B, L> Flow for LossyWindowSender<B, L>
+impl<'a, B, L> Flow for LossyWindowSender<'a, B, L>
 where
-    B: LossyWindowBehavior<L>,
+    B: LossyWindowBehavior<'a, L>,
     L: Logger,
 {
     fn properties(&self, current_time: Time) -> Result<FlowProperties, FlowNeverActive> {

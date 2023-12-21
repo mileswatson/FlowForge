@@ -69,6 +69,14 @@ impl Div<Float> for TimeSpan {
     }
 }
 
+impl Div<TimeSpan> for TimeSpan {
+    type Output = Float;
+
+    fn div(self, rhs: TimeSpan) -> Self::Output {
+        self.ts / rhs.ts
+    }
+}
+
 impl Display for TimeSpan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}s", self.ts)

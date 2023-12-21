@@ -52,7 +52,7 @@ where
 #[derive(Debug)]
 pub struct EWMA<T> {
     update_weight: Float,
-    current: T,
+    current: Option<T>,
 }
 
 impl<T> EWMA<T>
@@ -60,18 +60,24 @@ where
     T: Add<T, Output = T> + Copy,
     Float: Mul<T, Output = T>,
 {
-    pub const fn new(update_weight: Float, current: T) -> EWMA<T> {
+    #[must_use]
+    pub const fn new(update_weight: Float) -> EWMA<T> {
         EWMA {
             update_weight,
-            current,
+            current: None,
         }
     }
 
-    pub fn update(&mut self, value: T) {
-        self.current = (1. - self.update_weight) * self.current + self.update_weight * value;
+    pub fn update(&mut self, value: T) -> T {
+        let new_value = match self.current {
+            Some(current) => (1. - self.update_weight) * current + self.update_weight * value,
+            None => value,
+        };
+        self.current = Some(new_value);
+        new_value
     }
 
-    pub const fn value(&self) -> T {
+    pub const fn value(&self) -> Option<T> {
         self.current
     }
 }
