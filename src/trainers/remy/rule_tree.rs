@@ -120,76 +120,88 @@ impl From<MessageField<Whisker>> for Action {
 }
 
 #[derive(Debug)]
-enum RuleTreeVariant {
-    Node(Box<[RuleTree; 8]>),
+pub(super) enum RuleTree {
+    Node {
+        domain: Cube,
+        children: Box<[RuleTree; 8]>,
+    },
     Leaf {
-        epoch: u64,
+        domain: Cube,
         access_tracker: AtomicU64,
         action: Action,
     },
 }
 
-impl PartialEq for RuleTreeVariant {
+impl PartialEq for RuleTree {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Node(l0), Self::Node(r0)) => l0 == r0,
+            (
+                Self::Node {
+                    domain: l_domain,
+                    children: l_children,
+                },
+                Self::Node {
+                    domain: r_domain,
+                    children: r_children,
+                },
+            ) => l_domain == r_domain && l_children == r_children,
             (
                 Self::Leaf {
-                    epoch: l_epoch,
+                    domain: l_domain,
                     access_tracker: _,
                     action: l_action,
                 },
                 Self::Leaf {
-                    epoch: r_epoch,
+                    domain: r_domain,
                     access_tracker: _,
                     action: r_action,
                 },
-            ) => l_epoch == r_epoch && l_action == r_action,
+            ) => l_domain == r_domain && l_action == r_action,
             _ => false,
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
-pub(super) struct RuleTree {
-    domain: Cube,
-    variant: RuleTreeVariant,
-}
-
 impl RuleTree {
-    pub fn new_with_same_rules(RuleTree { domain, variant }: &RuleTree) -> RuleTree {
-        RuleTree {
-            domain: domain.clone(),
-            variant: match variant {
-                RuleTreeVariant::Node(children) => RuleTreeVariant::Node(Box::new(
+    pub fn new_with_same_rules(self: &RuleTree) -> RuleTree {
+        match self {
+            RuleTree::Node { domain, children } => RuleTree::Node {
+                domain: domain.clone(),
+                children: Box::new(
                     children
                         .iter()
                         .map(RuleTree::new_with_same_rules)
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap(),
-                )),
-                RuleTreeVariant::Leaf { action, .. } => RuleTreeVariant::Leaf {
-                    epoch: 0,
-                    access_tracker: AtomicU64::new(0),
-                    action: action.clone(),
-                },
+                ),
+            },
+            RuleTree::Leaf { domain, action, .. } => RuleTree::Leaf {
+                domain: domain.clone(),
+                access_tracker: AtomicU64::new(0),
+                action: action.clone(),
             },
         }
     }
 
+    const fn domain(&self) -> &Cube {
+        match self {
+            RuleTree::Node { domain, .. } | RuleTree::Leaf { domain, .. } => domain,
+        }
+    }
+
     pub fn action<const COUNT: bool>(&self, point: &Point) -> Option<&Action> {
-        if !self.domain.contains(point) {
+        if !self.domain().contains(point) {
             return None;
         }
-        match &self.variant {
-            RuleTreeVariant::Node(children) => {
+        match self {
+            RuleTree::Node { children, .. } => {
                 children.iter().find_map(|x| x.action::<COUNT>(point))
             }
-            RuleTreeVariant::Leaf {
-                epoch: _,
+            RuleTree::Leaf {
                 access_tracker,
                 action,
+                ..
             } => {
                 if COUNT {
                     access_tracker.fetch_add(1, Ordering::Relaxed);
@@ -198,17 +210,32 @@ impl RuleTree {
             }
         }
     }
+
+    fn _most_used_rule(&mut self) -> (u64, &mut RuleTree) {
+        match self {
+            RuleTree::Node { children, .. } => children
+                .iter_mut()
+                .map(RuleTree::_most_used_rule)
+                .max_by_key(|x| x.0)
+                .unwrap(),
+            RuleTree::Leaf { access_tracker, .. } => {
+                let num = *access_tracker.get_mut();
+                (num, self)
+            }
+        }
+    }
+
+    pub fn most_used_rule(&mut self) -> &mut RuleTree {
+        self._most_used_rule().1
+    }
 }
 
 impl Default for RuleTree {
     fn default() -> Self {
-        RuleTree {
+        RuleTree::Leaf {
             domain: Cube::default(),
-            variant: RuleTreeVariant::Leaf {
-                epoch: 0,
-                access_tracker: AtomicU64::new(0),
-                action: Action::default(),
-            },
+            access_tracker: AtomicU64::new(0),
+            action: Action::default(),
         }
     }
 }
@@ -216,19 +243,17 @@ impl Default for RuleTree {
 impl From<RuleTree> for WhiskerTree {
     fn from(value: RuleTree) -> Self {
         let mut tree = WhiskerTree::new();
+        let cube = value.domain().clone();
         let domain = tree.domain.mut_or_insert_default();
-        domain.lower = MessageField::some(value.domain.min.clone().into());
-        domain.upper = MessageField::some(value.domain.max.clone().into());
-        match value.variant {
-            RuleTreeVariant::Node(children) => {
+        domain.lower = MessageField::some(cube.min.clone().into());
+        domain.upper = MessageField::some(cube.max.clone().into());
+        match value {
+            RuleTree::Node { children, .. } => {
                 tree.children = children.into_iter().map(Into::into).collect();
             }
-            RuleTreeVariant::Leaf { action, .. } => {
-                tree.leaf = MessageField::some(Whisker::create(
-                    &action,
-                    value.domain.min,
-                    value.domain.max,
-                ));
+            RuleTree::Leaf { action, .. } => {
+                tree.leaf =
+                    MessageField::some(Whisker::create(&action, cube.min.clone(), cube.max));
             }
         };
         tree
@@ -241,24 +266,26 @@ impl From<WhiskerTree> for RuleTree {
             min: value.domain.lower.clone().into(),
             max: value.domain.upper.clone().into(),
         };
-        let variant = if value.leaf.is_some() {
-            RuleTreeVariant::Leaf {
+        if value.leaf.is_some() {
+            RuleTree::Leaf {
+                domain,
                 action: value.leaf.into(),
-                epoch: 0,
                 access_tracker: AtomicU64::new(0),
             }
         } else {
-            RuleTreeVariant::Node(Box::new(
-                value
-                    .children
-                    .into_iter()
-                    .map(Into::into)
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .expect("vector of length 8"),
-            ))
-        };
-        RuleTree { domain, variant }
+            RuleTree::Node {
+                domain,
+                children: Box::new(
+                    value
+                        .children
+                        .into_iter()
+                        .map(Into::into)
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .expect("vector of length 8"),
+                ),
+            }
+        }
     }
 }
 
