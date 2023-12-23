@@ -28,16 +28,16 @@ pub struct RemyConfig {
     networks_per_iter: usize,
 }
 
-#[derive(Default, Debug, Clone, PartialEq)]
+#[derive(Default, Debug, PartialEq)]
 pub struct RemyDna {
     tree: RuleTree,
 }
 
 impl RemyDna {
     #[must_use]
-    pub fn action(&self, point: &Point) -> &Action {
+    pub fn action<const COUNT: bool>(&self, point: &Point) -> &Action {
         self.tree
-            .action(point)
+            .action::<COUNT>(point)
             .unwrap_or_else(|| panic!("Point {point:?} to be within the valid range"))
     }
 }
@@ -45,7 +45,7 @@ impl RemyDna {
 impl Dna for RemyDna {
     const NAME: &'static str = "remy";
     fn serialize(&self) -> Result<Vec<u8>> {
-        Ok(WhiskerTree::from(self.tree.clone()).write_to_bytes()?)
+        Ok(WhiskerTree::from(RuleTree::new_with_same_rules(&self.tree)).write_to_bytes()?)
     }
 
     fn deserialize(buf: &[u8]) -> Result<RemyDna> {

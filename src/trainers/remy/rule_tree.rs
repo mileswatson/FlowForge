@@ -1,3 +1,8 @@
+use std::{
+    fmt::Debug,
+    sync::atomic::{AtomicU64, Ordering},
+};
+
 use protobuf::MessageField;
 
 use crate::time::Float;
@@ -78,8 +83,16 @@ pub struct Action {
     pub window_multiplier: Float,
     pub window_increment: i32,
     pub intersend_ms: Float,
-    num_accesses: u64,
-    epoch: u64,
+}
+
+impl Default for Action {
+    fn default() -> Self {
+        Self {
+            window_multiplier: 1.,
+            window_increment: 1,
+            intersend_ms: 0.01,
+        }
+    }
 }
 
 impl Whisker {
@@ -102,32 +115,87 @@ impl From<MessageField<Whisker>> for Action {
             window_multiplier: value.window_multiple(),
             window_increment: value.window_increment(),
             intersend_ms: value.intersend(),
-            num_accesses: 0,
-            epoch: 0,
         }
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug)]
 enum RuleTreeVariant {
     Node(Box<[RuleTree; 8]>),
-    Leaf(Action),
+    Leaf {
+        epoch: u64,
+        access_tracker: AtomicU64,
+        action: Action,
+    },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+impl PartialEq for RuleTreeVariant {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Node(l0), Self::Node(r0)) => l0 == r0,
+            (
+                Self::Leaf {
+                    epoch: l_epoch,
+                    access_tracker: _,
+                    action: l_action,
+                },
+                Self::Leaf {
+                    epoch: r_epoch,
+                    access_tracker: _,
+                    action: r_action,
+                },
+            ) => l_epoch == r_epoch && l_action == r_action,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub(super) struct RuleTree {
     domain: Cube,
     variant: RuleTreeVariant,
 }
 
 impl RuleTree {
-    pub fn action(&self, point: &Point) -> Option<&Action> {
+    pub fn new_with_same_rules(RuleTree { domain, variant }: &RuleTree) -> RuleTree {
+        RuleTree {
+            domain: domain.clone(),
+            variant: match variant {
+                RuleTreeVariant::Node(children) => RuleTreeVariant::Node(Box::new(
+                    children
+                        .iter()
+                        .map(RuleTree::new_with_same_rules)
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap(),
+                )),
+                RuleTreeVariant::Leaf { action, .. } => RuleTreeVariant::Leaf {
+                    epoch: 0,
+                    access_tracker: AtomicU64::new(0),
+                    action: action.clone(),
+                },
+            },
+        }
+    }
+
+    pub fn action<const COUNT: bool>(&self, point: &Point) -> Option<&Action> {
         if !self.domain.contains(point) {
             return None;
         }
         match &self.variant {
-            RuleTreeVariant::Node(children) => children.iter().find_map(|x| x.action(point)),
-            RuleTreeVariant::Leaf(action) => Some(action),
+            RuleTreeVariant::Node(children) => {
+                children.iter().find_map(|x| x.action::<COUNT>(point))
+            }
+            RuleTreeVariant::Leaf {
+                epoch: _,
+                access_tracker,
+                action,
+            } => {
+                if COUNT {
+                    access_tracker.fetch_add(1, Ordering::Relaxed);
+                }
+                Some(action)
+            }
         }
     }
 }
@@ -136,13 +204,11 @@ impl Default for RuleTree {
     fn default() -> Self {
         RuleTree {
             domain: Cube::default(),
-            variant: RuleTreeVariant::Leaf(Action {
-                window_multiplier: 1.,
-                window_increment: 1,
-                intersend_ms: 0.01,
-                num_accesses: 0,
+            variant: RuleTreeVariant::Leaf {
                 epoch: 0,
-            }),
+                access_tracker: AtomicU64::new(0),
+                action: Action::default(),
+            },
         }
     }
 }
@@ -157,7 +223,7 @@ impl From<RuleTree> for WhiskerTree {
             RuleTreeVariant::Node(children) => {
                 tree.children = children.into_iter().map(Into::into).collect();
             }
-            RuleTreeVariant::Leaf(action) => {
+            RuleTreeVariant::Leaf { action, .. } => {
                 tree.leaf = MessageField::some(Whisker::create(
                     &action,
                     value.domain.min,
@@ -176,7 +242,11 @@ impl From<WhiskerTree> for RuleTree {
             max: value.domain.upper.clone().into(),
         };
         let variant = if value.leaf.is_some() {
-            RuleTreeVariant::Leaf(value.leaf.into())
+            RuleTreeVariant::Leaf {
+                action: value.leaf.into(),
+                epoch: 0,
+                access_tracker: AtomicU64::new(0),
+            }
         } else {
             RuleTreeVariant::Node(Box::new(
                 value
@@ -223,7 +293,8 @@ mod tests {
     }
 
     fn check_to_pb(dna: &RemyDna) {
-        let cycled = RuleTree::from(WhiskerTree::from(dna.tree.clone()));
+        let cycled: RuleTree =
+            RuleTree::from(WhiskerTree::from(RuleTree::new_with_same_rules(&dna.tree)));
         assert_eq!(dna.tree, cycled);
     }
 

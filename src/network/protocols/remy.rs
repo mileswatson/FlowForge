@@ -22,7 +22,7 @@ struct Rtt {
 }
 
 #[derive(Debug)]
-struct Behavior<'a> {
+struct Behavior<'a, const COUNT: bool> {
     dna: &'a RemyDna,
     last_ack: Option<Time>,
     last_send: Option<Time>,
@@ -31,8 +31,8 @@ struct Behavior<'a> {
     rtt: Option<Rtt>,
 }
 
-impl Behavior<'_> {
-    fn new(dna: &RemyDna) -> Behavior {
+impl<const COUNT: bool> Behavior<'_, COUNT> {
+    fn new(dna: &RemyDna) -> Behavior<COUNT> {
         Behavior {
             dna,
             ack_ewma: EWMA::new(1. / 8.),
@@ -52,11 +52,11 @@ impl Behavior<'_> {
     }
 
     fn action(&self) -> &Action {
-        self.dna.action(&self.point())
+        self.dna.action::<COUNT>(&self.point())
     }
 }
 
-impl<'a, L> LossyWindowBehavior<'a, L> for Behavior<'a>
+impl<'a, L, const COUNT: bool> LossyWindowBehavior<'a, L> for Behavior<'a, COUNT>
 where
     L: Logger,
 {
@@ -114,11 +114,11 @@ where
 }
 
 #[derive(Debug)]
-pub struct LossySender<'a, L>(LossyWindowSender<'a, Behavior<'a>, L>)
+pub struct LossySender<'a, L, const COUNT: bool>(LossyWindowSender<'a, Behavior<'a, COUNT>, L>)
 where
     L: Logger;
 
-impl<'a, L> LossySender<'a, L>
+impl<'a, L, const COUNT: bool> LossySender<'a, L, COUNT>
 where
     L: Logger,
 {
@@ -129,7 +129,7 @@ where
         dna: &'a RemyDna,
         wait_for_enable: bool,
         logger: L,
-    ) -> LossySender<'a, L> {
+    ) -> LossySender<'a, L, COUNT> {
         LossySender(LossyWindowSender::<'a, _, _>::new(
             id,
             link,
@@ -141,7 +141,7 @@ where
     }
 }
 
-impl<E, L> Component<E> for LossySender<'_, L>
+impl<E, L, const COUNT: bool> Component<E> for LossySender<'_, L, COUNT>
 where
     E: HasVariant<Packet> + MaybeHasVariant<Toggle>,
     L: Logger,
@@ -159,7 +159,7 @@ where
     }
 }
 
-impl<L> Flow for LossySender<'_, L>
+impl<L, const COUNT: bool> Flow for LossySender<'_, L, COUNT>
 where
     L: Logger,
 {
