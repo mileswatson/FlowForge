@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    evaluator::PopulateComponents,
     flow::{Flow, UtilityFunction},
     logging::NothingLogger,
     network::{
@@ -80,20 +81,7 @@ impl Dna for DelayMultiplierDna {
     }
 }
 
-impl GeneticDna<DelayMultiplierPacket> for DelayMultiplierDna {
-    fn new_random(rng: &mut Rng) -> Self {
-        DelayMultiplierDna {
-            multiplier: rng.sample(&ContinuousDistribution::Uniform { min: 0.0, max: 5.0 }),
-        }
-    }
-
-    fn spawn_child(&self, rng: &mut Rng) -> Self {
-        DelayMultiplierDna {
-            multiplier: self.multiplier
-                * rng.sample(&ContinuousDistribution::Uniform { min: 0.9, max: 1.1 }),
-        }
-    }
-
+impl PopulateComponents<DelayMultiplierPacket> for DelayMultiplierDna {
     fn populate_components(
         &self,
         network_slots: NetworkSlots<DelayMultiplierPacket>,
@@ -115,6 +103,21 @@ impl GeneticDna<DelayMultiplierPacket> for DelayMultiplierDna {
                 sender as Rc<dyn Flow>
             })
             .collect()
+    }
+}
+
+impl GeneticDna<DelayMultiplierPacket> for DelayMultiplierDna {
+    fn new_random(rng: &mut Rng) -> Self {
+        DelayMultiplierDna {
+            multiplier: rng.sample(&ContinuousDistribution::Uniform { min: 0.0, max: 5.0 }),
+        }
+    }
+
+    fn spawn_child(&self, rng: &mut Rng) -> Self {
+        DelayMultiplierDna {
+            multiplier: self.multiplier
+                * rng.sample(&ContinuousDistribution::Uniform { min: 0.9, max: 1.1 }),
+        }
     }
 }
 

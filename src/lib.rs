@@ -28,6 +28,7 @@ pub mod rand;
 pub mod simulation;
 pub mod time;
 pub mod trainers;
+pub mod evaluator;
 
 pub struct Json;
 pub struct Custom;

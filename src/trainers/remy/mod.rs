@@ -21,14 +21,52 @@ mod autogen {
     include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct RemyConfig {
-    epochs: usize,
+    rounds: usize,
+    epochs_per_round: usize,
     run_sim_for: Float,
     networks_per_iter: usize,
+    min_action: Action,
+    max_action: Action,
+    initial_action_change: Action,
+    action_change_multiplier: Float,
+    default_action: Action,
 }
 
-#[derive(Default, Debug, PartialEq)]
+impl Default for RemyConfig {
+    fn default() -> Self {
+        Self {
+            rounds: 100,
+            epochs_per_round: 5,
+            run_sim_for: 120.,
+            networks_per_iter: 1000,
+            min_action: Action {
+                window_multiplier: 0.,
+                window_increment: 0,
+                intersend_ms: 0.25,
+            },
+            max_action: Action {
+                window_multiplier: 1.,
+                window_increment: 256,
+                intersend_ms: 3.,
+            },
+            initial_action_change: Action {
+                window_multiplier: 0.01,
+                window_increment: 1,
+                intersend_ms: 0.05,
+            },
+            action_change_multiplier: 4.,
+            default_action: Action {
+                window_multiplier: 1.,
+                window_increment: 1,
+                intersend_ms: 0.01,
+            },
+        }
+    }
+}
+
+#[derive(Debug, PartialEq)]
 pub struct RemyDna {
     tree: RuleTree,
 }
@@ -39,6 +77,13 @@ impl RemyDna {
         self.tree
             .action::<COUNT>(point)
             .unwrap_or_else(|| panic!("Point {point:?} to be within the valid range"))
+    }
+
+    #[must_use]
+    pub fn default(dna: &RemyConfig) -> Self {
+        RemyDna {
+            tree: RuleTree::default(dna),
+        }
     }
 }
 
@@ -55,13 +100,17 @@ impl Dna for RemyDna {
     }
 }
 
-pub struct RemyTrainer {}
+pub struct RemyTrainer {
+    config: RemyConfig,
+}
 
 impl Trainer<RemyDna> for RemyTrainer {
     type Config = RemyConfig;
 
     fn new(config: &RemyConfig) -> RemyTrainer {
-        RemyTrainer {}
+        RemyTrainer {
+            config: config.clone(),
+        }
     }
 
     fn train<H: ProgressHandler<RemyDna>>(
@@ -71,7 +120,7 @@ impl Trainer<RemyDna> for RemyTrainer {
         progress_handler: &mut H,
         rng: &mut Rng,
     ) -> RemyDna {
-        let result = RemyDna::default();
+        let result = RemyDna::default(&self.config);
         progress_handler.update_progress(1., Some(&result));
         result
     }

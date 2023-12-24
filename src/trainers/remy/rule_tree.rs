@@ -4,10 +4,14 @@ use std::{
 };
 
 use protobuf::MessageField;
+use serde::{Deserialize, Serialize};
 
 use crate::time::Float;
 
-use super::autogen::remy_dna::{Memory, MemoryRange, Whisker, WhiskerTree};
+use super::{
+    autogen::remy_dna::{Memory, MemoryRange, Whisker, WhiskerTree},
+    RemyConfig,
+};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Point {
@@ -78,21 +82,11 @@ impl Cube {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Action {
     pub window_multiplier: Float,
     pub window_increment: i32,
     pub intersend_ms: Float,
-}
-
-impl Default for Action {
-    fn default() -> Self {
-        Self {
-            window_multiplier: 1.,
-            window_increment: 1,
-            intersend_ms: 0.01,
-        }
-    }
 }
 
 impl Whisker {
@@ -228,14 +222,12 @@ impl RuleTree {
     pub fn most_used_rule(&mut self) -> &mut RuleTree {
         self._most_used_rule().1
     }
-}
 
-impl Default for RuleTree {
-    fn default() -> Self {
+    pub fn default(dna: &RemyConfig) -> Self {
         RuleTree::Leaf {
             domain: Cube::default(),
             access_tracker: AtomicU64::new(0),
-            action: Action::default(),
+            action: dna.default_action.clone(),
         }
     }
 }

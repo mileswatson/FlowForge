@@ -75,6 +75,10 @@ struct Args {
 }
 
 fn main() -> Result<()> {
+    /* rayon::ThreadPoolBuilder::new()
+    .num_threads(1)
+    .build_global()
+    .unwrap();*/
     let args = Args::parse();
     match args.command {
         Command::GenConfig {
