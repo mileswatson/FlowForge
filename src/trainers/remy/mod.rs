@@ -5,8 +5,7 @@ use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    flow::UtilityFunction, network::config::NetworkConfig, rand::Rng, time::Float, Dna,
-    ProgressHandler, Trainer,
+    evaluator::EvaluationConfig, flow::UtilityFunction, network::config::NetworkConfig, rand::Rng, Dna, ProgressHandler, Trainer,
 };
 
 pub mod rule_tree;
@@ -25,13 +24,12 @@ mod autogen {
 pub struct RemyConfig {
     rounds: usize,
     epochs_per_round: usize,
-    run_sim_for: Float,
-    networks_per_iter: usize,
     min_action: Action,
     max_action: Action,
     initial_action_change: Action,
-    action_change_multiplier: Float,
+    action_change_multiplier: i32,
     default_action: Action,
+    evaluation_config: EvaluationConfig,
 }
 
 impl Default for RemyConfig {
@@ -39,8 +37,6 @@ impl Default for RemyConfig {
         Self {
             rounds: 100,
             epochs_per_round: 5,
-            run_sim_for: 120.,
-            networks_per_iter: 1000,
             min_action: Action {
                 window_multiplier: 0.,
                 window_increment: 0,
@@ -56,12 +52,13 @@ impl Default for RemyConfig {
                 window_increment: 1,
                 intersend_ms: 0.05,
             },
-            action_change_multiplier: 4.,
+            action_change_multiplier: 4,
             default_action: Action {
                 window_multiplier: 1.,
                 window_increment: 1,
                 intersend_ms: 0.01,
             },
+            evaluation_config: EvaluationConfig::default(),
         }
     }
 }
