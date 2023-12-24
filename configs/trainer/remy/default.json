@@ -1,7 +1,7 @@
 {
   "type": "remy",
-  "rounds": 100,
-  "epochs_per_round": 5,
+  "rule_splits": 100,
+  "optimization_rounds_per_split": 5,
   "min_action": {
     "window_multiplier": 0.0,
     "window_increment": 0,

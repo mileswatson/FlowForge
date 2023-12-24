@@ -5,7 +5,8 @@ use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    evaluator::EvaluationConfig, flow::UtilityFunction, network::config::NetworkConfig, rand::Rng, Dna, ProgressHandler, Trainer,
+    evaluator::EvaluationConfig, flow::UtilityFunction, network::config::NetworkConfig, rand::Rng,
+    Dna, ProgressHandler, Trainer,
 };
 
 pub mod rule_tree;
@@ -22,8 +23,8 @@ mod autogen {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RemyConfig {
-    rounds: usize,
-    epochs_per_round: usize,
+    rule_splits: usize,
+    optimization_rounds_per_split: usize,
     min_action: Action,
     max_action: Action,
     initial_action_change: Action,
@@ -35,8 +36,8 @@ pub struct RemyConfig {
 impl Default for RemyConfig {
     fn default() -> Self {
         Self {
-            rounds: 100,
-            epochs_per_round: 5,
+            rule_splits: 100,
+            optimization_rounds_per_split: 5,
             min_action: Action {
                 window_multiplier: 0.,
                 window_increment: 0,
