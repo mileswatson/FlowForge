@@ -1,5 +1,6 @@
 use std::{
     fmt::Debug,
+    ops::{Add, Mul},
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -109,6 +110,30 @@ impl From<MessageField<Whisker>> for Action {
             window_multiplier: value.window_multiple(),
             window_increment: value.window_increment(),
             intersend_ms: value.intersend(),
+        }
+    }
+}
+
+impl Mul<Action> for i32 {
+    type Output = Action;
+
+    fn mul(self, rhs: Action) -> Self::Output {
+        Action {
+            window_multiplier: Float::from(self) * rhs.window_multiplier,
+            window_increment: self * rhs.window_increment,
+            intersend_ms: Float::from(self) * rhs.intersend_ms,
+        }
+    }
+}
+
+impl Add<Action> for Action {
+    type Output = Action;
+
+    fn add(self, rhs: Action) -> Self::Output {
+        Action {
+            window_multiplier: self.window_multiplier + rhs.window_multiplier,
+            window_increment: self.window_increment + rhs.window_increment,
+            intersend_ms: self.intersend_ms + rhs.intersend_ms,
         }
     }
 }
