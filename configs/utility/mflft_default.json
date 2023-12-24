@@ -1,0 +1,8 @@
+{
+  "AlphaFairness": {
+    "alpha": 2.0,
+    "beta": 0.0,
+    "delta": 0.0,
+    "flow_utility_aggregator": "Mean"
+  }
+}

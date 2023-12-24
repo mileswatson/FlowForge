@@ -1,0 +1,28 @@
+{
+  "type": "remy",
+  "rounds": 100,
+  "epochs_per_round": 5,
+  "run_sim_for": 120.0,
+  "networks_per_iter": 1000,
+  "min_action": {
+    "window_multiplier": 0.0,
+    "window_increment": 0,
+    "intersend_ms": 0.25
+  },
+  "max_action": {
+    "window_multiplier": 1.0,
+    "window_increment": 256,
+    "intersend_ms": 3.0
+  },
+  "initial_action_change": {
+    "window_multiplier": 0.01,
+    "window_increment": 1,
+    "intersend_ms": 0.05
+  },
+  "action_change_multiplier": 4.0,
+  "default_action": {
+    "window_multiplier": 1.0,
+    "window_increment": 1,
+    "intersend_ms": 0.01
+  }
+}

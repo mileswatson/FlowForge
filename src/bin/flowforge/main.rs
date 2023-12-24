@@ -3,48 +3,19 @@ use std::path::PathBuf;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
-use create_config::create_config;
+use create_configs::create_all_configs;
 use train::train;
 
-mod create_config;
+mod create_configs;
 mod train;
-
-#[derive(Subcommand, Debug, Clone)]
-enum TrainerConfigCommand {
-    /// Train an instance of RemyCC
-    Remy,
-    /// Train a DelayMultiplier agent using a genetic algorithm
-    DelayMultiplier,
-}
-
-#[derive(Subcommand, Debug, Clone)]
-enum UtilityConfigCommand {
-    ProportionalThroughputDelayFairness,
-    MinimiseFixedLengthFileTransfer,
-}
-
-#[derive(Subcommand, Debug, Clone)]
-enum ConfigCommand {
-    /// Create a default network config
-    Network,
-    #[command(subcommand)]
-    /// Create a trainer config
-    Trainer(TrainerConfigCommand),
-    #[command(subcommand)]
-    /// Create a utility config
-    Utility(UtilityConfigCommand),
-}
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Generate a network or trainer config file
-    GenConfig {
-        #[command(subcommand)]
-        config_type: ConfigCommand,
-
-        /// File to write the network config to
+    /// Generate all default config files (already in the /configs folder)
+    GenConfigs {
+        /// Folder to
         #[arg(short, long)]
-        output: PathBuf,
+        output_folder: PathBuf,
     },
     /// Tailor a congestion control algorithm for a given network
     Train {
@@ -81,10 +52,7 @@ fn main() -> Result<()> {
     .unwrap();*/
     let args = Args::parse();
     match args.command {
-        Command::GenConfig {
-            config_type,
-            output,
-        } => create_config(&config_type, &output),
+        Command::GenConfigs { output_folder } => create_all_configs(&output_folder),
         Command::Train {
             trainer,
             network,
