@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::{
     average::EWMA,
     flow::{Flow, FlowNeverActive, FlowProperties},
@@ -6,7 +8,7 @@ use crate::{
     simulation::{Component, ComponentId, EffectContext, HasVariant, MaybeHasVariant, Message},
     time::{Time, TimeSpan},
     trainers::remy::{
-        rule_tree::{Action, Point},
+        rule_tree::{Action, Point, RuleOverride},
         RemyDna,
     },
 };
@@ -22,17 +24,24 @@ struct Rtt {
 }
 
 #[derive(Debug)]
-struct Behavior<'a, const COUNT: bool> {
+struct Behavior<'a, O, const COUNT: bool>
+where
+    O: 'a,
+{
     dna: &'a RemyDna,
     last_ack: Option<Time>,
     last_send: Option<Time>,
     ack_ewma: EWMA<TimeSpan>,
     send_ewma: EWMA<TimeSpan>,
     rtt: Option<Rtt>,
+    rule_override: O,
 }
 
-impl<const COUNT: bool> Behavior<'_, COUNT> {
-    fn new(dna: &RemyDna) -> Behavior<COUNT> {
+impl<O, const COUNT: bool> Behavior<'_, O, COUNT>
+where
+    O: RuleOverride,
+{
+    fn new(dna: &RemyDna, rule_override: O) -> Behavior<'_, O, COUNT> {
         Behavior {
             dna,
             ack_ewma: EWMA::new(1. / 8.),
@@ -40,6 +49,7 @@ impl<const COUNT: bool> Behavior<'_, COUNT> {
             last_ack: None,
             last_send: None,
             rtt: None,
+            rule_override,
         }
     }
 
@@ -52,13 +62,15 @@ impl<const COUNT: bool> Behavior<'_, COUNT> {
     }
 
     fn action(&self) -> &Action {
-        self.dna.action::<COUNT>(&self.point())
+        self.dna
+            .action::<O, COUNT>(&self.point(), &self.rule_override)
     }
 }
 
-impl<'a, L, const COUNT: bool> LossyWindowBehavior<'a, L> for Behavior<'a, COUNT>
+impl<'a, L, O, const COUNT: bool> LossyWindowBehavior<'a, L> for Behavior<'a, O, COUNT>
 where
     L: Logger,
+    O: RuleOverride,
 {
     fn initial_settings(&self) -> LossyWindowSettings {
         LossyWindowSettings {
@@ -114,13 +126,17 @@ where
 }
 
 #[derive(Debug)]
-pub struct LossySender<'a, L, const COUNT: bool>(LossyWindowSender<'a, Behavior<'a, COUNT>, L>)
-where
-    L: Logger;
-
-impl<'a, L, const COUNT: bool> LossySender<'a, L, COUNT>
+pub struct LossySender<'a, L, O, const COUNT: bool>(
+    LossyWindowSender<'a, Behavior<'a, O, COUNT>, L>,
+)
 where
     L: Logger,
+    O: RuleOverride;
+
+impl<'a, L, O, const COUNT: bool> LossySender<'a, L, O, COUNT>
+where
+    L: Logger,
+    O: RuleOverride + 'a,
 {
     pub fn new(
         id: ComponentId,
@@ -128,23 +144,25 @@ where
         destination: ComponentId,
         dna: &'a RemyDna,
         wait_for_enable: bool,
+        rule_override: O,
         logger: L,
-    ) -> LossySender<'a, L, COUNT> {
+    ) -> LossySender<'a, L, O, COUNT> {
         LossySender(LossyWindowSender::<'a, _, _>::new(
             id,
             link,
             destination,
-            Box::new(|| Behavior::<'a>::new(dna)),
+            Box::new(move || Behavior::<'a>::new(dna, rule_override.clone())),
             wait_for_enable,
             logger,
         ))
     }
 }
 
-impl<E, L, const COUNT: bool> Component<E> for LossySender<'_, L, COUNT>
+impl<E, L, O, const COUNT: bool> Component<E> for LossySender<'_, L, O, COUNT>
 where
     E: HasVariant<Packet> + MaybeHasVariant<Toggle>,
     L: Logger,
+    O: RuleOverride,
 {
     fn tick(&mut self, context: EffectContext) -> Vec<Message<E>> {
         self.0.tick(context)
@@ -159,9 +177,10 @@ where
     }
 }
 
-impl<L, const COUNT: bool> Flow for LossySender<'_, L, COUNT>
+impl<L, O, const COUNT: bool> Flow for LossySender<'_, L, O, COUNT>
 where
     L: Logger,
+    O: RuleOverride,
 {
     fn properties(&self, current_time: Time) -> Result<FlowProperties, FlowNeverActive> {
         self.0.properties(current_time)

@@ -1,6 +1,7 @@
 use std::{
     fmt::Debug,
     ops::{Add, Mul},
+    ptr,
     sync::atomic::{AtomicU64, Ordering},
 };
 
@@ -139,7 +140,7 @@ impl Add<Action> for Action {
 }
 
 #[derive(Debug)]
-pub(super) enum RuleTree {
+pub enum RuleTree {
     Node {
         domain: Cube,
         children: Box<[RuleTree; 8]>,
@@ -181,6 +182,32 @@ impl PartialEq for RuleTree {
     }
 }
 
+pub trait RuleOverride: Clone + Debug {
+    fn try_override(&self, rule: &RuleTree) -> Option<&Action>;
+}
+
+#[derive(Debug, Clone)]
+pub struct Override<'a>(&'a RuleTree, Action);
+
+#[derive(Debug, Clone)]
+pub struct NoOverride;
+
+impl<'a> RuleOverride for Override<'a> {
+    fn try_override(&self, rule: &RuleTree) -> Option<&Action> {
+        if ptr::eq(rule, self.0) {
+            Some(&self.1)
+        } else {
+            None
+        }
+    }
+}
+
+impl RuleOverride for NoOverride {
+    fn try_override(&self, _rule: &RuleTree) -> Option<&Action> {
+        None
+    }
+}
+
 impl RuleTree {
     pub fn new_with_same_rules(self: &RuleTree) -> RuleTree {
         match self {
@@ -209,14 +236,24 @@ impl RuleTree {
         }
     }
 
-    pub fn action<const COUNT: bool>(&self, point: &Point) -> Option<&Action> {
+    pub fn action<'a, O, const COUNT: bool>(
+        &'a self,
+        point: &Point,
+        rule_override: &'a O,
+    ) -> Option<&Action>
+    where
+        O: RuleOverride + 'a,
+    {
         if !self.domain().contains(point) {
             return None;
         }
+        if let Some(a) = rule_override.try_override(self) {
+            return Some(a);
+        }
         match self {
-            RuleTree::Node { children, .. } => {
-                children.iter().find_map(|x| x.action::<COUNT>(point))
-            }
+            RuleTree::Node { children, .. } => children
+                .iter()
+                .find_map(|x| x.action::<O, COUNT>(point, rule_override)),
             RuleTree::Leaf {
                 access_tracker,
                 action,
@@ -248,6 +285,7 @@ impl RuleTree {
         self._most_used_rule().1
     }
 
+    #[must_use]
     pub fn default(dna: &RemyConfig) -> Self {
         RuleTree::Leaf {
             domain: Cube::default(),

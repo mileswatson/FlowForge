@@ -13,7 +13,7 @@ pub mod rule_tree;
 
 use self::{
     autogen::remy_dna::WhiskerTree,
-    rule_tree::{Action, Point, RuleTree},
+    rule_tree::{Action, Point, RuleOverride, RuleTree},
 };
 
 #[allow(clippy::all, clippy::pedantic, clippy::nursery)]
@@ -71,9 +71,16 @@ pub struct RemyDna {
 
 impl RemyDna {
     #[must_use]
-    pub fn action<const COUNT: bool>(&self, point: &Point) -> &Action {
+    pub fn action<'a, O, const COUNT: bool>(
+        &'a self,
+        point: &Point,
+        rule_override: &'a O,
+    ) -> &Action
+    where
+        O: RuleOverride,
+    {
         self.tree
-            .action::<COUNT>(point)
+            .action::<O, COUNT>(point, rule_override)
             .unwrap_or_else(|| panic!("Point {point:?} to be within the valid range"))
     }
 
@@ -119,6 +126,7 @@ impl Trainer<RemyDna> for RemyTrainer {
         rng: &mut Rng,
     ) -> RemyDna {
         let result = RemyDna::default(&self.config);
+        for _ in 0..=self.config.rule_splits {}
         progress_handler.update_progress(1., Some(&result));
         result
     }
