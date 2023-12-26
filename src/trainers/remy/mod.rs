@@ -1,11 +1,18 @@
-use std::convert::Into;
+use std::{convert::Into, rc::Rc};
 
 use anyhow::Result;
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    evaluator::EvaluationConfig, flow::UtilityFunction, network::config::NetworkConfig, rand::Rng,
+    evaluator::{EvaluationConfig, PopulateComponents},
+    flow::{Flow, UtilityFunction},
+    network::{
+        config::NetworkConfig, protocols::window::lossy_window::Packet, toggler::Toggle,
+        NetworkSlots,
+    },
+    rand::Rng,
+    simulation::MaybeHasVariant,
     Dna, ProgressHandler, Trainer,
 };
 
@@ -13,7 +20,7 @@ pub mod rule_tree;
 
 use self::{
     autogen::remy_dna::WhiskerTree,
-    rule_tree::{Action, Point, RuleOverride, RuleTree},
+    rule_tree::{Action, NoOverride, Point, RuleOverride, RuleTree},
 };
 
 #[allow(clippy::all, clippy::pedantic, clippy::nursery)]
@@ -105,8 +112,62 @@ impl Dna for RemyDna {
     }
 }
 
+struct RemyNetwork<'a, O, const COUNT: bool> {
+    dna: &'a RemyDna,
+    rule_override: O,
+}
+
+impl<'a, O, E, const COUNT: bool> PopulateComponents<E> for RemyNetwork<'a, O, COUNT>
+where
+    O: Sync,
+{
+    fn populate_components(
+        &self,
+        network_slots: NetworkSlots<E>,
+        rng: &mut Rng,
+    ) -> Vec<Rc<dyn Flow>> {
+        todo!()
+    }
+}
+
 pub struct RemyTrainer {
     config: RemyConfig,
+}
+
+#[derive(Debug)]
+pub enum RemyMessage {
+    Packet(Packet),
+    Toggle(Toggle),
+}
+
+impl MaybeHasVariant<Toggle> for RemyMessage {
+    fn try_into(self) -> Result<Toggle, Self> {
+        match self {
+            RemyMessage::Packet(_) => Err(self),
+            RemyMessage::Toggle(t) => Ok(t),
+        }
+    }
+}
+
+impl From<Toggle> for RemyMessage {
+    fn from(value: Toggle) -> Self {
+        RemyMessage::Toggle(value)
+    }
+}
+
+impl MaybeHasVariant<Packet> for RemyMessage {
+    fn try_into(self) -> Result<Packet, Self> {
+        match self {
+            RemyMessage::Packet(p) => Ok(p),
+            RemyMessage::Toggle(_) => Err(self),
+        }
+    }
+}
+
+impl From<Packet> for RemyMessage {
+    fn from(value: Packet) -> Self {
+        RemyMessage::Packet(value)
+    }
 }
 
 impl Trainer<RemyDna> for RemyTrainer {
@@ -125,9 +186,24 @@ impl Trainer<RemyDna> for RemyTrainer {
         progress_handler: &mut H,
         rng: &mut Rng,
     ) -> RemyDna {
-        let result = RemyDna::default(&self.config);
-        for _ in 0..=self.config.rule_splits {}
-        progress_handler.update_progress(1., Some(&result));
-        result
+        let mut dna = RemyDna::default(&self.config);
+        for _ in 0..=self.config.rule_splits {
+            self.config
+                .evaluation_config
+                .evaluate::<RemyMessage, Packet>(
+                    network_config,
+                    &RemyNetwork::<_, true> {
+                        dna: &dna,
+                        rule_override: NoOverride,
+                    },
+                    utility_function,
+                    rng,
+                );
+            while let Some(leaf) = dna.tree.most_used_unoptimized_rule() {
+                leaf.optimized = true;
+            }
+        }
+        progress_handler.update_progress(1., Some(&dna));
+        dna
     }
 }

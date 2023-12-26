@@ -140,16 +140,20 @@ impl Add<Action> for Action {
 }
 
 #[derive(Debug)]
+pub struct Leaf {
+    domain: Cube,
+    access_tracker: AtomicU64,
+    pub action: Action,
+    pub optimized: bool,
+}
+
+#[derive(Debug)]
 pub enum RuleTree {
     Node {
         domain: Cube,
         children: Box<[RuleTree; 8]>,
     },
-    Leaf {
-        domain: Cube,
-        access_tracker: AtomicU64,
-        action: Action,
-    },
+    Leaf(Leaf),
 }
 
 impl PartialEq for RuleTree {
@@ -166,16 +170,16 @@ impl PartialEq for RuleTree {
                 },
             ) => l_domain == r_domain && l_children == r_children,
             (
-                Self::Leaf {
+                Self::Leaf(Leaf {
                     domain: l_domain,
-                    access_tracker: _,
                     action: l_action,
-                },
-                Self::Leaf {
+                    ..
+                }),
+                Self::Leaf(Leaf {
                     domain: r_domain,
-                    access_tracker: _,
                     action: r_action,
-                },
+                    ..
+                }),
             ) => l_domain == r_domain && l_action == r_action,
             _ => false,
         }
@@ -183,17 +187,17 @@ impl PartialEq for RuleTree {
 }
 
 pub trait RuleOverride: Clone + Debug {
-    fn try_override(&self, rule: &RuleTree) -> Option<&Action>;
+    fn try_override(&self, rule: &Leaf) -> Option<&Action>;
 }
 
 #[derive(Debug, Clone)]
-pub struct Override<'a>(&'a RuleTree, Action);
+pub struct Override<'a>(&'a Leaf, Action);
 
 #[derive(Debug, Clone)]
 pub struct NoOverride;
 
 impl<'a> RuleOverride for Override<'a> {
-    fn try_override(&self, rule: &RuleTree) -> Option<&Action> {
+    fn try_override(&self, rule: &Leaf) -> Option<&Action> {
         if ptr::eq(rule, self.0) {
             Some(&self.1)
         } else {
@@ -203,7 +207,7 @@ impl<'a> RuleOverride for Override<'a> {
 }
 
 impl RuleOverride for NoOverride {
-    fn try_override(&self, _rule: &RuleTree) -> Option<&Action> {
+    fn try_override(&self, _rule: &Leaf) -> Option<&Action> {
         None
     }
 }
@@ -222,17 +226,18 @@ impl RuleTree {
                         .unwrap(),
                 ),
             },
-            RuleTree::Leaf { domain, action, .. } => RuleTree::Leaf {
+            RuleTree::Leaf(Leaf { domain, action, .. }) => RuleTree::Leaf(Leaf {
                 domain: domain.clone(),
                 access_tracker: AtomicU64::new(0),
                 action: action.clone(),
-            },
+                optimized: false,
+            }),
         }
     }
 
     const fn domain(&self) -> &Cube {
         match self {
-            RuleTree::Node { domain, .. } | RuleTree::Leaf { domain, .. } => domain,
+            RuleTree::Node { domain, .. } | RuleTree::Leaf(Leaf { domain, .. }) => domain,
         }
     }
 
@@ -247,22 +252,19 @@ impl RuleTree {
         if !self.domain().contains(point) {
             return None;
         }
-        if let Some(a) = rule_override.try_override(self) {
-            return Some(a);
-        }
+
         match self {
             RuleTree::Node { children, .. } => children
                 .iter()
                 .find_map(|x| x.action::<O, COUNT>(point, rule_override)),
-            RuleTree::Leaf {
-                access_tracker,
-                action,
-                ..
-            } => {
-                if COUNT {
-                    access_tracker.fetch_add(1, Ordering::Relaxed);
+            RuleTree::Leaf(leaf) => {
+                if let Some(a) = rule_override.try_override(leaf) {
+                    return Some(a);
                 }
-                Some(action)
+                if COUNT {
+                    leaf.access_tracker.fetch_add(1, Ordering::Relaxed);
+                }
+                Some(&leaf.action)
             }
         }
     }
@@ -274,10 +276,7 @@ impl RuleTree {
                 .map(RuleTree::_most_used_rule)
                 .max_by_key(|x| x.0)
                 .unwrap(),
-            RuleTree::Leaf { access_tracker, .. } => {
-                let num = *access_tracker.get_mut();
-                (num, self)
-            }
+            RuleTree::Leaf(Leaf { access_tracker, .. }) => (*access_tracker.get_mut(), self),
         }
     }
 
@@ -285,13 +284,34 @@ impl RuleTree {
         self._most_used_rule().1
     }
 
+    fn _most_used_unoptimized_rule(&mut self) -> Option<(u64, &mut Leaf)> {
+        match self {
+            RuleTree::Node { children, .. } => children
+                .iter_mut()
+                .filter_map(RuleTree::_most_used_unoptimized_rule)
+                .max_by_key(|x| x.0),
+            RuleTree::Leaf(leaf) => {
+                if leaf.optimized {
+                    Some((*leaf.access_tracker.get_mut(), leaf))
+                } else {
+                    None
+                }
+            }
+        }
+    }
+
+    pub fn most_used_unoptimized_rule(&mut self) -> Option<&mut Leaf> {
+        self._most_used_unoptimized_rule().map(|x| x.1)
+    }
+
     #[must_use]
     pub fn default(dna: &RemyConfig) -> Self {
-        RuleTree::Leaf {
+        RuleTree::Leaf(Leaf {
             domain: Cube::default(),
             access_tracker: AtomicU64::new(0),
             action: dna.default_action.clone(),
-        }
+            optimized: false,
+        })
     }
 }
 
@@ -306,7 +326,7 @@ impl From<RuleTree> for WhiskerTree {
             RuleTree::Node { children, .. } => {
                 tree.children = children.into_iter().map(Into::into).collect();
             }
-            RuleTree::Leaf { action, .. } => {
+            RuleTree::Leaf(Leaf { action, .. }) => {
                 tree.leaf =
                     MessageField::some(Whisker::create(&action, cube.min.clone(), cube.max));
             }
@@ -322,11 +342,12 @@ impl From<WhiskerTree> for RuleTree {
             max: value.domain.upper.clone().into(),
         };
         if value.leaf.is_some() {
-            RuleTree::Leaf {
+            RuleTree::Leaf(Leaf {
                 domain,
                 action: value.leaf.into(),
                 access_tracker: AtomicU64::new(0),
-            }
+                optimized: false,
+            })
         } else {
             RuleTree::Node {
                 domain,
