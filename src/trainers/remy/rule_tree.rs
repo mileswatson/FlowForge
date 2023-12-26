@@ -1,143 +1,18 @@
 use std::{
     fmt::Debug,
-    ops::{Add, Mul},
     ptr,
     sync::atomic::{AtomicU64, Ordering},
 };
 
 use protobuf::MessageField;
-use serde::{Deserialize, Serialize};
-
-use crate::time::Float;
 
 use super::{
-    autogen::remy_dna::{Memory, MemoryRange, Whisker, WhiskerTree},
+    action::Action,
+    autogen::remy_dna::{Whisker, WhiskerTree},
+    cube::Cube,
+    point::Point,
     RemyConfig,
 };
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Point {
-    pub ack_ewma: Float,
-    pub send_ewma: Float,
-    pub rtt_ratio: Float,
-}
-
-impl Point {
-    const MIN: Point = Point {
-        ack_ewma: 0.,
-        send_ewma: 0.,
-        rtt_ratio: 0.,
-    };
-    // TODO
-    const MAX: Point = Point {
-        ack_ewma: 163_840.,
-        send_ewma: 163_840.,
-        rtt_ratio: 163_840.,
-    };
-}
-
-impl From<Point> for Memory {
-    fn from(value: Point) -> Self {
-        let mut memory = Memory::new();
-        memory.set_rec_rec_ewma(value.ack_ewma);
-        memory.set_rec_send_ewma(value.send_ewma);
-        memory.set_rtt_ratio(value.rtt_ratio);
-        memory
-    }
-}
-
-impl From<MessageField<Memory>> for Point {
-    fn from(value: MessageField<Memory>) -> Self {
-        Point {
-            ack_ewma: value.rec_rec_ewma(),
-            send_ewma: value.rec_send_ewma(),
-            rtt_ratio: value.rtt_ratio(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Cube {
-    min: Point,
-    max: Point,
-}
-
-impl Default for Cube {
-    fn default() -> Self {
-        Self {
-            min: Point::MIN,
-            max: Point::MAX,
-        }
-    }
-}
-
-fn within(min: Float, x: Float, max: Float) -> bool {
-    min <= x && x < max
-}
-
-impl Cube {
-    #[must_use]
-    pub fn contains(&self, point: &Point) -> bool {
-        within(self.min.rtt_ratio, point.rtt_ratio, self.max.rtt_ratio)
-            && within(self.min.ack_ewma, point.ack_ewma, self.max.ack_ewma)
-            && within(self.min.send_ewma, point.send_ewma, self.max.send_ewma)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct Action {
-    pub window_multiplier: Float,
-    pub window_increment: i32,
-    pub intersend_ms: Float,
-}
-
-impl Whisker {
-    fn create(value: &Action, min: Point, max: Point) -> Self {
-        let mut memory_range = MemoryRange::new();
-        memory_range.lower = MessageField::some(min.into());
-        memory_range.upper = MessageField::some(max.into());
-        let mut whisker = Whisker::new();
-        whisker.set_intersend(value.intersend_ms);
-        whisker.set_window_increment(value.window_increment);
-        whisker.set_window_multiple(value.window_multiplier);
-        whisker.domain = MessageField::some(memory_range);
-        whisker
-    }
-}
-
-impl From<MessageField<Whisker>> for Action {
-    fn from(value: MessageField<Whisker>) -> Self {
-        Action {
-            window_multiplier: value.window_multiple(),
-            window_increment: value.window_increment(),
-            intersend_ms: value.intersend(),
-        }
-    }
-}
-
-impl Mul<Action> for i32 {
-    type Output = Action;
-
-    fn mul(self, rhs: Action) -> Self::Output {
-        Action {
-            window_multiplier: Float::from(self) * rhs.window_multiplier,
-            window_increment: self * rhs.window_increment,
-            intersend_ms: Float::from(self) * rhs.intersend_ms,
-        }
-    }
-}
-
-impl Add<Action> for Action {
-    type Output = Action;
-
-    fn add(self, rhs: Action) -> Self::Output {
-        Action {
-            window_multiplier: self.window_multiplier + rhs.window_multiplier,
-            window_increment: self.window_increment + rhs.window_increment,
-            intersend_ms: self.intersend_ms + rhs.intersend_ms,
-        }
-    }
-}
 
 #[derive(Debug)]
 pub struct Leaf {

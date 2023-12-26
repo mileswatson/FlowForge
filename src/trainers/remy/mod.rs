@@ -16,11 +16,16 @@ use crate::{
     Dna, ProgressHandler, Trainer,
 };
 
+pub mod action;
+pub mod cube;
+pub mod point;
 pub mod rule_tree;
 
 use self::{
+    action::Action,
     autogen::remy_dna::WhiskerTree,
-    rule_tree::{Action, NoOverride, Point, RuleOverride, RuleTree},
+    point::Point,
+    rule_tree::{NoOverride, RuleOverride, RuleTree},
 };
 
 #[allow(clippy::all, clippy::pedantic, clippy::nursery)]
@@ -35,6 +40,7 @@ pub struct RemyConfig {
     min_action: Action,
     max_action: Action,
     initial_action_change: Action,
+    max_action_change: Action,
     action_change_multiplier: i32,
     default_action: Action,
     evaluation_config: EvaluationConfig,
@@ -59,6 +65,11 @@ impl Default for RemyConfig {
                 window_multiplier: 0.01,
                 window_increment: 1,
                 intersend_ms: 0.05,
+            },
+            max_action_change: Action {
+                window_multiplier: 0.5,
+                window_increment: 32,
+                intersend_ms: 1.,
             },
             action_change_multiplier: 4,
             default_action: Action {

@@ -7,10 +7,7 @@ use crate::{
     network::toggler::Toggle,
     simulation::{Component, ComponentId, EffectContext, HasVariant, MaybeHasVariant, Message},
     time::{Time, TimeSpan},
-    trainers::remy::{
-        rule_tree::{Action, Point, RuleOverride},
-        RemyDna,
-    },
+    trainers::remy::{action::Action, point::Point, rule_tree::RuleOverride, RemyDna},
 };
 
 use super::window::lossy_window::{
