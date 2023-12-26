@@ -17,6 +17,11 @@
     "window_increment": 1,
     "intersend_ms": 0.05
   },
+  "max_action_change": {
+    "window_multiplier": 0.5,
+    "window_increment": 32,
+    "intersend_ms": 1.0
+  },
   "action_change_multiplier": 4,
   "default_action": {
     "window_multiplier": 1.0,
