@@ -23,24 +23,22 @@ impl Point {
         send_ewma: 163_840.,
         rtt_ratio: 163_840.,
     };
-}
 
-impl From<Point> for Memory {
-    fn from(value: Point) -> Self {
-        let mut memory = Memory::new();
-        memory.set_rec_rec_ewma(value.ack_ewma);
-        memory.set_rec_send_ewma(value.send_ewma);
-        memory.set_rtt_ratio(value.rtt_ratio);
-        memory
-    }
-}
-
-impl From<MessageField<Memory>> for Point {
-    fn from(value: MessageField<Memory>) -> Self {
+    #[must_use]
+    pub fn from_memory(memory: &MessageField<Memory>) -> Point {
         Point {
-            ack_ewma: value.rec_rec_ewma(),
-            send_ewma: value.rec_send_ewma(),
-            rtt_ratio: value.rtt_ratio(),
+            ack_ewma: memory.rec_rec_ewma(),
+            send_ewma: memory.rec_send_ewma(),
+            rtt_ratio: memory.rtt_ratio(),
         }
+    }
+
+    #[must_use]
+    pub fn to_memory(&self) -> Memory {
+        let mut memory = Memory::new();
+        memory.set_rec_rec_ewma(self.ack_ewma);
+        memory.set_rec_send_ewma(self.send_ewma);
+        memory.set_rtt_ratio(self.rtt_ratio);
+        memory
     }
 }

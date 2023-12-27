@@ -22,7 +22,6 @@ impl Action {
     #[must_use]
     pub fn possible_improvements(
         &self,
-        action: &Action,
         RemyConfig {
             initial_action_change,
             max_action_change,
@@ -53,12 +52,11 @@ impl Action {
                         intersend_ms,
                     };
                     for mul in [1, -1] {
-                        let new_action = action + &(mul * &increment);
+                        let new_action = self + &(mul * &increment);
                         if valid_action(&new_action) {
                             results.push(new_action);
                         }
                     }
-
                     intersend_ms *= Float::from(*action_change_multiplier);
                 }
                 window_increment *= action_change_multiplier;
@@ -67,29 +65,28 @@ impl Action {
         }
         results
     }
+
+    #[must_use]
+    pub fn from_whisker(whisker: &MessageField<Whisker>) -> Action {
+        Action {
+            window_multiplier: whisker.window_multiple(),
+            window_increment: whisker.window_increment(),
+            intersend_ms: whisker.intersend(),
+        }
+    }
 }
 
 impl Whisker {
-    pub fn create(value: &Action, min: Point, max: Point) -> Self {
+    pub fn create(value: &Action, min: &Point, max: &Point) -> Self {
         let mut memory_range = MemoryRange::new();
-        memory_range.lower = MessageField::some(min.into());
-        memory_range.upper = MessageField::some(max.into());
+        memory_range.lower = MessageField::some(min.to_memory());
+        memory_range.upper = MessageField::some(max.to_memory());
         let mut whisker = Whisker::new();
         whisker.set_intersend(value.intersend_ms);
         whisker.set_window_increment(value.window_increment);
         whisker.set_window_multiple(value.window_multiplier);
         whisker.domain = MessageField::some(memory_range);
         whisker
-    }
-}
-
-impl From<MessageField<Whisker>> for Action {
-    fn from(value: MessageField<Whisker>) -> Self {
-        Action {
-            window_multiplier: value.window_multiple(),
-            window_increment: value.window_increment(),
-            intersend_ms: value.intersend(),
-        }
     }
 }
 

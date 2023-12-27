@@ -111,11 +111,7 @@ impl Routable for Packet {
     }
 }
 
-pub struct LossyWindowSender<'a, B, L>
-where
-    B: LossyWindowBehavior<'a, L>,
-    L: Logger,
-{
+pub struct LossyWindowSender<'a, B, L> {
     new_behavior: Box<dyn (Fn() -> B) + 'a>,
     id: ComponentId,
     link: ComponentId,

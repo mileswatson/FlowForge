@@ -1,4 +1,4 @@
-use std::{convert::Into, rc::Rc};
+use std::rc::Rc;
 
 use anyhow::Result;
 use protobuf::Message;
@@ -24,8 +24,7 @@ pub mod rule_tree;
 use self::{
     action::Action,
     autogen::remy_dna::WhiskerTree,
-    point::Point,
-    rule_tree::{NoOverride, RuleOverride, RuleTree},
+    rule_tree::{CountingRuleTree, RuleTree},
 };
 
 #[allow(clippy::all, clippy::pedantic, clippy::nursery)]
@@ -84,28 +83,14 @@ impl Default for RemyConfig {
 
 #[derive(Debug, PartialEq)]
 pub struct RemyDna {
-    tree: RuleTree,
+    tree: CountingRuleTree,
 }
 
 impl RemyDna {
     #[must_use]
-    pub fn action<'a, O, const COUNT: bool>(
-        &'a self,
-        point: &Point,
-        rule_override: &'a O,
-    ) -> &Action
-    where
-        O: RuleOverride,
-    {
-        self.tree
-            .action::<O, COUNT>(point, rule_override)
-            .unwrap_or_else(|| panic!("Point {point:?} to be within the valid range"))
-    }
-
-    #[must_use]
     pub fn default(dna: &RemyConfig) -> Self {
         RemyDna {
-            tree: RuleTree::default(dna),
+            tree: CountingRuleTree::default(dna),
         }
     }
 }
@@ -113,31 +98,13 @@ impl RemyDna {
 impl Dna for RemyDna {
     const NAME: &'static str = "remy";
     fn serialize(&self) -> Result<Vec<u8>> {
-        Ok(WhiskerTree::from(RuleTree::new_with_same_rules(&self.tree)).write_to_bytes()?)
+        Ok(self.tree.to_whisker_tree().write_to_bytes()?)
     }
 
     fn deserialize(buf: &[u8]) -> Result<RemyDna> {
         Ok(RemyDna {
-            tree: WhiskerTree::parse_from_bytes(buf)?.into(),
+            tree: CountingRuleTree::from_whisker_tree(&WhiskerTree::parse_from_bytes(buf)?),
         })
-    }
-}
-
-struct RemyNetwork<'a, O, const COUNT: bool> {
-    dna: &'a RemyDna,
-    rule_override: O,
-}
-
-impl<'a, O, E, const COUNT: bool> PopulateComponents<E> for RemyNetwork<'a, O, COUNT>
-where
-    O: Sync,
-{
-    fn populate_components(
-        &self,
-        network_slots: NetworkSlots<E>,
-        rng: &mut Rng,
-    ) -> Vec<Rc<dyn Flow>> {
-        todo!()
     }
 }
 
@@ -149,6 +116,19 @@ pub struct RemyTrainer {
 pub enum RemyMessage {
     Packet(Packet),
     Toggle(Toggle),
+}
+
+impl<T, E> PopulateComponents<E> for T
+where
+    T: RuleTree + Sync,
+{
+    fn populate_components(
+        &self,
+        network_slots: NetworkSlots<E>,
+        rng: &mut Rng,
+    ) -> Vec<Rc<dyn Flow>> {
+        todo!()
+    }
 }
 
 impl MaybeHasVariant<Toggle> for RemyMessage {
@@ -201,17 +181,24 @@ impl Trainer<RemyDna> for RemyTrainer {
         for _ in 0..=self.config.rule_splits {
             self.config
                 .evaluation_config
-                .evaluate::<RemyMessage, Packet>(
-                    network_config,
-                    &RemyNetwork::<_, true> {
-                        dna: &dna,
-                        rule_override: NoOverride,
-                    },
-                    utility_function,
-                    rng,
-                );
-            while let Some(leaf) = dna.tree.most_used_unoptimized_rule() {
-                leaf.optimized = true;
+                .evaluate::<RemyMessage, Packet>(network_config, &dna.tree, utility_function, rng);
+            while let Some(mut leaf) = dna.tree.most_used_unoptimized_rule() {
+                {
+                    let possible_improvements = leaf
+                        .action()
+                        .possible_improvements(&self.config)
+                        .into_iter()
+                        .map(|action| {
+                            self.config
+                                .evaluation_config
+                                .evaluate::<RemyMessage, Packet>(
+                                    network_config,
+                                    &leaf.augmented_tree(action),
+                                    utility_function,
+                                    rng,
+                                )
+                        });
+                }
             }
         }
         progress_handler.update_progress(1., Some(&dna));

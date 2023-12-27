@@ -7,7 +7,7 @@ use crate::{
     network::toggler::Toggle,
     simulation::{Component, ComponentId, EffectContext, HasVariant, MaybeHasVariant, Message},
     time::{Time, TimeSpan},
-    trainers::remy::{action::Action, point::Point, rule_tree::RuleOverride, RemyDna},
+    trainers::remy::{action::Action, point::Point, rule_tree::RuleTree},
 };
 
 use super::window::lossy_window::{
@@ -21,32 +21,27 @@ struct Rtt {
 }
 
 #[derive(Debug)]
-struct Behavior<'a, O, const COUNT: bool>
-where
-    O: 'a,
-{
-    dna: &'a RemyDna,
+struct Behavior<'a, T> {
+    rule_tree: &'a T,
     last_ack: Option<Time>,
     last_send: Option<Time>,
     ack_ewma: EWMA<TimeSpan>,
     send_ewma: EWMA<TimeSpan>,
     rtt: Option<Rtt>,
-    rule_override: O,
 }
 
-impl<O, const COUNT: bool> Behavior<'_, O, COUNT>
+impl<T> Behavior<'_, T>
 where
-    O: RuleOverride,
+    T: RuleTree,
 {
-    fn new(dna: &RemyDna, rule_override: O) -> Behavior<'_, O, COUNT> {
+    fn new(rule_tree: &T) -> Behavior<T> {
         Behavior {
-            dna,
+            rule_tree,
             ack_ewma: EWMA::new(1. / 8.),
             send_ewma: EWMA::new(1. / 8.),
             last_ack: None,
             last_send: None,
             rtt: None,
-            rule_override,
         }
     }
 
@@ -59,15 +54,16 @@ where
     }
 
     fn action(&self) -> &Action {
-        self.dna
-            .action::<O, COUNT>(&self.point(), &self.rule_override)
+        self.rule_tree
+            .action(&self.point())
+            .expect("point to map to an action")
     }
 }
 
-impl<'a, L, O, const COUNT: bool> LossyWindowBehavior<'a, L> for Behavior<'a, O, COUNT>
+impl<'a, L, T> LossyWindowBehavior<'a, L> for Behavior<'a, T>
 where
     L: Logger,
-    O: RuleOverride,
+    T: RuleTree,
 {
     fn initial_settings(&self) -> LossyWindowSettings {
         LossyWindowSettings {
@@ -90,7 +86,7 @@ where
             self.send_ewma.update(sent_time - last_send);
         }
         self.last_ack = Some(received_time);
-        self.last_send = Some(received_time);
+        self.last_send = Some(sent_time);
         let current_rtt = received_time - sent_time;
         self.rtt = Some(Rtt {
             min: self.rtt.as_ref().map_or(current_rtt, |prev| {
@@ -123,43 +119,40 @@ where
 }
 
 #[derive(Debug)]
-pub struct LossySender<'a, L, O, const COUNT: bool>(
-    LossyWindowSender<'a, Behavior<'a, O, COUNT>, L>,
-)
+pub struct LossySender<'a, L, T>(LossyWindowSender<'a, Behavior<'a, T>, L>)
 where
     L: Logger,
-    O: RuleOverride;
+    T: RuleTree;
 
-impl<'a, L, O, const COUNT: bool> LossySender<'a, L, O, COUNT>
+impl<'a, L, T> LossySender<'a, L, T>
 where
     L: Logger,
-    O: RuleOverride + 'a,
+    T: RuleTree,
 {
     pub fn new(
         id: ComponentId,
         link: ComponentId,
         destination: ComponentId,
-        dna: &'a RemyDna,
+        rule_tree: &'a T,
         wait_for_enable: bool,
-        rule_override: O,
         logger: L,
-    ) -> LossySender<'a, L, O, COUNT> {
+    ) -> LossySender<'a, L, T> {
         LossySender(LossyWindowSender::<'a, _, _>::new(
             id,
             link,
             destination,
-            Box::new(move || Behavior::<'a>::new(dna, rule_override.clone())),
+            Box::new(move || Behavior::<'a>::new(rule_tree)),
             wait_for_enable,
             logger,
         ))
     }
 }
 
-impl<E, L, O, const COUNT: bool> Component<E> for LossySender<'_, L, O, COUNT>
+impl<E, L, T> Component<E> for LossySender<'_, L, T>
 where
     E: HasVariant<Packet> + MaybeHasVariant<Toggle>,
     L: Logger,
-    O: RuleOverride,
+    T: RuleTree,
 {
     fn tick(&mut self, context: EffectContext) -> Vec<Message<E>> {
         self.0.tick(context)
@@ -174,10 +167,10 @@ where
     }
 }
 
-impl<L, O, const COUNT: bool> Flow for LossySender<'_, L, O, COUNT>
+impl<L, T> Flow for LossySender<'_, L, T>
 where
     L: Logger,
-    O: RuleOverride,
+    T: RuleTree,
 {
     fn properties(&self, current_time: Time) -> Result<FlowProperties, FlowNeverActive> {
         self.0.properties(current_time)
