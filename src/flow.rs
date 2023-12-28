@@ -65,7 +65,11 @@ impl UtilityConfig {
 }
 
 pub trait UtilityFunction: Sync {
-    fn total_utility(&self, flows: &[Rc<dyn Flow>], time: Time) -> Result<Float, NoActiveFlows>;
+    fn total_utility<'a>(
+        &self,
+        flows: &[Rc<dyn Flow + 'a>],
+        time: Time,
+    ) -> Result<Float, NoActiveFlows>;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -75,9 +79,9 @@ pub enum FlowUtilityAggregator {
 }
 
 impl FlowUtilityAggregator {
-    pub fn total_utility<F>(
+    pub fn total_utility<'a, F>(
         &self,
-        flows: &[Rc<dyn Flow>],
+        flows: &[Rc<dyn Flow + 'a>],
         flow_utility: F,
     ) -> Result<Float, NoActiveFlows>
     where
@@ -148,7 +152,11 @@ impl AlphaFairness {
 }
 
 impl UtilityFunction for AlphaFairness {
-    fn total_utility(&self, flows: &[Rc<dyn Flow>], time: Time) -> Result<Float, NoActiveFlows> {
+    fn total_utility<'a>(
+        &self,
+        flows: &[Rc<dyn Flow + 'a>],
+        time: Time,
+    ) -> Result<Float, NoActiveFlows> {
         self.flow_utility_aggregator
             .total_utility(flows, |flow| self.flow_utility(flow, time))
     }

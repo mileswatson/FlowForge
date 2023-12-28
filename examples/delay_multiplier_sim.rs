@@ -1,3 +1,5 @@
+use std::mem::ManuallyDrop;
+
 use flowforge::{
     logging::LogTable,
     network::{
@@ -40,7 +42,9 @@ impl MaybeHasVariant<Toggle> for Msg {
 
 fn main() {
     let table = LogTable::new(5);
-    let builder = SimulatorBuilder::<Msg>::new();
+    // ManuallyDrop is used to re-order drop(builder) to before drop(sender),
+    // as it can contain a ref to sender
+    let builder = ManuallyDrop::new(SimulatorBuilder::<Msg>::new());
 
     let sender_slot = builder.reserve_slot();
     let link1_slot = builder.reserve_slot();
@@ -77,7 +81,8 @@ fn main() {
     link2_slot.set(DynComponent::Ref(&mut link2));
 
     let mut rng = Rng::from_seed(1_234_987_348);
-    let sim = builder.build(&mut rng, table.logger(0));
+    let sim = ManuallyDrop::into_inner(builder).build(&mut rng, table.logger(0));
     sim.run_for(TimeSpan::new(100.));
+
     println!("{}", table.build());
 }

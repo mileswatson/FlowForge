@@ -1,5 +1,9 @@
-use std::ops::{Add, Mul};
+use std::{
+    iter::successors,
+    ops::{Add, Mul},
+};
 
+use itertools::Itertools;
 use protobuf::MessageField;
 use serde::{Deserialize, Serialize};
 
@@ -18,9 +22,19 @@ pub struct Action {
     pub intersend_ms: Float,
 }
 
+fn changes<T>(initial_change: T, max_change: T, multiplier: i32) -> impl Iterator<Item = T> + Clone
+where
+    T: From<i32> + Mul<T, Output = T> + PartialOrd + Copy + 'static,
+{
+    successors(Some(initial_change), move |x| {
+        Some(T::from(multiplier) * *x)
+    })
+    .take_while(move |x| x <= &max_change)
+    .flat_map(|x| [x, T::from(-1) * x])
+}
+
 impl Action {
-    #[must_use]
-    pub fn possible_improvements(
+    pub fn possible_improvements<'a>(
         &self,
         RemyConfig {
             initial_action_change,
@@ -29,41 +43,42 @@ impl Action {
             min_action,
             max_action,
             ..
-        }: &RemyConfig,
-    ) -> Vec<Action> {
-        let mut results = Vec::new();
-        let valid_action = |x: &Action| {
+        }: &'a RemyConfig,
+    ) -> impl Iterator<Item = Action> + 'a {
+        let cloned = self.clone();
+        changes(
+            initial_action_change.window_multiplier,
+            max_action_change.window_multiplier,
+            *action_change_multiplier,
+        )
+        .cartesian_product(changes(
+            initial_action_change.window_increment,
+            max_action_change.window_increment,
+            *action_change_multiplier,
+        ))
+        .cartesian_product(changes(
+            initial_action_change.intersend_ms,
+            max_action_change.intersend_ms,
+            *action_change_multiplier,
+        ))
+        .map(
+            move |((window_multiplier, window_increment), intersend_ms)| {
+                &cloned
+                    + &Action {
+                        window_multiplier,
+                        window_increment,
+                        intersend_ms,
+                    }
+            },
+        )
+        .filter(move |x| {
             min_action.window_multiplier <= x.window_multiplier
                 && x.window_multiplier <= max_action.window_multiplier
                 && min_action.window_increment <= x.window_increment
                 && x.window_increment <= max_action.window_increment
                 && min_action.intersend_ms <= x.intersend_ms
                 && x.intersend_ms <= max_action.intersend_ms
-        };
-        let mut window_multiplier = initial_action_change.window_multiplier;
-        while window_multiplier.abs() <= max_action_change.window_multiplier {
-            let mut window_increment = initial_action_change.window_increment;
-            while window_increment.abs() <= max_action_change.window_increment {
-                let mut intersend_ms = initial_action_change.intersend_ms;
-                while intersend_ms.abs() <= max_action_change.intersend_ms {
-                    let increment = Action {
-                        window_multiplier,
-                        window_increment,
-                        intersend_ms,
-                    };
-                    for mul in [1, -1] {
-                        let new_action = self + &(mul * &increment);
-                        if valid_action(&new_action) {
-                            results.push(new_action);
-                        }
-                    }
-                    intersend_ms *= Float::from(*action_change_multiplier);
-                }
-                window_increment *= action_change_multiplier;
-            }
-            window_multiplier *= Float::from(*action_change_multiplier);
-        }
-        results
+        })
     }
 
     #[must_use]

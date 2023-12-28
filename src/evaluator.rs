@@ -13,11 +13,11 @@ use crate::{
 
 pub trait PopulateComponents<E>: Sync {
     /// Populates senders and receiver slots
-    fn populate_components(
-        &self,
-        network_slots: NetworkSlots<E>,
+    fn populate_components<'a>(
+        &'a self,
+        network_slots: NetworkSlots<'a, '_, E>,
         rng: &mut Rng,
-    ) -> Vec<Rc<dyn Flow>>;
+    ) -> Vec<Rc<dyn Flow + 'a>>;
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -49,8 +49,9 @@ impl EvaluationConfig {
     {
         let run_sim_for = TimeSpan::new(self.run_sim_for);
         let score_network = |(n, mut rng): (Network, Rng)| -> Float {
-            let (sim, flows) = n.to_sim::<_, P, _>(&mut rng, |slots, rng| {
-                components.populate_components(slots, rng)
+            let (sim, flows) = n.to_sim::<E, P, _>(&mut rng, |slots, rng| {
+                let x = components.populate_components(slots, rng);
+                x
             });
             sim.run_for(run_sim_for);
             utility_function

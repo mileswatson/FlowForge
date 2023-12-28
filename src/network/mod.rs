@@ -38,7 +38,7 @@ impl Network {
     pub fn to_sim<'a, E, P, R>(
         &self,
         rng: &'a mut Rng,
-        populate_components: impl FnOnce(NetworkSlots<'a, '_, E>, &mut Rng) -> R,
+        populate_components: impl FnOnce(NetworkSlots<'a, '_, E>, &mut Rng) -> R + 'a,
     ) -> (Simulator<'a, E, NothingLogger>, R)
     where
         E: HasVariant<P> + HasVariant<Toggle> + 'a,

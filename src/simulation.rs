@@ -20,8 +20,8 @@ use crate::{
 
 #[derive(Debug)]
 pub enum DynComponent<'a, E> {
-    Owned(Box<dyn Component<E>>),
-    Shared(Rc<RefCell<dyn Component<E>>>),
+    Owned(Box<dyn Component<E> + 'a>),
+    Shared(Rc<RefCell<dyn Component<E> + 'a>>),
     Ref(&'a mut (dyn Component<E> + 'a)),
 }
 

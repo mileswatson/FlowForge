@@ -268,7 +268,7 @@ impl CountingRuleTree {
         }
     }
 
-    fn _most_used_rule<const ONLY_OPTIMIZED: bool>(&mut self) -> Option<LeafHandle<'_>> {
+    fn _most_used_rule<const ONLY_UNOPTIMIZED: bool>(&mut self) -> Option<LeafHandle<'_>> {
         self.nodes
             .iter_mut()
             .enumerate()
@@ -279,7 +279,7 @@ impl CountingRuleTree {
                     optimized,
                     ..
                 }) => {
-                    if ONLY_OPTIMIZED && !*optimized {
+                    if ONLY_UNOPTIMIZED && *optimized {
                         None
                     } else {
                         Some((*access_tracker.get_mut(), i))

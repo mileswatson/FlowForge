@@ -208,6 +208,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "itertools",
  "ordered-float",
  "pretty_assertions",
  "priority-queue",
@@ -270,6 +271,15 @@ checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
 dependencies = [
  "autocfg",
  "hashbrown",
+]
+
+[[package]]
+name = "itertools"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "25db6b064527c5d482d0423354fcd07a89a2dfe07b67892e62411946db7f07b0"
+dependencies = [
+ "either",
 ]
 
 [[package]]

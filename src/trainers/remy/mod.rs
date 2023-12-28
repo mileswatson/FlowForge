@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
 use ordered_float::NotNan;
@@ -8,12 +8,15 @@ use serde::{Deserialize, Serialize};
 use crate::{
     evaluator::{EvaluationConfig, PopulateComponents},
     flow::{Flow, UtilityFunction},
+    logging::NothingLogger,
     network::{
-        config::NetworkConfig, protocols::window::lossy_window::Packet, toggler::Toggle,
+        config::NetworkConfig,
+        protocols::{remy::LossySender, window::lossy_window::Packet},
+        toggler::Toggle,
         NetworkSlots,
     },
     rand::Rng,
-    simulation::MaybeHasVariant,
+    simulation::{DynComponent, HasVariant, MaybeHasVariant},
     Dna, ProgressHandler, Trainer,
 };
 
@@ -122,13 +125,29 @@ pub enum RemyMessage {
 impl<T, E> PopulateComponents<E> for T
 where
     T: RuleTree + Sync,
+    E: MaybeHasVariant<Toggle> + HasVariant<Packet>,
 {
-    fn populate_components(
-        &self,
-        network_slots: NetworkSlots<E>,
-        rng: &mut Rng,
-    ) -> Vec<Rc<dyn Flow>> {
-        todo!()
+    fn populate_components<'a>(
+        &'a self,
+        network_slots: NetworkSlots<'a, '_, E>,
+        _rng: &mut Rng,
+    ) -> Vec<Rc<dyn Flow + 'a>> {
+        network_slots
+            .sender_slots
+            .into_iter()
+            .map(|slot| {
+                let sender = Rc::new(RefCell::new(LossySender::new(
+                    slot.id(),
+                    network_slots.sender_link_id,
+                    slot.id(),
+                    self,
+                    true,
+                    NothingLogger,
+                )));
+                slot.set(DynComponent::Shared(sender.clone()));
+                sender as Rc<dyn Flow>
+            })
+            .collect()
     }
 }
 
@@ -199,25 +218,37 @@ impl Trainer<RemyDna> for RemyTrainer {
         for i in 0..=self.config.rule_splits {
             if i > 0 {
                 dna.tree.most_used_rule().split();
-
+                println!("Split rule!");
                 score = evaluate_and_count_rule_uses(&mut dna, rng);
             }
-            while let Some(mut leaf) = dna.tree.most_used_unoptimized_rule() {
-                while let Some(new_action) = leaf
-                    .action()
-                    .possible_improvements(&self.config)
-                    .into_iter()
-                    .map(|action| (evaluate_action(&leaf, action.clone(), rng), action))
-                    .filter(|(s, _)| s > &score)
-                    .max_by_key(|(s, _)| NotNan::new(*s).unwrap())
-                    .map(|(_, action)| action)
-                {
-                    *leaf.action() = new_action;
+            println!("Score: {score}");
+            for optimization_round in 0..self.config.optimization_rounds_per_split {
+                println!(
+                    "Starting optimisation round {}/{}",
+                    optimization_round + 1,
+                    self.config.optimization_rounds_per_split
+                );
+                while let Some(mut leaf) = dna.tree.most_used_unoptimized_rule() {
+                    while let Some((s, new_action)) = leaf
+                        .action()
+                        .possible_improvements(&self.config)
+                        .map(|action| {
+                            let score = evaluate_action(&leaf, action.clone(), rng);
+                            (score, action)
+                        })
+                        .filter(|(s, _)| s > &score)
+                        .max_by_key(|(s, _)| NotNan::new(*s).unwrap())
+                    {
+                        println!("Improved score from {score} to {s} using {new_action:?}");
+                        score = s;
+                        *leaf.action() = new_action;
+                    }
+                    leaf.mark_optimized();
+                    score = evaluate_and_count_rule_uses(&mut dna, rng);
+                    println!("Base: {score}");
                 }
-                leaf.mark_optimized();
-                score = evaluate_and_count_rule_uses(&mut dna, rng);
+                dna.tree.mark_all_unoptimized();
             }
-            dna.tree.mark_all_unoptimized();
         }
         progress_handler.update_progress(1., Some(&dna));
         dna
