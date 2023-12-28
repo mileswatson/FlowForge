@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
 use anyhow::Result;
+use ordered_float::NotNan;
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
@@ -24,7 +25,7 @@ pub mod rule_tree;
 use self::{
     action::Action,
     autogen::remy_dna::WhiskerTree,
-    rule_tree::{CountingRuleTree, RuleTree},
+    rule_tree::{CountingRuleTree, LeafHandle, RuleTree},
 };
 
 #[allow(clippy::all, clippy::pedantic, clippy::nursery)]
@@ -177,29 +178,46 @@ impl Trainer<RemyDna> for RemyTrainer {
         progress_handler: &mut H,
         rng: &mut Rng,
     ) -> RemyDna {
-        let mut dna = RemyDna::default(&self.config);
-        for _ in 0..=self.config.rule_splits {
+        let evaluate_and_count_rule_uses = |dna: &mut RemyDna, rng: &mut Rng| {
+            dna.tree.reset_counts();
             self.config
                 .evaluation_config
-                .evaluate::<RemyMessage, Packet>(network_config, &dna.tree, utility_function, rng);
-            while let Some(mut leaf) = dna.tree.most_used_unoptimized_rule() {
-                {
-                    let possible_improvements = leaf
-                        .action()
-                        .possible_improvements(&self.config)
-                        .into_iter()
-                        .map(|action| {
-                            self.config
-                                .evaluation_config
-                                .evaluate::<RemyMessage, Packet>(
-                                    network_config,
-                                    &leaf.augmented_tree(action),
-                                    utility_function,
-                                    rng,
-                                )
-                        });
-                }
+                .evaluate::<RemyMessage, Packet>(network_config, &dna.tree, utility_function, rng)
+        };
+        let evaluate_action = |leaf: &LeafHandle, action: Action, rng: &mut Rng| {
+            self.config
+                .evaluation_config
+                .evaluate::<RemyMessage, Packet>(
+                    network_config,
+                    &leaf.augmented_tree(action),
+                    utility_function,
+                    rng,
+                )
+        };
+        let mut dna = RemyDna::default(&self.config);
+        let mut score = evaluate_and_count_rule_uses(&mut dna, rng);
+        for i in 0..=self.config.rule_splits {
+            if i > 0 {
+                dna.tree.most_used_rule().split();
+
+                score = evaluate_and_count_rule_uses(&mut dna, rng);
             }
+            while let Some(mut leaf) = dna.tree.most_used_unoptimized_rule() {
+                while let Some(new_action) = leaf
+                    .action()
+                    .possible_improvements(&self.config)
+                    .into_iter()
+                    .map(|action| (evaluate_action(&leaf, action.clone(), rng), action))
+                    .filter(|(s, _)| s > &score)
+                    .max_by_key(|(s, _)| NotNan::new(*s).unwrap())
+                    .map(|(_, action)| action)
+                {
+                    *leaf.action() = new_action;
+                }
+                leaf.mark_optimized();
+                score = evaluate_and_count_rule_uses(&mut dna, rng);
+            }
+            dna.tree.mark_all_unoptimized();
         }
         progress_handler.update_progress(1., Some(&dna));
         dna

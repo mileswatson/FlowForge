@@ -50,6 +50,42 @@ impl<'a> LeafHandle<'a> {
             RuleTreeNode::Leaf(Leaf { action, .. }) => action,
         }
     }
+
+    pub fn mark_optimized(self) {
+        match &mut self.tree.nodes[self.rule] {
+            RuleTreeNode::Node { .. } => panic!(),
+            RuleTreeNode::Leaf(Leaf { optimized, .. }) => *optimized = true,
+        }
+    }
+
+    pub fn split(self) {
+        let children: Vec<_> = match &self.tree.nodes[self.rule] {
+            RuleTreeNode::Node { .. } => panic!(),
+            RuleTreeNode::Leaf(leaf) => leaf
+                .domain
+                .split()
+                .into_iter()
+                .map(|domain| {
+                    RuleTreeNode::Leaf(Leaf {
+                        domain,
+                        action: leaf.action.clone(),
+                        access_tracker: AtomicU64::new(0),
+                        optimized: false,
+                    })
+                })
+                .collect(),
+        };
+        self.tree.nodes[self.rule] = RuleTreeNode::Node {
+            domain: self.tree.nodes[self.rule].domain().clone(),
+            children: children
+                .into_iter()
+                .map(|node| {
+                    self.tree.nodes.push(node);
+                    self.tree.nodes.len() - 1
+                })
+                .collect(),
+        };
+    }
 }
 
 #[derive(Debug)]
@@ -62,7 +98,7 @@ pub struct Leaf {
 
 #[derive(Debug)]
 pub enum RuleTreeNode {
-    Node { domain: Cube, children: [usize; 8] },
+    Node { domain: Cube, children: Vec<usize> },
     Leaf(Leaf),
 }
 
@@ -168,9 +204,7 @@ fn _push_whisker_tree(nodes: &mut Vec<RuleTreeNode>, value: &WhiskerTree) -> usi
                 .children
                 .iter()
                 .map(|child| _push_whisker_tree(nodes, child))
-                .collect::<Vec<_>>()
-                .try_into()
-                .expect("vector of length 8"),
+                .collect(),
         }
     };
     nodes.push(new_node);
@@ -183,9 +217,7 @@ fn push_tree(nodes: &mut Vec<RuleTreeNode>, root: usize, tree: &CountingRuleTree
             children: children
                 .iter()
                 .map(|child| push_tree(nodes, *child, tree))
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap(),
+                .collect(),
             domain: domain.clone(),
         },
         RuleTreeNode::Leaf(Leaf { domain, action, .. }) => RuleTreeNode::Leaf(Leaf {
@@ -309,6 +341,22 @@ impl CountingRuleTree {
         let mut nodes = Vec::new();
         let root = _push_whisker_tree(&mut nodes, value);
         CountingRuleTree { root, nodes }
+    }
+
+    pub fn reset_counts(&mut self) {
+        self.nodes.iter_mut().for_each(|n| {
+            if let RuleTreeNode::Leaf(leaf) = n {
+                *leaf.access_tracker.get_mut() = 0;
+            }
+        });
+    }
+
+    pub fn mark_all_unoptimized(&mut self) {
+        self.nodes.iter_mut().for_each(|n| {
+            if let RuleTreeNode::Leaf(leaf) = n {
+                leaf.optimized = false;
+            }
+        });
     }
 }
 
