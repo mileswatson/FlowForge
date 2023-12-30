@@ -13,8 +13,8 @@ use crate::{
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GeneticConfig {
-    iters: usize,
-    population_size: usize,
+    iters: u32,
+    population_size: u32,
     evaluation_config: EvaluationConfig,
 }
 
@@ -29,8 +29,8 @@ impl Default for GeneticConfig {
 }
 
 pub struct GeneticTrainer<E, P> {
-    iters: usize,
-    population_size: usize,
+    iters: u32,
+    population_size: u32,
     evaluation_config: EvaluationConfig,
     event: PhantomData<E>,
     packet: PhantomData<P>,
@@ -80,13 +80,15 @@ where
             let mut handle = progress.lock().unwrap();
             handle.0 += 1;
             #[allow(clippy::cast_precision_loss)]
-            let progress = handle.0 as f32 / (self.population_size as f32 * self.iters as f32);
+            let progress =
+                f64::from(handle.0) / (f64::from(self.population_size) * f64::from(self.iters));
             handle.1.update_progress(progress, None);
         };
         let update_best = |best: &D| {
             let mut handle = progress.lock().unwrap();
             #[allow(clippy::cast_precision_loss)]
-            let progress = handle.0 as f32 / (self.population_size as f32 * self.iters as f32);
+            let progress =
+                f64::from(handle.0) / (f64::from(self.population_size) * f64::from(self.iters));
             handle.1.update_progress(progress, Some(best));
         };
         let update_progress = &increment_progress;
@@ -110,7 +112,7 @@ where
 
             println!("Score: {}", scores.first().unwrap().1);
             update_best(&scores.first().unwrap().0);
-            scores.truncate(self.population_size / 2);
+            scores.truncate(self.population_size as usize / 2);
             population = scores
                 .iter()
                 .flat_map(|x| repeat(&x.0).take(2))

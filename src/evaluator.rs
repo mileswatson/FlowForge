@@ -22,7 +22,7 @@ pub trait PopulateComponents<E>: Sync {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EvaluationConfig {
-    network_samples: usize,
+    network_samples: u32,
     run_sim_for: Float,
 }
 
@@ -64,6 +64,6 @@ impl EvaluationConfig {
             .par_bridge()
             .map(score_network)
             .sum::<Float>()
-            / self.network_samples as Float;
+            / f64::from(self.network_samples);
     }
 }

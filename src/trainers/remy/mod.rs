@@ -38,8 +38,8 @@ mod autogen {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RemyConfig {
-    rule_splits: usize,
-    optimization_rounds_per_split: usize,
+    rule_splits: u32,
+    optimization_rounds_per_split: u32,
     min_action: Action,
     max_action: Action,
     initial_action_change: Action,
@@ -259,6 +259,15 @@ impl Trainer<RemyDna> for RemyTrainer {
                         *leaf.action() = new_action;
                     }
                     leaf.mark_optimized();
+                    progress_handler.update_progress(
+                        f64::from(
+                            i * self.config.optimization_rounds_per_split + optimization_round,
+                        ) / f64::from(
+                            self.config.optimization_rounds_per_split
+                                * self.config.optimization_rounds_per_split,
+                        ),
+                        Some(&dna),
+                    );
                     (score, counts) = evaluate_and_count(&mut dna.tree, rng);
                     println!("Base: {score}");
                 }

@@ -18,6 +18,7 @@ use flow::UtilityFunction;
 use network::config::NetworkConfig;
 use rand::Rng;
 use serde::{de::DeserializeOwned, Serialize};
+use time::Float;
 
 #[macro_use]
 pub mod logging;
@@ -103,11 +104,11 @@ impl<D: Dna> Config<Custom> for D {
 }
 
 pub trait ProgressHandler<D: Dna>: Send {
-    fn update_progress(&mut self, fraction_completed: f32, top_scorer: Option<&D>);
+    fn update_progress(&mut self, fraction_completed: Float, top_scorer: Option<&D>);
 }
 
-impl<D: Dna, F: FnMut(f32, Option<&D>) + Send> ProgressHandler<D> for F {
-    fn update_progress(&mut self, fraction_completed: f32, top_scorer: Option<&D>) {
+impl<D: Dna, F: FnMut(Float, Option<&D>) + Send> ProgressHandler<D> for F {
+    fn update_progress(&mut self, fraction_completed: Float, top_scorer: Option<&D>) {
         self(fraction_completed, top_scorer);
     }
 }

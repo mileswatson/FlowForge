@@ -13,8 +13,8 @@ pub struct NetworkConfig {
     pub rtt: ContinuousDistribution<Float>,
     pub packet_rate: ContinuousDistribution<Float>,
     pub loss_rate: ContinuousDistribution<Float>,
-    pub buffer_size: Option<DiscreteDistribution<usize>>,
-    pub num_senders: DiscreteDistribution<usize>,
+    pub buffer_size: Option<DiscreteDistribution<u32>>,
+    pub num_senders: DiscreteDistribution<u32>,
     pub off_time: ContinuousDistribution<Float>,
     pub on_time: ContinuousDistribution<Float>,
 }
@@ -45,8 +45,8 @@ impl Distribution<Network> for NetworkConfig {
             rtt: TimeSpan::new(rng.sample(&self.rtt)),
             packet_rate: Rate::new(rng.sample(&self.packet_rate)),
             loss_rate: rng.sample(&self.loss_rate),
-            buffer_size: self.buffer_size.as_ref().map(|d| rng.sample(d)),
-            num_senders: rng.sample(&self.num_senders),
+            buffer_size: self.buffer_size.as_ref().map(|d| rng.sample(d) as usize),
+            num_senders: rng.sample(&self.num_senders) as usize,
             off_time: self.off_time.clone(),
             on_time: self.on_time.clone(),
         }
