@@ -22,13 +22,13 @@ use serde::{de::DeserializeOwned, Serialize};
 #[macro_use]
 pub mod logging;
 pub mod average;
+pub mod evaluator;
 pub mod flow;
 pub mod network;
 pub mod rand;
 pub mod simulation;
 pub mod time;
 pub mod trainers;
-pub mod evaluator;
 
 pub struct Json;
 pub struct Custom;

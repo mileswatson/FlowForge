@@ -19,19 +19,68 @@ pub trait RuleTree: Debug {
 
 #[derive(Debug)]
 pub struct AugmentedRuleTree<'a> {
-    tree: &'a CountingRuleTree,
-    rule_override: Override,
+    tree: &'a BaseRuleTree,
+    rule_override: (usize, Action),
 }
 
 impl<'a> RuleTree for AugmentedRuleTree<'a> {
     fn action(&self, point: &Point) -> Option<&Action> {
-        self.tree
-            ._action::<_, false>(self.tree.root, point, &self.rule_override)
+        self.tree._action(self.tree.root, point, &|idx| {
+            if idx == self.rule_override.0 {
+                Some(&self.rule_override.1)
+            } else {
+                None
+            }
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct CountingRuleTree<'a> {
+    tree: &'a mut BaseRuleTree,
+    counts: Vec<AtomicU64>,
+}
+
+impl<'a> RuleTree for CountingRuleTree<'a> {
+    fn action(&self, point: &Point) -> Option<&Action> {
+        self.tree._action(self.tree.root, point, &|idx| {
+            self.counts[idx].fetch_add(1, Ordering::Relaxed);
+            None
+        })
+    }
+}
+
+impl<'a> CountingRuleTree<'a> {
+    pub fn new(tree: &'a mut BaseRuleTree) -> CountingRuleTree<'a> {
+        CountingRuleTree {
+            counts: tree.nodes.iter().map(|_| AtomicU64::new(0)).collect(),
+            tree,
+        }
+    }
+
+    fn _most_used_rule<const ONLY_UNOPTIMISED: bool>(mut self) -> Option<LeafHandle<'a>> {
+        self.tree.greatest_leaf_node(move |idx, optimized| {
+            if ONLY_UNOPTIMISED && optimized {
+                None
+            } else {
+                Some(*self.counts[idx].get_mut())
+            }
+        })
+    }
+
+    #[must_use]
+    pub fn most_used_rule(self) -> LeafHandle<'a> {
+        self._most_used_rule::<false>().unwrap()
+    }
+
+    #[must_use]
+    pub fn most_used_unoptimized_rule(self) -> Option<LeafHandle<'a>> {
+        self._most_used_rule::<true>()
     }
 }
 
 pub struct LeafHandle<'a> {
-    tree: &'a mut CountingRuleTree,
+    tree: &'a mut BaseRuleTree,
     rule: usize,
 }
 
@@ -40,38 +89,34 @@ impl<'a> LeafHandle<'a> {
     pub fn augmented_tree(&'a self, new_action: Action) -> AugmentedRuleTree<'a> {
         AugmentedRuleTree {
             tree: self.tree,
-            rule_override: Override(self.rule, new_action),
+            rule_override: (self.rule, new_action),
         }
     }
 
     pub fn action(&mut self) -> &mut Action {
         match &mut self.tree.nodes[self.rule] {
             RuleTreeNode::Node { .. } => panic!(),
-            RuleTreeNode::Leaf(Leaf { action, .. }) => action,
+            RuleTreeNode::Leaf { action, .. } => action,
         }
     }
 
     pub fn mark_optimized(self) {
         match &mut self.tree.nodes[self.rule] {
             RuleTreeNode::Node { .. } => panic!(),
-            RuleTreeNode::Leaf(Leaf { optimized, .. }) => *optimized = true,
+            RuleTreeNode::Leaf { optimized, .. } => *optimized = true,
         }
     }
 
     pub fn split(self) {
         let children: Vec<_> = match &self.tree.nodes[self.rule] {
             RuleTreeNode::Node { .. } => panic!(),
-            RuleTreeNode::Leaf(leaf) => leaf
-                .domain
+            RuleTreeNode::Leaf { domain, action, .. } => domain
                 .split()
                 .into_iter()
-                .map(|domain| {
-                    RuleTreeNode::Leaf(Leaf {
-                        domain,
-                        action: leaf.action.clone(),
-                        access_tracker: AtomicU64::new(0),
-                        optimized: false,
-                    })
+                .map(|domain| RuleTreeNode::Leaf {
+                    domain,
+                    action: action.clone(),
+                    optimized: false,
                 })
                 .collect(),
         };
@@ -89,25 +134,24 @@ impl<'a> LeafHandle<'a> {
 }
 
 #[derive(Debug)]
-pub struct Leaf {
-    domain: Cube,
-    access_tracker: AtomicU64,
-    pub action: Action,
-    pub optimized: bool,
-}
-
-#[derive(Debug)]
 pub enum RuleTreeNode {
-    Node { domain: Cube, children: Vec<usize> },
-    Leaf(Leaf),
+    Node {
+        domain: Cube,
+        children: Vec<usize>,
+    },
+    Leaf {
+        domain: Cube,
+        action: Action,
+        optimized: bool,
+    },
 }
 
 impl RuleTreeNode {
     fn equals(
         lhs: &RuleTreeNode,
-        lhs_tree: &CountingRuleTree,
+        lhs_tree: &BaseRuleTree,
         rhs: &RuleTreeNode,
-        rhs_tree: &CountingRuleTree,
+        rhs_tree: &BaseRuleTree,
     ) -> bool {
         match (lhs, rhs) {
             (
@@ -131,16 +175,16 @@ impl RuleTreeNode {
                     })
             }
             (
-                Self::Leaf(Leaf {
+                Self::Leaf {
                     domain: l_domain,
                     action: l_action,
                     ..
-                }),
-                Self::Leaf(Leaf {
+                },
+                Self::Leaf {
                     domain: r_domain,
                     action: r_action,
                     ..
-                }),
+                },
             ) => l_domain == r_domain && l_action == r_action,
             _ => false,
         }
@@ -148,39 +192,13 @@ impl RuleTreeNode {
 
     const fn domain(&self) -> &Cube {
         match self {
-            RuleTreeNode::Node { domain, .. } | RuleTreeNode::Leaf(Leaf { domain, .. }) => domain,
+            RuleTreeNode::Node { domain, .. } | RuleTreeNode::Leaf { domain, .. } => domain,
         }
-    }
-}
-
-pub trait RuleOverride: Clone + Debug {
-    fn try_override(&self, current: usize) -> Option<&Action>;
-}
-
-#[derive(Debug, Clone)]
-pub struct Override(usize, Action);
-
-#[derive(Debug, Clone)]
-pub struct NoOverride;
-
-impl RuleOverride for Override {
-    fn try_override(&self, current: usize) -> Option<&Action> {
-        if current == self.0 {
-            Some(&self.1)
-        } else {
-            None
-        }
-    }
-}
-
-impl RuleOverride for NoOverride {
-    fn try_override(&self, _current: usize) -> Option<&Action> {
-        None
     }
 }
 
 #[derive(Debug)]
-pub struct CountingRuleTree {
+pub struct BaseRuleTree {
     root: usize,
     nodes: Vec<RuleTreeNode>,
 }
@@ -191,12 +209,11 @@ fn _push_whisker_tree(nodes: &mut Vec<RuleTreeNode>, value: &WhiskerTree) -> usi
         max: Point::from_memory(&value.domain.upper),
     };
     let new_node = if value.leaf.is_some() {
-        RuleTreeNode::Leaf(Leaf {
+        RuleTreeNode::Leaf {
             domain,
             action: Action::from_whisker(&value.leaf),
-            access_tracker: AtomicU64::new(0),
             optimized: false,
-        })
+        }
     } else {
         RuleTreeNode::Node {
             domain,
@@ -211,7 +228,7 @@ fn _push_whisker_tree(nodes: &mut Vec<RuleTreeNode>, value: &WhiskerTree) -> usi
     nodes.len() - 1
 }
 
-fn push_tree(nodes: &mut Vec<RuleTreeNode>, root: usize, tree: &CountingRuleTree) -> usize {
+fn push_tree(nodes: &mut Vec<RuleTreeNode>, root: usize, tree: &BaseRuleTree) -> usize {
     let new_node = match &tree.nodes[root] {
         RuleTreeNode::Node { domain, children } => RuleTreeNode::Node {
             children: children
@@ -220,33 +237,32 @@ fn push_tree(nodes: &mut Vec<RuleTreeNode>, root: usize, tree: &CountingRuleTree
                 .collect(),
             domain: domain.clone(),
         },
-        RuleTreeNode::Leaf(Leaf { domain, action, .. }) => RuleTreeNode::Leaf(Leaf {
+        RuleTreeNode::Leaf { domain, action, .. } => RuleTreeNode::Leaf {
             domain: domain.clone(),
-            access_tracker: AtomicU64::new(0),
             action: action.clone(),
             optimized: false,
-        }),
+        },
     };
     nodes.push(new_node);
     nodes.len() - 1
 }
 
-impl CountingRuleTree {
+impl BaseRuleTree {
     #[must_use]
-    pub fn from_tree(self: &CountingRuleTree) -> CountingRuleTree {
+    pub fn from_tree(self: &BaseRuleTree) -> BaseRuleTree {
         let mut nodes = Vec::new();
         let root = push_tree(&mut nodes, self.root, self);
-        CountingRuleTree { root, nodes }
+        BaseRuleTree { root, nodes }
     }
 
-    pub fn _action<'a, O, const COUNT: bool>(
+    fn _action<'a, F>(
         &'a self,
         current_idx: usize,
         point: &Point,
-        rule_override: &'a O,
+        leaf_override: &F,
     ) -> Option<&Action>
     where
-        O: RuleOverride + 'a,
+        F: Fn(usize) -> Option<&'a Action>,
     {
         let current = &self.nodes[current_idx];
         if !current.domain().contains(point) {
@@ -255,36 +271,26 @@ impl CountingRuleTree {
         match current {
             RuleTreeNode::Node { children, .. } => children
                 .iter()
-                .find_map(|x| self._action::<O, COUNT>(*x, point, rule_override)),
-            RuleTreeNode::Leaf(leaf) => {
-                if let Some(a) = rule_override.try_override(current_idx) {
+                .find_map(|x| self._action(*x, point, leaf_override)),
+            RuleTreeNode::Leaf { action, .. } => {
+                if let Some(a) = leaf_override(current_idx) {
                     return Some(a);
                 }
-                if COUNT {
-                    leaf.access_tracker.fetch_add(1, Ordering::Relaxed);
-                }
-                Some(&leaf.action)
+                Some(action)
             }
         }
     }
 
-    fn _most_used_rule<const ONLY_UNOPTIMIZED: bool>(&mut self) -> Option<LeafHandle<'_>> {
+    fn greatest_leaf_node<F>(&mut self, mut score: F) -> Option<LeafHandle<'_>>
+    where
+        F: FnMut(usize, bool) -> Option<u64>,
+    {
         self.nodes
             .iter_mut()
             .enumerate()
             .filter_map(|(i, n)| match n {
                 RuleTreeNode::Node { .. } => None,
-                RuleTreeNode::Leaf(Leaf {
-                    access_tracker,
-                    optimized,
-                    ..
-                }) => {
-                    if ONLY_UNOPTIMIZED && *optimized {
-                        None
-                    } else {
-                        Some((*access_tracker.get_mut(), i))
-                    }
-                }
+                RuleTreeNode::Leaf { optimized, .. } => score(i, *optimized).map(|s| (s, i)),
             })
             .max_by_key(|x| x.0)
             .map(|x| LeafHandle {
@@ -293,24 +299,15 @@ impl CountingRuleTree {
             })
     }
 
-    pub fn most_used_rule(&mut self) -> LeafHandle {
-        self._most_used_rule::<false>().unwrap()
-    }
-
-    pub fn most_used_unoptimized_rule(&mut self) -> Option<LeafHandle> {
-        self._most_used_rule::<true>()
-    }
-
     #[must_use]
     pub fn default(dna: &RemyConfig) -> Self {
-        CountingRuleTree {
+        BaseRuleTree {
             root: 0,
-            nodes: vec![RuleTreeNode::Leaf(Leaf {
+            nodes: vec![RuleTreeNode::Leaf {
                 domain: Cube::default(),
-                access_tracker: AtomicU64::new(0),
                 action: dna.default_action.clone(),
                 optimized: false,
-            })],
+            }],
         }
     }
 
@@ -325,7 +322,7 @@ impl CountingRuleTree {
             RuleTreeNode::Node { children, .. } => {
                 tree.children = children.iter().map(|i| self._to_whisker_tree(*i)).collect();
             }
-            RuleTreeNode::Leaf(Leaf { action, .. }) => {
+            RuleTreeNode::Leaf { action, .. } => {
                 tree.leaf = MessageField::some(Whisker::create(action, &cube.min, &cube.max));
             }
         };
@@ -337,30 +334,22 @@ impl CountingRuleTree {
         self._to_whisker_tree(self.root)
     }
 
-    pub fn from_whisker_tree(value: &WhiskerTree) -> CountingRuleTree {
+    pub fn from_whisker_tree(value: &WhiskerTree) -> BaseRuleTree {
         let mut nodes = Vec::new();
         let root = _push_whisker_tree(&mut nodes, value);
-        CountingRuleTree { root, nodes }
-    }
-
-    pub fn reset_counts(&mut self) {
-        self.nodes.iter_mut().for_each(|n| {
-            if let RuleTreeNode::Leaf(leaf) = n {
-                *leaf.access_tracker.get_mut() = 0;
-            }
-        });
+        BaseRuleTree { root, nodes }
     }
 
     pub fn mark_all_unoptimized(&mut self) {
         self.nodes.iter_mut().for_each(|n| {
-            if let RuleTreeNode::Leaf(leaf) = n {
-                leaf.optimized = false;
+            if let RuleTreeNode::Leaf { optimized, .. } = n {
+                *optimized = false;
             }
         });
     }
 }
 
-impl PartialEq for CountingRuleTree {
+impl PartialEq for BaseRuleTree {
     fn eq(&self, other: &Self) -> bool {
         self.root == other.root
             && RuleTreeNode::equals(
@@ -369,12 +358,6 @@ impl PartialEq for CountingRuleTree {
                 &other.nodes[other.root],
                 other,
             )
-    }
-}
-
-impl RuleTree for CountingRuleTree {
-    fn action(&self, point: &Point) -> Option<&Action> {
-        self._action::<_, true>(self.root, point, &NoOverride)
     }
 }
 
@@ -392,7 +375,7 @@ mod tests {
     use tempfile::tempdir;
 
     use crate::{
-        trainers::remy::{rule_tree::CountingRuleTree, RemyDna},
+        trainers::remy::{rule_tree::BaseRuleTree, RemyDna},
         Config,
     };
 
@@ -412,12 +395,12 @@ mod tests {
     }
 
     fn check_to_pb(dna: &RemyDna) {
-        let cycled = CountingRuleTree::from_whisker_tree(&dna.tree.to_whisker_tree());
+        let cycled = BaseRuleTree::from_whisker_tree(&dna.tree.to_whisker_tree());
         assert_eq!(dna.tree, cycled);
     }
 
     fn check_to_dna(pb: &WhiskerTree) {
-        let cycled = CountingRuleTree::from_whisker_tree(pb).to_whisker_tree();
+        let cycled = BaseRuleTree::from_whisker_tree(pb).to_whisker_tree();
         assert_eq!(pb, &cycled);
     }
 

@@ -28,7 +28,7 @@ pub mod rule_tree;
 use self::{
     action::Action,
     autogen::remy_dna::WhiskerTree,
-    rule_tree::{CountingRuleTree, LeafHandle, RuleTree},
+    rule_tree::{BaseRuleTree, CountingRuleTree, LeafHandle, RuleTree},
 };
 
 #[allow(clippy::all, clippy::pedantic, clippy::nursery)]
@@ -87,14 +87,14 @@ impl Default for RemyConfig {
 
 #[derive(Debug, PartialEq)]
 pub struct RemyDna {
-    tree: CountingRuleTree,
+    tree: BaseRuleTree,
 }
 
 impl RemyDna {
     #[must_use]
     pub fn default(dna: &RemyConfig) -> Self {
         RemyDna {
-            tree: CountingRuleTree::default(dna),
+            tree: BaseRuleTree::default(dna),
         }
     }
 }
@@ -107,7 +107,7 @@ impl Dna for RemyDna {
 
     fn deserialize(buf: &[u8]) -> Result<RemyDna> {
         Ok(RemyDna {
-            tree: CountingRuleTree::from_whisker_tree(&WhiskerTree::parse_from_bytes(buf)?),
+            tree: BaseRuleTree::from_whisker_tree(&WhiskerTree::parse_from_bytes(buf)?),
         })
     }
 }
@@ -181,6 +181,14 @@ impl From<Packet> for RemyMessage {
     }
 }
 
+/// Hack until <https://github.com/rust-lang/rust/issues/97362> is stabilised
+const fn coerce<F>(f: F) -> F
+where
+    F: for<'a> Fn(&'a mut BaseRuleTree, &mut Rng) -> (f64, CountingRuleTree<'a>),
+{
+    f
+}
+
 impl Trainer<RemyDna> for RemyTrainer {
     type Config = RemyConfig;
 
@@ -197,12 +205,19 @@ impl Trainer<RemyDna> for RemyTrainer {
         progress_handler: &mut H,
         rng: &mut Rng,
     ) -> RemyDna {
-        let evaluate_and_count_rule_uses = |dna: &mut RemyDna, rng: &mut Rng| {
-            dna.tree.reset_counts();
-            self.config
+        let evaluate_and_count = coerce(|tree: &mut BaseRuleTree, rng: &mut Rng| {
+            let counting_tree = CountingRuleTree::new(tree);
+            let score = self
+                .config
                 .evaluation_config
-                .evaluate::<RemyMessage, Packet>(network_config, &dna.tree, utility_function, rng)
-        };
+                .evaluate::<RemyMessage, Packet>(
+                    network_config,
+                    &counting_tree,
+                    utility_function,
+                    rng,
+                );
+            (score, counting_tree)
+        });
         let evaluate_action = |leaf: &LeafHandle, action: Action, rng: &mut Rng| {
             self.config
                 .evaluation_config
@@ -214,12 +229,12 @@ impl Trainer<RemyDna> for RemyTrainer {
                 )
         };
         let mut dna = RemyDna::default(&self.config);
-        let mut score = evaluate_and_count_rule_uses(&mut dna, rng);
+        let (mut score, mut counts) = evaluate_and_count(&mut dna.tree, rng);
         for i in 0..=self.config.rule_splits {
             if i > 0 {
-                dna.tree.most_used_rule().split();
+                counts.most_used_rule().split();
                 println!("Split rule!");
-                score = evaluate_and_count_rule_uses(&mut dna, rng);
+                (score, counts) = evaluate_and_count(&mut dna.tree, rng);
             }
             println!("Score: {score}");
             for optimization_round in 0..self.config.optimization_rounds_per_split {
@@ -228,7 +243,7 @@ impl Trainer<RemyDna> for RemyTrainer {
                     optimization_round + 1,
                     self.config.optimization_rounds_per_split
                 );
-                while let Some(mut leaf) = dna.tree.most_used_unoptimized_rule() {
+                while let Some(mut leaf) = counts.most_used_unoptimized_rule() {
                     while let Some((s, new_action)) = leaf
                         .action()
                         .possible_improvements(&self.config)
@@ -244,10 +259,11 @@ impl Trainer<RemyDna> for RemyTrainer {
                         *leaf.action() = new_action;
                     }
                     leaf.mark_optimized();
-                    score = evaluate_and_count_rule_uses(&mut dna, rng);
+                    (score, counts) = evaluate_and_count(&mut dna.tree, rng);
                     println!("Base: {score}");
                 }
                 dna.tree.mark_all_unoptimized();
+                (score, counts) = evaluate_and_count(&mut dna.tree, rng);
             }
         }
         progress_handler.update_progress(1., Some(&dna));
