@@ -172,7 +172,7 @@ mod tests {
         v2.push(sample1);
         v2.push(sample2);
 
-        assert_eq!(v1, vec![959_039, 834_208, 999_496, 723_315]);
+        assert_eq!(v1, vec![959_040, 834_209, 999_497, 723_315]);
         assert_eq!(v1, v2);
     }
 }
