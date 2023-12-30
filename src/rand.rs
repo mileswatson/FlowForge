@@ -38,7 +38,7 @@ where
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum DiscreteDistribution<I: PrimInt> {
-    /// A max-exclusive uniform distribution in the range [min, max).
+    /// A max-exclusive uniform distribution in the range [min, max].
     Uniform {
         min: I,
         max: I,
@@ -50,11 +50,14 @@ pub enum DiscreteDistribution<I: PrimInt> {
 
 impl<I> Distribution<I> for DiscreteDistribution<I>
 where
-    I: PrimInt + rand_distr::uniform::SampleUniform,
+    I: PrimInt + rand_distr::uniform::SampleUniform + From<u16>,
 {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> I {
         match self {
-            DiscreteDistribution::Uniform { min, max } => rng.sample(Uniform::new(min, max)),
+            DiscreteDistribution::Uniform { min, max } => {
+                rng.sample(Uniform::new(min, *max + <I as From<u16>>::from(1)))
+            }
+
             DiscreteDistribution::Always { value } => *value,
         }
     }
