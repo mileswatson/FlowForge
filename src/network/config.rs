@@ -2,7 +2,10 @@ use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    rand::{ContinuousDistribution, DiscreteDistribution},
+    rand::{
+        ContinuousDistribution, DiscreteDistribution, PositiveContinuousDistribution,
+        ProbabilityDistribution,
+    },
     time::{Float, Rate, TimeSpan},
 };
 
@@ -10,31 +13,38 @@ use super::Network;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NetworkConfig {
-    pub rtt: ContinuousDistribution<Float>,
-    pub packet_rate: ContinuousDistribution<Float>,
-    pub loss_rate: ContinuousDistribution<Float>,
+    pub rtt: PositiveContinuousDistribution<Float>,
+    pub packet_rate: PositiveContinuousDistribution<Float>,
+    pub loss_rate: ProbabilityDistribution<Float>,
     pub buffer_size: Option<DiscreteDistribution<u32>>,
     pub num_senders: DiscreteDistribution<u32>,
-    pub off_time: ContinuousDistribution<Float>,
-    pub on_time: ContinuousDistribution<Float>,
+    pub off_time: PositiveContinuousDistribution<Float>,
+    pub on_time: PositiveContinuousDistribution<Float>,
 }
 
 impl Default for NetworkConfig {
     fn default() -> NetworkConfig {
         NetworkConfig {
-            rtt: ContinuousDistribution::Normal {
+            rtt: PositiveContinuousDistribution(ContinuousDistribution::Normal {
                 mean: 5e-3,
                 std_dev: 1e-3,
-            },
-            packet_rate: ContinuousDistribution::Uniform { min: 12., max: 18. },
-            loss_rate: ContinuousDistribution::Normal {
+            }),
+            packet_rate: PositiveContinuousDistribution(ContinuousDistribution::Uniform {
+                min: 12.,
+                max: 18.,
+            }),
+            loss_rate: ProbabilityDistribution(ContinuousDistribution::Normal {
                 mean: 0.1,
                 std_dev: 0.01,
-            },
+            }),
             buffer_size: None,
             num_senders: DiscreteDistribution::Uniform { min: 1, max: 3 },
-            off_time: ContinuousDistribution::Exponential { mean: 5. },
-            on_time: ContinuousDistribution::Exponential { mean: 5. },
+            off_time: PositiveContinuousDistribution(ContinuousDistribution::Exponential {
+                mean: 5.,
+            }),
+            on_time: PositiveContinuousDistribution(ContinuousDistribution::Exponential {
+                mean: 5.,
+            }),
         }
     }
 }

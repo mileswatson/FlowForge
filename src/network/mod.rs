@@ -1,6 +1,6 @@
 use crate::{
     logging::NothingLogger,
-    rand::{ContinuousDistribution, Rng},
+    rand::{PositiveContinuousDistribution, Rng},
     simulation::{
         ComponentId, ComponentSlot, DynComponent, HasVariant, Simulator, SimulatorBuilder,
     },
@@ -24,8 +24,8 @@ pub struct Network {
     pub loss_rate: Float,
     pub buffer_size: Option<usize>,
     pub num_senders: usize,
-    pub off_time: ContinuousDistribution<Float>,
-    pub on_time: ContinuousDistribution<Float>,
+    pub off_time: PositiveContinuousDistribution<Float>,
+    pub on_time: PositiveContinuousDistribution<Float>,
 }
 
 pub struct NetworkSlots<'a, 'b, E> {

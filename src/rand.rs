@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum ContinuousDistribution<F: Float> {
+pub enum ContinuousDistribution<F> {
     Always { value: F },
     Uniform { min: F, max: F },
     Normal { mean: F, std_dev: F },
@@ -56,6 +56,54 @@ where
         match self {
             DiscreteDistribution::Uniform { min, max } => rng.sample(Uniform::new(min, max)),
             DiscreteDistribution::Always { value } => *value,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ProbabilityDistribution<F>(pub ContinuousDistribution<F>);
+
+impl<F> Distribution<F> for ProbabilityDistribution<F>
+where
+    F: Float + rand_distr::uniform::SampleUniform + From<f32>,
+    rand_distr::Exp1: rand_distr::Distribution<F>,
+    rand_distr::StandardNormal: rand_distr::Distribution<F>,
+{
+    fn sample<R: rand::prelude::Rng + ?Sized>(&self, rng: &mut R) -> F {
+        let mut i = 0;
+        loop {
+            if i == 100 {
+                println!("WARNING: a probability distribution is overwhelmingly returning numbers outside [0, 1]. If the program is hanging, this is a likely cause.");
+            }
+            let v = rng.sample(&self.0);
+            if <F as From<f32>>::from(0.) <= v && v <= From::from(1.) {
+                return v;
+            }
+            i += 1;
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PositiveContinuousDistribution<F>(pub ContinuousDistribution<F>);
+
+impl<F> Distribution<F> for PositiveContinuousDistribution<F>
+where
+    F: Float + rand_distr::uniform::SampleUniform + From<f32>,
+    rand_distr::Exp1: rand_distr::Distribution<F>,
+    rand_distr::StandardNormal: rand_distr::Distribution<F>,
+{
+    fn sample<R: rand::prelude::Rng + ?Sized>(&self, rng: &mut R) -> F {
+        let mut i = 0;
+        loop {
+            if i == 100 {
+                println!("WARNING: a probability distribution is overwhelmingly returning numbers outside [0, 1]. If the program is hanging, this is a likely cause.");
+            }
+            let v = rng.sample(&self.0);
+            if <F as From<f32>>::from(0.) < v {
+                return v;
+            }
+            i += 1;
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::{
-    rand::{ContinuousDistribution, Rng},
+    rand::{PositiveContinuousDistribution, Rng},
     simulation::{Component, ComponentId, EffectContext, HasVariant, Message},
     time::{Float, Time, TimeSpan},
 };
@@ -14,16 +14,16 @@ pub enum Toggle {
 pub struct Toggler {
     target: ComponentId,
     enabled: bool,
-    on_distribution: ContinuousDistribution<Float>,
-    off_distribution: ContinuousDistribution<Float>,
+    on_distribution: PositiveContinuousDistribution<Float>,
+    off_distribution: PositiveContinuousDistribution<Float>,
     next_toggle: Time,
 }
 
 impl Toggler {
     pub fn new(
         target: ComponentId,
-        on_distribution: ContinuousDistribution<Float>,
-        off_distribution: ContinuousDistribution<Float>,
+        on_distribution: PositiveContinuousDistribution<Float>,
+        off_distribution: PositiveContinuousDistribution<Float>,
         rng: &mut Rng,
     ) -> Toggler {
         Toggler {
