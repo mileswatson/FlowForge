@@ -4,7 +4,7 @@ use crate::{
     average::{DisabledRateMeter, EnabledRateMeter, Mean, RateMeterNeverEnabled},
     flow::{Flow, FlowNeverActive, FlowProperties, NoPacketsAcked},
     logging::Logger,
-    network::{link::Routable, toggler::Toggle},
+    network::{toggler::Toggle, NetworkEffect, NetworkMessage, Packet},
     simulation::{
         try_case, Component, ComponentId, EffectContext, HasVariant, MaybeHasVariant, Message,
     },
@@ -94,20 +94,6 @@ impl<B> From<WaitingForEnable> for LossyWindowState<B> {
 impl<B> From<Enabled<B>> for LossyWindowState<B> {
     fn from(value: Enabled<B>) -> Self {
         LossyWindowState::Enabled(value)
-    }
-}
-
-#[derive(Debug)]
-pub struct Packet {
-    seq: u64,
-    source: ComponentId,
-    destination: ComponentId,
-    sent_time: Time,
-}
-
-impl Routable for Packet {
-    fn pop_next_hop(&mut self) -> ComponentId {
-        self.destination
     }
 }
 
@@ -281,9 +267,8 @@ where
     }
 }
 
-impl<'a, E, B, L> Component<E> for LossyWindowSender<'a, B, L>
+impl<'a, B, L> Component<NetworkEffect> for LossyWindowSender<'a, B, L>
 where
-    E: HasVariant<Packet> + MaybeHasVariant<Toggle>,
     B: LossyWindowBehavior<'a, L>,
     L: Logger,
 {
@@ -294,9 +279,9 @@ where
         }
     }
 
-    fn tick(&mut self, context: EffectContext) -> Vec<Message<E>> {
+    fn tick(&mut self, context: EffectContext) -> Vec<NetworkMessage> {
         let time = context.time;
-        assert_eq!(Some(time), Component::<E>::next_tick(self, time));
+        assert_eq!(Some(time), Component::next_tick(self, time));
         let packet = self.send(context);
         vec![Message {
             component_id: self.link,
@@ -304,7 +289,7 @@ where
         }]
     }
 
-    fn receive(&mut self, e: E, context: EffectContext) -> Vec<Message<E>> {
+    fn receive(&mut self, e: NetworkEffect, context: EffectContext) -> Vec<NetworkMessage> {
         e.try_case(context, |packet, ctx| self.receive_packet(&packet, ctx))
             .or_else(try_case(|toggle, ctx| self.receive_toggle(toggle, ctx)))
             .unwrap();

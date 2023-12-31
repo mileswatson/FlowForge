@@ -3,30 +3,27 @@ use std::{collections::VecDeque, fmt::Debug};
 use crate::{
     logging::Logger,
     rand::{ContinuousDistribution, Rng},
-    simulation::{Component, ComponentId, EffectContext, HasVariant, Message},
+    simulation::{Component, EffectContext, MaybeHasVariant, Message},
     time::{earliest_opt, latest, Rate, Time, TimeSpan},
 };
 
-pub trait Routable: Sync + 'static + Debug {
-    fn pop_next_hop(&mut self) -> ComponentId;
-}
+use super::{NetworkEffect, NetworkMessage, Packet};
 
 #[derive(Debug)]
-pub struct Link<P, L> {
+pub struct Link<L> {
     delay: TimeSpan,
     packet_rate: Rate,
     loss: f64,
     buffer_size: Option<usize>,
     earliest_transmit: Time,
-    buffer: VecDeque<P>,
-    transmitting: VecDeque<(P, Time)>,
+    buffer: VecDeque<Packet>,
+    transmitting: VecDeque<(Packet, Time)>,
     logger: L,
 }
 
-impl<'a, P, L> Link<P, L>
+impl<'a, L> Link<L>
 where
     L: Logger + 'a,
-    P: Routable + 'a,
 {
     #[must_use]
     pub fn create(
@@ -49,10 +46,9 @@ where
     }
 }
 
-impl<P, L> Link<P, L>
+impl<L> Link<L>
 where
     L: Logger,
-    P: Routable,
 {
     fn try_transmit(&mut self, time: Time) {
         // If there is a planned buffer release then wait for it
@@ -68,10 +64,7 @@ where
     }
 
     #[must_use]
-    fn try_deliver<E>(&mut self, time: Time, rng: &mut Rng) -> Option<Message<E>>
-    where
-        E: HasVariant<P>,
-    {
+    fn try_deliver(&mut self, time: Time, rng: &mut Rng) -> Option<NetworkMessage> {
         match self.transmitting.front() {
             Some((_, t)) if t == &time => {
                 let (mut packet, _) = self.transmitting.pop_front().unwrap();
@@ -89,24 +82,22 @@ where
     }
 }
 
-impl<E, P, L> Component<E> for Link<P, L>
+impl<L> Component<NetworkEffect> for Link<L>
 where
     L: Logger,
-    E: HasVariant<P>,
-    P: Routable,
 {
-    fn tick(&mut self, EffectContext { time, rng, .. }: EffectContext) -> Vec<Message<E>> {
-        assert_eq!(Some(time), Component::<E>::next_tick(self, time));
+    fn tick(&mut self, EffectContext { time, rng, .. }: EffectContext) -> Vec<NetworkMessage> {
+        assert_eq!(Some(time), Component::next_tick(self, time));
         let mut effects = Vec::new();
-        if let Some(msg) = self.try_deliver::<E>(time, rng) {
+        if let Some(msg) = self.try_deliver(time, rng) {
             effects.push(msg);
         }
         self.try_transmit(time);
         effects
     }
 
-    fn receive(&mut self, effect: E, _ctx: EffectContext) -> Vec<Message<E>> {
-        let packet = effect.try_into().unwrap();
+    fn receive(&mut self, effect: NetworkEffect, _ctx: EffectContext) -> Vec<NetworkMessage> {
+        let packet = MaybeHasVariant::try_into(effect).unwrap();
         if self
             .buffer_size
             .is_some_and(|limit| self.buffer.len() == limit)

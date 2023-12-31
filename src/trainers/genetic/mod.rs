@@ -1,13 +1,12 @@
-use std::{iter::repeat, marker::PhantomData, sync::Mutex};
+use std::{iter::repeat, sync::Mutex};
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
     evaluator::{EvaluationConfig, PopulateComponents},
     flow::UtilityFunction,
-    network::{config::NetworkConfig, link::Routable, toggler::Toggle},
+    network::config::NetworkConfig,
     rand::Rng,
-    simulation::HasVariant,
     Dna, ProgressHandler, Trainer,
 };
 
@@ -28,26 +27,22 @@ impl Default for GeneticConfig {
     }
 }
 
-pub struct GeneticTrainer<E, P> {
+pub struct GeneticTrainer {
     iters: u32,
     population_size: u32,
     evaluation_config: EvaluationConfig,
-    event: PhantomData<E>,
-    packet: PhantomData<P>,
 }
 
-pub trait GeneticDna<E>: Dna + PopulateComponents<E> {
+pub trait GeneticDna: Dna + PopulateComponents {
     fn new_random(rng: &mut Rng) -> Self;
 
     #[must_use]
     fn spawn_child(&self, rng: &mut Rng) -> Self;
 }
 
-impl<D, E, P> Trainer<D> for GeneticTrainer<E, P>
+impl<D> Trainer<D> for GeneticTrainer
 where
-    D: GeneticDna<E>,
-    E: HasVariant<P> + HasVariant<Toggle>,
-    P: Routable,
+    D: GeneticDna,
 {
     type Config = GeneticConfig;
 
@@ -56,8 +51,6 @@ where
             iters: config.iters,
             population_size: config.population_size,
             evaluation_config: config.evaluation_config.clone(),
-            event: PhantomData,
-            packet: PhantomData,
         }
     }
 
@@ -70,7 +63,7 @@ where
     ) -> D
     where
         H: ProgressHandler<D>,
-        D: GeneticDna<E>,
+        D: GeneticDna,
     {
         let mut population: Vec<_> = (0..self.population_size)
             .map(|_| D::new_random(rng))
@@ -98,7 +91,7 @@ where
                 .map(|d| (d, rng.create_child()))
                 //.par_bridge()
                 .map(|(d, mut rng)| {
-                    let score = self.evaluation_config.evaluate::<_, P>(
+                    let score = self.evaluation_config.evaluate(
                         network_config,
                         &d,
                         utility_function,

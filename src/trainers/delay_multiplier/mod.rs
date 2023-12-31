@@ -6,54 +6,13 @@ use crate::{
     evaluator::PopulateComponents,
     flow::{Flow, UtilityFunction},
     logging::NothingLogger,
-    network::{
-        config::NetworkConfig,
-        protocols::{delay_multiplier::LossySender, window::lossy_window::Packet},
-        toggler::Toggle,
-        NetworkSlots,
-    },
+    network::{config::NetworkConfig, protocols::delay_multiplier::LossySender, NetworkSlots},
     rand::{ContinuousDistribution, Rng},
-    simulation::{DynComponent, MaybeHasVariant},
+    simulation::DynComponent,
     Dna, Trainer,
 };
 
 use super::genetic::{GeneticConfig, GeneticDna, GeneticTrainer};
-
-#[derive(Debug)]
-pub enum DelayMultiplierPacket {
-    Packet(Packet),
-    Toggle(Toggle),
-}
-
-impl MaybeHasVariant<Toggle> for DelayMultiplierPacket {
-    fn try_into(self) -> Result<Toggle, Self> {
-        match self {
-            DelayMultiplierPacket::Packet(_) => Err(self),
-            DelayMultiplierPacket::Toggle(t) => Ok(t),
-        }
-    }
-}
-
-impl From<Toggle> for DelayMultiplierPacket {
-    fn from(value: Toggle) -> Self {
-        DelayMultiplierPacket::Toggle(value)
-    }
-}
-
-impl MaybeHasVariant<Packet> for DelayMultiplierPacket {
-    fn try_into(self) -> Result<Packet, Self> {
-        match self {
-            DelayMultiplierPacket::Packet(p) => Ok(p),
-            DelayMultiplierPacket::Toggle(_) => Err(self),
-        }
-    }
-}
-
-impl From<Packet> for DelayMultiplierPacket {
-    fn from(value: Packet) -> Self {
-        DelayMultiplierPacket::Packet(value)
-    }
-}
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct DelayMultiplierConfig {
@@ -61,7 +20,7 @@ pub struct DelayMultiplierConfig {
 }
 
 pub struct DelayMultiplierTrainer {
-    genetic_trainer: GeneticTrainer<DelayMultiplierPacket, Packet>,
+    genetic_trainer: GeneticTrainer,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -81,10 +40,10 @@ impl Dna for DelayMultiplierDna {
     }
 }
 
-impl PopulateComponents<DelayMultiplierPacket> for DelayMultiplierDna {
+impl PopulateComponents for DelayMultiplierDna {
     fn populate_components(
         &self,
-        network_slots: NetworkSlots<DelayMultiplierPacket>,
+        network_slots: NetworkSlots,
         _rng: &mut Rng,
     ) -> Vec<Rc<dyn Flow>> {
         network_slots
@@ -106,7 +65,7 @@ impl PopulateComponents<DelayMultiplierPacket> for DelayMultiplierDna {
     }
 }
 
-impl GeneticDna<DelayMultiplierPacket> for DelayMultiplierDna {
+impl GeneticDna for DelayMultiplierDna {
     fn new_random(rng: &mut Rng) -> Self {
         DelayMultiplierDna {
             multiplier: rng.sample(&ContinuousDistribution::Uniform { min: 0.0, max: 5.0 }),

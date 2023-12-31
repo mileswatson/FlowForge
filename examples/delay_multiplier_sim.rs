@@ -4,47 +4,19 @@ use flowforge::{
     logging::LogTable,
     network::{
         link::Link,
-        protocols::{
-            delay_multiplier::LossySender,
-            window::lossy_window::{LossyBouncer, Packet},
-        },
-        toggler::Toggle,
+        protocols::{delay_multiplier::LossySender, window::lossy_window::LossyBouncer},
+        NetworkEffect,
     },
     rand::Rng,
-    simulation::{DynComponent, MaybeHasVariant, SimulatorBuilder},
+    simulation::{DynComponent, SimulatorBuilder},
     time::{Rate, TimeSpan},
 };
-
-#[derive(Debug)]
-enum Msg {
-    Packet(Packet),
-}
-
-impl From<Packet> for Msg {
-    fn from(value: Packet) -> Self {
-        Msg::Packet(value)
-    }
-}
-
-impl MaybeHasVariant<Packet> for Msg {
-    fn try_into(self) -> Result<Packet, Self> {
-        match self {
-            Msg::Packet(p) => Ok(p),
-        }
-    }
-}
-
-impl MaybeHasVariant<Toggle> for Msg {
-    fn try_into(self) -> Result<Toggle, Self> {
-        Err(self)
-    }
-}
 
 fn main() {
     let table = LogTable::new(5);
     // ManuallyDrop is used to re-order drop(builder) to before drop(sender),
     // as it can contain a ref to sender
-    let builder = ManuallyDrop::new(SimulatorBuilder::<Msg>::new());
+    let builder = ManuallyDrop::new(SimulatorBuilder::<NetworkEffect>::new());
 
     let sender_slot = builder.reserve_slot();
     let link1_slot = builder.reserve_slot();
@@ -59,7 +31,7 @@ fn main() {
         false,
         table.logger(1),
     );
-    let mut link1 = Link::<Packet, _>::create(
+    let mut link1 = Link::create(
         TimeSpan::new(1.5),
         Rate::new(0.2),
         0.1,
@@ -67,7 +39,7 @@ fn main() {
         table.logger(2),
     );
     let mut receiver = LossyBouncer::new(link2_slot.id(), table.logger(3));
-    let mut link2 = Link::<Packet, _>::create(
+    let mut link2 = Link::create(
         TimeSpan::new(1.5),
         Rate::new(0.2),
         0.1,

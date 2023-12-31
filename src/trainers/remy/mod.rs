@@ -10,13 +10,10 @@ use crate::{
     flow::{Flow, UtilityFunction},
     logging::NothingLogger,
     network::{
-        config::NetworkConfig,
-        protocols::{remy::LossySender, window::lossy_window::Packet},
-        toggler::Toggle,
-        NetworkSlots,
+        config::NetworkConfig, protocols::remy::LossySender, toggler::Toggle, NetworkSlots, Packet,
     },
     rand::Rng,
-    simulation::{DynComponent, HasVariant, MaybeHasVariant},
+    simulation::{DynComponent, MaybeHasVariant},
     Dna, ProgressHandler, Trainer,
 };
 
@@ -122,14 +119,13 @@ pub enum RemyMessage {
     Toggle(Toggle),
 }
 
-impl<T, E> PopulateComponents<E> for T
+impl<T> PopulateComponents for T
 where
     T: RuleTree + Sync,
-    E: MaybeHasVariant<Toggle> + HasVariant<Packet>,
 {
     fn populate_components<'a>(
         &'a self,
-        network_slots: NetworkSlots<'a, '_, E>,
+        network_slots: NetworkSlots<'a, '_>,
         _rng: &mut Rng,
     ) -> Vec<Rc<dyn Flow + 'a>> {
         network_slots
@@ -207,26 +203,21 @@ impl Trainer<RemyDna> for RemyTrainer {
     ) -> RemyDna {
         let evaluate_and_count = coerce(|tree: &mut BaseRuleTree, rng: &mut Rng| {
             let counting_tree = CountingRuleTree::new(tree);
-            let score = self
-                .config
-                .evaluation_config
-                .evaluate::<RemyMessage, Packet>(
-                    network_config,
-                    &counting_tree,
-                    utility_function,
-                    rng,
-                );
+            let score = self.config.evaluation_config.evaluate(
+                network_config,
+                &counting_tree,
+                utility_function,
+                rng,
+            );
             (score, counting_tree)
         });
         let evaluate_action = |leaf: &LeafHandle, action: Action, rng: &mut Rng| {
-            self.config
-                .evaluation_config
-                .evaluate::<RemyMessage, Packet>(
-                    network_config,
-                    &leaf.augmented_tree(action),
-                    utility_function,
-                    rng,
-                )
+            self.config.evaluation_config.evaluate(
+                network_config,
+                &leaf.augmented_tree(action),
+                utility_function,
+                rng,
+            )
         };
         let mut dna = RemyDna::default(&self.config);
         let (mut score, mut counts) = evaluate_and_count(&mut dna.tree, rng);

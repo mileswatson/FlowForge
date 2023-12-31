@@ -2,14 +2,12 @@ use crate::{
     average::EWMA,
     flow::{Flow, FlowNeverActive, FlowProperties},
     logging::Logger,
-    network::toggler::Toggle,
-    simulation::{Component, ComponentId, EffectContext, HasVariant, MaybeHasVariant, Message},
+    network::{NetworkEffect, NetworkMessage},
+    simulation::{Component, ComponentId, EffectContext},
     time::{Float, Time, TimeSpan},
 };
 
-use super::window::lossy_window::{
-    LossyWindowBehavior, LossyWindowSender, LossyWindowSettings, Packet,
-};
+use super::window::lossy_window::{LossyWindowBehavior, LossyWindowSender, LossyWindowSettings};
 
 #[derive(Debug)]
 struct Behavior {
@@ -76,21 +74,20 @@ where
     }
 }
 
-impl<E, L> Component<E> for LossySender<L>
+impl<L> Component<NetworkEffect> for LossySender<L>
 where
-    E: HasVariant<Packet> + MaybeHasVariant<Toggle>,
     L: Logger,
 {
-    fn tick(&mut self, context: EffectContext) -> Vec<Message<E>> {
+    fn tick(&mut self, context: EffectContext) -> Vec<NetworkMessage> {
         self.0.tick(context)
     }
 
-    fn receive(&mut self, e: E, context: EffectContext) -> Vec<Message<E>> {
+    fn receive(&mut self, e: NetworkEffect, context: EffectContext) -> Vec<NetworkMessage> {
         self.0.receive(e, context)
     }
 
     fn next_tick(&self, time: Time) -> Option<Time> {
-        Component::<E>::next_tick(&self.0, time)
+        Component::next_tick(&self.0, time)
     }
 }
 

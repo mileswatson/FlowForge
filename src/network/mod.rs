@@ -2,13 +2,14 @@ use crate::{
     logging::NothingLogger,
     rand::{PositiveContinuousDistribution, Rng},
     simulation::{
-        ComponentId, ComponentSlot, DynComponent, HasVariant, Simulator, SimulatorBuilder,
+        ComponentId, ComponentSlot, DynComponent, MaybeHasVariant, Message, Simulator,
+        SimulatorBuilder,
     },
-    time::{Float, Rate, TimeSpan},
+    time::{Float, Rate, Time, TimeSpan},
 };
 
 use self::{
-    link::{Link, Routable},
+    link::Link,
     toggler::{Toggle, Toggler},
 };
 
@@ -16,6 +17,58 @@ pub mod config;
 pub mod link;
 pub mod protocols;
 pub mod toggler;
+
+#[derive(Debug)]
+pub struct Packet {
+    seq: u64,
+    source: ComponentId,
+    destination: ComponentId,
+    sent_time: Time,
+}
+
+impl Packet {
+    fn pop_next_hop(&mut self) -> ComponentId {
+        self.destination
+    }
+}
+
+#[derive(Debug)]
+pub enum NetworkEffect {
+    Packet(Packet),
+    Toggle(Toggle),
+}
+
+pub type NetworkMessage = Message<NetworkEffect>;
+
+impl MaybeHasVariant<Toggle> for NetworkEffect {
+    fn try_into(self) -> Result<Toggle, Self> {
+        match self {
+            NetworkEffect::Packet(_) => Err(self),
+            NetworkEffect::Toggle(t) => Ok(t),
+        }
+    }
+}
+
+impl From<Toggle> for NetworkEffect {
+    fn from(value: Toggle) -> Self {
+        NetworkEffect::Toggle(value)
+    }
+}
+
+impl MaybeHasVariant<Packet> for NetworkEffect {
+    fn try_into(self) -> Result<Packet, Self> {
+        match self {
+            NetworkEffect::Packet(p) => Ok(p),
+            NetworkEffect::Toggle(_) => Err(self),
+        }
+    }
+}
+
+impl From<Packet> for NetworkEffect {
+    fn from(value: Packet) -> Self {
+        NetworkEffect::Packet(value)
+    }
+}
 
 #[derive(Debug)]
 pub struct Network {
@@ -28,22 +81,18 @@ pub struct Network {
     pub on_time: PositiveContinuousDistribution<Float>,
 }
 
-pub struct NetworkSlots<'a, 'b, E> {
-    pub sender_slots: Vec<ComponentSlot<'a, 'b, E>>,
+pub struct NetworkSlots<'a, 'b> {
+    pub sender_slots: Vec<ComponentSlot<'a, 'b, NetworkEffect>>,
     pub sender_link_id: ComponentId,
 }
 
 impl Network {
     #[must_use]
-    pub fn to_sim<'a, E, P, R>(
+    pub fn to_sim<'a, R>(
         &self,
         rng: &'a mut Rng,
-        populate_components: impl FnOnce(NetworkSlots<'a, '_, E>, &mut Rng) -> R + 'a,
-    ) -> (Simulator<'a, E, NothingLogger>, R)
-    where
-        E: HasVariant<P> + HasVariant<Toggle> + 'a,
-        P: Routable + 'a,
-    {
+        populate_components: impl FnOnce(NetworkSlots<'a, '_>, &mut Rng) -> R + 'a,
+    ) -> (Simulator<'a, NetworkEffect, NothingLogger>, R) {
         let builder = SimulatorBuilder::new();
         let slots = NetworkSlots {
             sender_slots: (0..self.num_senders)
@@ -58,7 +107,7 @@ impl Network {
                     slot
                 })
                 .collect(),
-            sender_link_id: builder.insert(DynComponent::new(Link::<P, _>::create(
+            sender_link_id: builder.insert(DynComponent::new(Link::create(
                 0.5 * self.rtt,
                 self.packet_rate,
                 self.loss_rate,

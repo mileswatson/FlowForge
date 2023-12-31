@@ -5,17 +5,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     flow::{Flow, UtilityFunction},
-    network::{config::NetworkConfig, link::Routable, toggler::Toggle, Network, NetworkSlots},
+    network::{config::NetworkConfig, Network, NetworkSlots},
     rand::Rng,
-    simulation::HasVariant,
     time::{Float, Time, TimeSpan},
 };
 
-pub trait PopulateComponents<E>: Sync {
+pub trait PopulateComponents: Sync {
     /// Populates senders and receiver slots
     fn populate_components<'a>(
         &'a self,
-        network_slots: NetworkSlots<'a, '_, E>,
+        network_slots: NetworkSlots<'a, '_>,
         rng: &mut Rng,
     ) -> Vec<Rc<dyn Flow + 'a>>;
 }
@@ -36,20 +35,16 @@ impl Default for EvaluationConfig {
 }
 
 impl EvaluationConfig {
-    pub fn evaluate<E, P>(
+    pub fn evaluate(
         &self,
         network_config: &NetworkConfig,
-        components: &impl PopulateComponents<E>,
+        components: &impl PopulateComponents,
         utility_function: &(impl UtilityFunction + ?Sized),
         rng: &mut Rng,
-    ) -> Float
-    where
-        E: HasVariant<P> + HasVariant<Toggle>,
-        P: Routable,
-    {
+    ) -> Float {
         let run_sim_for = TimeSpan::new(self.run_sim_for);
         let score_network = |(n, mut rng): (Network, Rng)| -> Float {
-            let (sim, flows) = n.to_sim::<E, P, _>(&mut rng, |slots, rng| {
+            let (sim, flows) = n.to_sim(&mut rng, |slots, rng| {
                 let x = components.populate_components(slots, rng);
                 x
             });
