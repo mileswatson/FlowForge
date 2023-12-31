@@ -349,6 +349,12 @@ impl BaseRuleTree {
     }
 }
 
+impl RuleTree for BaseRuleTree {
+    fn action(&self, point: &Point) -> Option<&Action> {
+        self._action(self.root, point, &|_| None)
+    }
+}
+
 impl PartialEq for BaseRuleTree {
     fn eq(&self, other: &Self) -> bool {
         self.root == other.root

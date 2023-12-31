@@ -25,6 +25,7 @@ pub mod rule_tree;
 use self::{
     action::Action,
     autogen::remy_dna::WhiskerTree,
+    point::Point,
     rule_tree::{BaseRuleTree, CountingRuleTree, LeafHandle, RuleTree},
 };
 
@@ -106,6 +107,12 @@ impl Dna for RemyDna {
         Ok(RemyDna {
             tree: BaseRuleTree::from_whisker_tree(&WhiskerTree::parse_from_bytes(buf)?),
         })
+    }
+}
+
+impl RuleTree for RemyDna {
+    fn action(&self, point: &Point) -> Option<&Action> {
+        self.tree.action(point)
     }
 }
 
