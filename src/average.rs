@@ -18,8 +18,7 @@ where
 pub trait Average: Clone + Sized {
     fn average<I>(first_item: Self, remaining_items: I) -> Self
     where
-        I: IntoIterator<Item = Self>,
-        I::IntoIter: Clone;
+        I: IntoIterator<Item = Self>;
 }
 
 impl<T> Average for T
@@ -70,7 +69,6 @@ where
     fn average<I>(first_item: Self, remaining_items: I) -> Self
     where
         I: IntoIterator<Item = Self>,
-        I::IntoIter: Clone,
     {
         let (ts, us): (Vec<_>, Vec<_>) = remaining_items
             .into_iter()

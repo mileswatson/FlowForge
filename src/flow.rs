@@ -22,7 +22,6 @@ impl Average for FlowProperties {
     fn average<I>(first_item: Self, remaining_items: I) -> Self
     where
         I: IntoIterator<Item = Self>,
-        I::IntoIter: Clone,
     {
         let remaining_items: Vec<_> = remaining_items.into_iter().collect();
         let average_throughput = Average::average(
@@ -178,10 +177,7 @@ impl UtilityFunction for AlphaFairness {
         flows: &[Rc<dyn Flow + 'a>],
         time: Time,
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
-        self.flow_utility_aggregator.total_utility(
-            flows,
-            |flow| self.flow_utility(flow),
-            time,
-        )
+        self.flow_utility_aggregator
+            .total_utility(flows, |flow| self.flow_utility(flow), time)
     }
 }
