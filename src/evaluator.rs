@@ -4,7 +4,8 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    flow::{Flow, UtilityFunction},
+    average::{average, AveragePair},
+    flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
     network::{config::NetworkConfig, Network, NetworkSlots},
     rand::Rng,
     time::{Float, Time, TimeSpan},
@@ -41,24 +42,25 @@ impl EvaluationConfig {
         components: &impl PopulateComponents,
         utility_function: &(impl UtilityFunction + ?Sized),
         rng: &mut Rng,
-    ) -> Float {
+    ) -> Result<(Float, FlowProperties), NoActiveFlows> {
         let run_sim_for = TimeSpan::new(self.run_sim_for);
-        let score_network = |(n, mut rng): (Network, Rng)| -> Float {
+        let score_network = |(n, mut rng): (Network, Rng)| {
             let (sim, flows) = n.to_sim(&mut rng, |slots, rng| {
-                let x = components.populate_components(slots, rng);
-                x
+                components.populate_components(slots, rng)
             });
             sim.run_for(run_sim_for);
-            utility_function
-                .total_utility(&flows, Time::sim_start() + run_sim_for)
-                .unwrap_or(Float::MIN)
+            utility_function.total_utility(&flows, Time::sim_start() + run_sim_for)
         };
-        #[allow(clippy::cast_precision_loss)]
-        return (0..self.network_samples)
+
+        let scores: Vec<_> = (0..self.network_samples)
             .map(|_| (rng.sample(network_config), rng.create_child()))
             .par_bridge()
             .map(score_network)
-            .sum::<Float>()
-            / f64::from(self.network_samples);
+            .filter_map(Result::ok)
+            .map(AveragePair::new)
+            .collect();
+        average(scores)
+            .map(AveragePair::into_inner)
+            .map_err(|_| NoActiveFlows)
     }
 }

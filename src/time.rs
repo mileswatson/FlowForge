@@ -105,11 +105,27 @@ impl Rate {
     }
 }
 
-impl std::ops::Div<TimeSpan> for Float {
+impl Add<Rate> for Rate {
+    type Output = Rate;
+
+    fn add(self, rhs: Rate) -> Self::Output {
+        Rate { r: self.r + rhs.r }
+    }
+}
+
+impl Div<TimeSpan> for Float {
     type Output = Rate;
 
     fn div(self, rhs: TimeSpan) -> Self::Output {
         Rate { r: self / rhs.ts }
+    }
+}
+
+impl Div<Float> for Rate {
+    type Output = Rate;
+
+    fn div(self, rhs: Float) -> Self::Output {
+        Rate::new(self.r / rhs)
     }
 }
 

@@ -1,12 +1,15 @@
-use std::{iter::repeat, sync::Mutex};
+use std::{cmp::Reverse, iter::repeat, sync::Mutex};
 
+use anyhow::Result;
+use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     evaluator::{EvaluationConfig, PopulateComponents},
-    flow::UtilityFunction,
+    flow::{FlowProperties, NoActiveFlows, UtilityFunction},
     network::config::NetworkConfig,
     rand::Rng,
+    time::Float,
     Dna, ProgressHandler, Trainer,
 };
 
@@ -90,7 +93,7 @@ where
                 .into_iter()
                 .map(|d| (d, rng.create_child()))
                 //.par_bridge()
-                .map(|(d, mut rng)| {
+                .filter_map(|(d, mut rng)| {
                     let score = self.evaluation_config.evaluate(
                         network_config,
                         &d,
@@ -98,10 +101,10 @@ where
                         &mut rng,
                     );
                     update_progress();
-                    (d, score)
+                    score.map(|(s, p)| (d, s, p)).ok()
                 })
                 .collect();
-            scores.sort_by(|a, b| a.1.total_cmp(&b.1).reverse());
+            scores.sort_by_key(|x| Reverse(NotNan::new(x.1).unwrap()));
 
             println!("Score: {}", scores.first().unwrap().1);
             update_best(&scores.first().unwrap().0);
@@ -113,5 +116,16 @@ where
                 .collect();
         }
         population.into_iter().next().unwrap()
+    }
+
+    fn evaluate(
+        &self,
+        d: &D,
+        network_config: &NetworkConfig,
+        utility_function: &dyn UtilityFunction,
+        rng: &mut Rng,
+    ) -> Result<(Float, FlowProperties), NoActiveFlows> {
+        self.evaluation_config
+            .evaluate(network_config, d, utility_function, rng)
     }
 }

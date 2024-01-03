@@ -15,7 +15,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use evaluator::PopulateComponents;
-use flow::UtilityFunction;
+use flow::{FlowProperties, NoActiveFlows, UtilityFunction};
 use network::config::NetworkConfig;
 use rand::Rng;
 use serde::{de::DeserializeOwned, Serialize};
@@ -26,6 +26,7 @@ pub mod logging;
 pub mod average;
 pub mod evaluator;
 pub mod flow;
+pub mod meters;
 pub mod network;
 pub mod rand;
 pub mod simulation;
@@ -131,4 +132,12 @@ where
     ) -> D
     where
         H: ProgressHandler<D>;
+
+    fn evaluate(
+        &self,
+        d: &D,
+        network_config: &NetworkConfig,
+        utility_function: &dyn UtilityFunction,
+        rng: &mut Rng,
+    ) -> Result<(Float, FlowProperties), NoActiveFlows>;
 }

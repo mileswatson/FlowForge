@@ -7,13 +7,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     evaluator::{EvaluationConfig, PopulateComponents},
-    flow::{Flow, UtilityFunction},
+    flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
     logging::NothingLogger,
     network::{
         config::NetworkConfig, protocols::remy::LossySender, toggler::Toggle, NetworkSlots, Packet,
     },
     rand::Rng,
     simulation::{DynComponent, MaybeHasVariant},
+    time::Float,
     Dna, ProgressHandler, Trainer,
 };
 
@@ -187,7 +188,7 @@ impl From<Packet> for RemyMessage {
 /// Hack until <https://github.com/rust-lang/rust/issues/97362> is stabilised
 const fn coerce<F>(f: F) -> F
 where
-    F: for<'a> Fn(&'a mut BaseRuleTree, &mut Rng) -> (f64, CountingRuleTree<'a>),
+    F: for<'a> Fn(&'a mut BaseRuleTree, &mut Rng) -> (Float, FlowProperties, CountingRuleTree<'a>),
 {
     f
 }
@@ -210,29 +211,31 @@ impl Trainer<RemyDna> for RemyTrainer {
     ) -> RemyDna {
         let evaluate_and_count = coerce(|tree: &mut BaseRuleTree, rng: &mut Rng| {
             let counting_tree = CountingRuleTree::new(tree);
-            let score = self.config.evaluation_config.evaluate(
-                network_config,
-                &counting_tree,
-                utility_function,
-                rng,
-            );
-            (score, counting_tree)
+            let (s, props) = self
+                .config
+                .evaluation_config
+                .evaluate(network_config, &counting_tree, utility_function, rng)
+                .expect("Simulation to have active flows");
+            (s, props, counting_tree)
         });
         let evaluate_action = |leaf: &LeafHandle, action: Action, rng: &mut Rng| {
-            self.config.evaluation_config.evaluate(
-                network_config,
-                &leaf.augmented_tree(action),
-                utility_function,
-                rng,
-            )
+            self.config
+                .evaluation_config
+                .evaluate(
+                    network_config,
+                    &leaf.augmented_tree(action),
+                    utility_function,
+                    rng,
+                )
+                .expect("Simulation to have active flows")
         };
         let mut dna = RemyDna::default(&self.config);
-        let (mut score, mut counts) = evaluate_and_count(&mut dna.tree, rng);
+        let (mut score, mut props, mut counts) = evaluate_and_count(&mut dna.tree, rng);
         for i in 0..=self.config.rule_splits {
             if i > 0 {
                 counts.most_used_rule().split();
                 println!("Split rule!");
-                (score, counts) = evaluate_and_count(&mut dna.tree, rng);
+                (score, props, counts) = evaluate_and_count(&mut dna.tree, rng);
             }
             println!("Score: {score}");
             for optimization_round in 0..self.config.optimization_rounds_per_split {
@@ -242,15 +245,15 @@ impl Trainer<RemyDna> for RemyTrainer {
                     self.config.optimization_rounds_per_split
                 );
                 while let Some(mut leaf) = counts.most_used_unoptimized_rule() {
-                    while let Some((s, new_action)) = leaf
+                    while let Some((s, props, new_action)) = leaf
                         .action()
                         .possible_improvements(&self.config)
                         .map(|action| {
-                            let score = evaluate_action(&leaf, action.clone(), rng);
-                            (score, action)
+                            let (s, props) = evaluate_action(&leaf, action.clone(), rng);
+                            (s, props, action)
                         })
-                        .filter(|(s, _)| s > &score)
-                        .max_by_key(|(s, _)| NotNan::new(*s).unwrap())
+                        .filter(|(s, _, _)| s > &score)
+                        .max_by_key(|(s, _, _)| NotNan::new(*s).unwrap())
                     {
                         println!("Improved score from {score} to {s} using {new_action:?}");
                         score = s;
@@ -266,14 +269,24 @@ impl Trainer<RemyDna> for RemyTrainer {
                         ),
                         Some(&dna),
                     );
-                    (score, counts) = evaluate_and_count(&mut dna.tree, rng);
+                    (score, props, counts) = evaluate_and_count(&mut dna.tree, rng);
                     println!("Base: {score}");
                 }
                 dna.tree.mark_all_unoptimized();
-                (score, counts) = evaluate_and_count(&mut dna.tree, rng);
+                (score, props, counts) = evaluate_and_count(&mut dna.tree, rng);
             }
         }
         progress_handler.update_progress(1., Some(&dna));
         dna
+    }
+
+    fn evaluate(
+        &self,
+        d: &RemyDna,
+        network_config: &NetworkConfig,
+        utility_function: &dyn UtilityFunction,
+        rng: &mut Rng,
+    ) -> Result<(Float, FlowProperties), NoActiveFlows> {
+        todo!()
     }
 }

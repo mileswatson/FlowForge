@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use crate::{
-    average::{DisabledRateMeter, EnabledRateMeter, Mean, RateMeterNeverEnabled},
+    meters::{DisabledRateMeter, EnabledRateMeter, Mean, RateMeterNeverEnabled},
     flow::{Flow, FlowNeverActive, FlowProperties, NoPacketsAcked},
     logging::Logger,
     network::{toggler::Toggle, NetworkEffect, NetworkMessage, Packet},

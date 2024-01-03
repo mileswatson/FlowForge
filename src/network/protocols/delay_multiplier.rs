@@ -1,5 +1,5 @@
 use crate::{
-    average::EWMA,
+    meters::EWMA,
     flow::{Flow, FlowNeverActive, FlowProperties},
     logging::Logger,
     network::{NetworkEffect, NetworkMessage},

@@ -1,16 +1,45 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, iter::once, rc::Rc};
 
 use ordered_float::NotNan;
 use rand_distr::num_traits::Zero;
 use serde::{Deserialize, Serialize};
 
-use crate::time::{Float, Rate, Time, TimeSpan};
+use crate::{
+    average::{average, Average, AveragePair},
+    time::{Float, Rate, Time, TimeSpan},
+};
 
+#[derive(Clone)]
 pub struct NoPacketsAcked;
 
+#[derive(Clone)]
 pub struct FlowProperties {
     pub average_throughput: Rate,
     pub average_rtt: Result<TimeSpan, NoPacketsAcked>,
+}
+
+impl Average for FlowProperties {
+    fn average<I>(first_item: Self, remaining_items: I) -> Self
+    where
+        I: IntoIterator<Item = Self>,
+        I::IntoIter: Clone,
+    {
+        let remaining_items: Vec<_> = remaining_items.into_iter().collect();
+        let average_throughput = Average::average(
+            first_item.average_throughput,
+            remaining_items.iter().map(|x| x.average_throughput),
+        );
+        let average_rtt = average(
+            once(first_item)
+                .chain(remaining_items)
+                .filter_map(|x| x.average_rtt.ok()),
+        )
+        .map_err(|_| NoPacketsAcked);
+        FlowProperties {
+            average_throughput,
+            average_rtt,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -65,11 +94,12 @@ impl UtilityConfig {
 }
 
 pub trait UtilityFunction: Sync {
+    /// Calculates flow properties and the total utility of a network simulation.
     fn total_utility<'a>(
         &self,
         flows: &[Rc<dyn Flow + 'a>],
         time: Time,
-    ) -> Result<Float, NoActiveFlows>;
+    ) -> Result<(Float, FlowProperties), NoActiveFlows>;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -83,29 +113,23 @@ impl FlowUtilityAggregator {
         &self,
         flows: &[Rc<dyn Flow + 'a>],
         flow_utility: F,
-    ) -> Result<Float, NoActiveFlows>
+        time: Time,
+    ) -> Result<(Float, FlowProperties), NoActiveFlows>
     where
-        F: Fn(&dyn Flow) -> Result<Float, FlowNeverActive>,
+        F: Fn(&FlowProperties) -> Float,
     {
-        let scores: Vec<_> = flows
+        let scores = flows
             .iter()
-            .filter_map(|flow| flow_utility(&**flow).ok())
-            .collect();
+            .filter_map(|flow| flow.properties(time).map(|x| (flow_utility(&x), x)).ok());
         #[allow(clippy::cast_precision_loss)]
         match self {
-            FlowUtilityAggregator::Mean => {
-                if scores.is_empty() {
-                    Err(NoActiveFlows)
-                } else {
-                    Ok(scores.iter().sum::<Float>() / scores.len() as Float)
-                }
-            }
+            FlowUtilityAggregator::Mean => average(scores.map(AveragePair::new))
+                .map(AveragePair::into_inner)
+                .map_err(|_| NoActiveFlows),
             FlowUtilityAggregator::Minimum => scores
-                .into_iter()
-                .map(NotNan::new)
-                .map(Result::unwrap)
-                .min()
-                .map(NotNan::into_inner)
+                .map(|(score, properties)| (NotNan::new(score).unwrap(), properties))
+                .min_by_key(|(score, _)| *score)
+                .map(|(score, properties)| (score.into_inner(), properties))
                 .ok_or(NoActiveFlows),
         }
     }
@@ -138,16 +162,13 @@ impl AlphaFairness {
         flow_utility_aggregator: FlowUtilityAggregator::Mean,
     };
 
-    fn flow_utility(&self, flow: &dyn Flow, time: Time) -> Result<Float, FlowNeverActive> {
-        flow.properties(time).map(|properties| {
-            let throughput_utility =
-                alpha_fairness(properties.average_throughput.value(), self.alpha);
-            let rtt_utility = match properties.average_rtt {
-                Ok(average_rtt) => -self.delta * alpha_fairness(average_rtt.value(), self.beta),
-                Err(NoPacketsAcked) => 0.,
-            };
-            throughput_utility + rtt_utility
-        })
+    fn flow_utility(&self, properties: &FlowProperties) -> Float {
+        let throughput_utility = alpha_fairness(properties.average_throughput.value(), self.alpha);
+        let rtt_utility = match properties.average_rtt {
+            Ok(average_rtt) => -self.delta * alpha_fairness(average_rtt.value(), self.beta),
+            Err(NoPacketsAcked) => 0.,
+        };
+        throughput_utility + rtt_utility
     }
 }
 
@@ -156,8 +177,11 @@ impl UtilityFunction for AlphaFairness {
         &self,
         flows: &[Rc<dyn Flow + 'a>],
         time: Time,
-    ) -> Result<Float, NoActiveFlows> {
-        self.flow_utility_aggregator
-            .total_utility(flows, |flow| self.flow_utility(flow, time))
+    ) -> Result<(Float, FlowProperties), NoActiveFlows> {
+        self.flow_utility_aggregator.total_utility(
+            flows,
+            |flow| self.flow_utility(flow),
+            time,
+        )
     }
 }

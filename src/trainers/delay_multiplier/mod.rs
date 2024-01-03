@@ -4,11 +4,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     evaluator::PopulateComponents,
-    flow::{Flow, UtilityFunction},
+    flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
     logging::NothingLogger,
     network::{config::NetworkConfig, protocols::delay_multiplier::LossySender, NetworkSlots},
     rand::{ContinuousDistribution, Rng},
     simulation::DynComponent,
+    time::Float,
     Dna, Trainer,
 };
 
@@ -101,5 +102,16 @@ impl Trainer<DelayMultiplierDna> for DelayMultiplierTrainer {
     {
         self.genetic_trainer
             .train(network_config, utility_function, progress_handler, rng)
+    }
+
+    fn evaluate(
+        &self,
+        d: &DelayMultiplierDna,
+        network_config: &NetworkConfig,
+        utility_function: &dyn UtilityFunction,
+        rng: &mut Rng,
+    ) -> anyhow::Result<(Float, FlowProperties), NoActiveFlows> {
+        self.genetic_trainer
+            .evaluate(d, network_config, utility_function, rng)
     }
 }
