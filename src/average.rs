@@ -5,7 +5,7 @@ use std::{
 
 use crate::time::Float;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NoItems;
 
 pub trait Average: Sized {
@@ -51,18 +51,6 @@ impl<T, U> AverageSeparately<T, U> {
     }
 }
 
-impl<T, U> Div<Float> for AverageSeparately<T, U>
-where
-    T: Div<Float, Output = T>,
-    U: Div<Float, Output = U>,
-{
-    type Output = AverageSeparately<T, U>;
-
-    fn div(self, rhs: Float) -> Self::Output {
-        AverageSeparately(self.0 / rhs, self.1 / rhs)
-    }
-}
-
 impl<T, U> Average for AverageSeparately<T, U>
 where
     T: Average,
@@ -80,42 +68,20 @@ where
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct AverageTogether<T, U>(pub T, pub U)
-where
-    T: Average<Output = Result<T, NoItems>> + Debug,
-    U: Average<Output = Result<U, NoItems>> + Debug;
-
-impl<T, U> AverageTogether<T, U>
-where
-    T: Average<Output = Result<T, NoItems>> + Debug,
-    U: Average<Output = Result<U, NoItems>> + Debug,
-{
-    pub fn new((t, u): (T, U)) -> Self {
-        AverageTogether(t, u)
-    }
-
-    fn into_inner(self) -> (T, U) {
-        (self.0, self.1)
-    }
+pub trait SameEmptiness<T, U> {
+    fn assert_same_emptiness(self) -> Result<(T, U), NoItems>;
 }
 
-impl<T, U> Average for AverageTogether<T, U>
+impl<T, U> SameEmptiness<T, U> for (Result<T, NoItems>, Result<U, NoItems>)
 where
-    T: Average<Output = Result<T, NoItems>> + Debug,
-    U: Average<Output = Result<U, NoItems>> + Debug,
+    T: Debug,
+    U: Debug,
 {
-    type Output = Result<(T, U), NoItems>;
-
-    fn average<I>(items: I) -> Self::Output
-    where
-        I: IntoIterator<Item = Self>,
-    {
-        let (ts, us): (Vec<_>, Vec<_>) = items.into_iter().map(AverageTogether::into_inner).unzip();
-        match (ts.average(), us.average()) {
+    fn assert_same_emptiness(self) -> Result<(T, U), NoItems> {
+        match (self.0, self.1) {
             (Ok(t), Ok(u)) => Ok((t, u)),
             (Err(NoItems), Err(NoItems)) => Err(NoItems),
-            x => panic!("Averages gave different results: {x:?}"),
+            x => panic!("Averages have different emptiness: {x:?}"),
         }
     }
 }
@@ -181,11 +147,16 @@ mod test {
     use std::iter::once;
 
     use crate::{
-        average::{AverageIfSome, IterAverage},
+        average::{AverageIfSome, IterAverage, NoItems},
         time::Float,
     };
 
-    use super::AverageSeparately;
+    use super::{AverageSeparately, SameEmptiness};
+
+    #[test]
+    fn empty() {
+        assert_eq!(Vec::<Float>::new().average(), Err(NoItems));
+    }
 
     #[test]
     fn average_pair() {
@@ -200,5 +171,45 @@ mod test {
             .map(AverageSeparately::new)
             .average();
         assert_eq!((average.0.unwrap(), average.1.unwrap()), (2., 6.5));
+    }
+
+    #[test]
+    fn same_emptiness() {
+        assert_eq!(
+            (0..0)
+                .map(Float::from)
+                .zip((1..1).map(Float::from))
+                .map(AverageSeparately::new)
+                .average()
+                .assert_same_emptiness(),
+            Err(NoItems)
+        );
+        assert_eq!(
+            (0..2)
+                .map(Float::from)
+                .zip((2..4).map(Float::from))
+                .map(AverageSeparately::new)
+                .average()
+                .assert_same_emptiness(),
+            Ok((0.5, 2.5))
+        );
+    }
+
+    #[test]
+    #[should_panic = "different emptiness"]
+    fn different_emptiness1() {
+        let _ = (0..2)
+            .map(|x| AverageSeparately(Float::from(x), AverageIfSome::<Float>::new(None)))
+            .average()
+            .assert_same_emptiness();
+    }
+
+    #[test]
+    #[should_panic = "different emptiness"]
+    fn different_emptiness2() {
+        let _ = (0..2)
+            .map(|x| AverageSeparately(AverageIfSome::<Float>::new(None), Float::from(x)))
+            .average()
+            .assert_same_emptiness();
     }
 }

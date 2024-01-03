@@ -5,7 +5,7 @@ use rand_distr::num_traits::Zero;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    average::{Average, AverageIfSome, AverageSeparately, AverageTogether, IterAverage, NoItems},
+    average::{Average, AverageIfSome, AverageSeparately, IterAverage, NoItems, SameEmptiness},
     time::{Float, Rate, Time, TimeSpan},
 };
 
@@ -129,8 +129,9 @@ impl FlowUtilityAggregator {
         #[allow(clippy::cast_precision_loss)]
         match self {
             FlowUtilityAggregator::Mean => scores
-                .map(AverageTogether::new)
+                .map(AverageSeparately::new)
                 .average()
+                .assert_same_emptiness()
                 .map_err(|_| NoActiveFlows),
             FlowUtilityAggregator::Minimum => scores
                 .map(|(score, properties)| (NotNan::new(score).unwrap(), properties))
