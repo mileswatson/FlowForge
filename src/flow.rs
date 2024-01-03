@@ -1,42 +1,48 @@
-use std::{cell::RefCell, iter::once, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 
 use ordered_float::NotNan;
 use rand_distr::num_traits::Zero;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    average::{average, Average, AveragePair},
+    average::{Average, AverageIfSome, AverageSeparately, AverageTogether, IterAverage, NoItems},
     time::{Float, Rate, Time, TimeSpan},
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NoPacketsAcked;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct FlowProperties {
     pub average_throughput: Rate,
     pub average_rtt: Result<TimeSpan, NoPacketsAcked>,
 }
 
 impl Average for FlowProperties {
-    fn average<I>(first_item: Self, remaining_items: I) -> Self
+    type Output = Result<FlowProperties, NoItems>;
+
+    fn average<I>(items: I) -> Self::Output
     where
         I: IntoIterator<Item = Self>,
     {
-        let remaining_items: Vec<_> = remaining_items.into_iter().collect();
-        let average_throughput = Average::average(
-            first_item.average_throughput,
-            remaining_items.iter().map(|x| x.average_throughput),
-        );
-        let average_rtt = average(
-            once(first_item)
-                .chain(remaining_items)
-                .filter_map(|x| x.average_rtt.ok()),
-        )
-        .map_err(|_| NoPacketsAcked);
-        FlowProperties {
-            average_throughput,
-            average_rtt,
+        let (average_throughput, average_rtt) = items
+            .into_iter()
+            .map(|props| {
+                AverageSeparately(
+                    props.average_throughput,
+                    AverageIfSome::new(props.average_rtt.ok()),
+                )
+            })
+            .average();
+        match average_throughput {
+            Ok(average_throughput) => Ok(FlowProperties {
+                average_throughput,
+                average_rtt: average_rtt.map_err(|_| NoPacketsAcked),
+            }),
+            Err(NoItems) => {
+                assert!(average_rtt.is_err());
+                Err(NoItems)
+            }
         }
     }
 }
@@ -122,8 +128,9 @@ impl FlowUtilityAggregator {
             .filter_map(|flow| flow.properties(time).map(|x| (flow_utility(&x), x)).ok());
         #[allow(clippy::cast_precision_loss)]
         match self {
-            FlowUtilityAggregator::Mean => average(scores.map(AveragePair::new))
-                .map(AveragePair::into_inner)
+            FlowUtilityAggregator::Mean => scores
+                .map(AverageTogether::new)
+                .average()
                 .map_err(|_| NoActiveFlows),
             FlowUtilityAggregator::Minimum => scores
                 .map(|(score, properties)| (NotNan::new(score).unwrap(), properties))

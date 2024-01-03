@@ -4,7 +4,7 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    average::{average, AveragePair},
+    average::{AverageTogether, IterAverage},
     flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
     network::{config::NetworkConfig, Network, NetworkSlots},
     rand::Rng,
@@ -52,15 +52,14 @@ impl EvaluationConfig {
             utility_function.total_utility(&flows, Time::sim_start() + run_sim_for)
         };
 
-        let scores: Vec<_> = (0..self.network_samples)
+        (0..self.network_samples)
             .map(|_| (rng.sample(network_config), rng.create_child()))
             .par_bridge()
             .map(score_network)
             .filter_map(Result::ok)
-            .map(AveragePair::new)
-            .collect();
-        average(scores)
-            .map(AveragePair::into_inner)
+            .map(AverageTogether::new)
+            .collect::<Vec<_>>()
+            .average()
             .map_err(|_| NoActiveFlows)
     }
 }
