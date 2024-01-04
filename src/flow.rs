@@ -5,14 +5,14 @@ use rand_distr::num_traits::Zero;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    average::{Average, AverageIfSome, AverageSeparately, IterAverage, NoItems, SameEmptiness},
+    average::{Average, AverageIfSome, AveragePair, IterAverage, NoItems, SameEmptiness},
     time::{Float, Rate, Time, TimeSpan},
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NoPacketsAcked;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct FlowProperties {
     pub average_throughput: Rate,
     pub average_rtt: Result<TimeSpan, NoPacketsAcked>,
@@ -28,7 +28,7 @@ impl Average for FlowProperties {
         let (average_throughput, average_rtt) = items
             .into_iter()
             .map(|props| {
-                AverageSeparately(
+                AveragePair(
                     props.average_throughput,
                     AverageIfSome::new(props.average_rtt.ok()),
                 )
@@ -48,7 +48,7 @@ impl Average for FlowProperties {
 }
 
 #[derive(Debug)]
-pub struct FlowNeverActive {}
+pub struct FlowNeverActive;
 
 pub trait Flow {
     fn properties(&self, current_time: Time) -> Result<FlowProperties, FlowNeverActive>;
@@ -81,7 +81,7 @@ fn alpha_fairness(x: Float, alpha: Float) -> Float {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct NoActiveFlows;
 
 #[derive(Serialize, Deserialize)]
@@ -129,7 +129,7 @@ impl FlowUtilityAggregator {
         #[allow(clippy::cast_precision_loss)]
         match self {
             FlowUtilityAggregator::Mean => scores
-                .map(AverageSeparately::new)
+                .map(AveragePair::new)
                 .average()
                 .assert_same_emptiness()
                 .map_err(|_| NoActiveFlows),
@@ -187,5 +187,94 @@ impl UtilityFunction for AlphaFairness {
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
         self.flow_utility_aggregator
             .total_utility(flows, |flow| self.flow_utility(flow), time)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::rc::Rc;
+
+    use itertools::Itertools;
+
+    use crate::{
+        average::{IterAverage, NoItems},
+        time::{Float, Rate, Time, TimeSpan},
+    };
+
+    use super::{Flow, FlowNeverActive, FlowProperties, FlowUtilityAggregator, NoPacketsAcked};
+
+    impl Flow for Option<FlowProperties> {
+        fn properties(&self, _current_time: Time) -> Result<FlowProperties, FlowNeverActive> {
+            self.clone().ok_or(FlowNeverActive)
+        }
+    }
+
+    #[test]
+    fn flow_properties_average() {
+        assert_eq!(
+            vec![(0., None), (1., Some(3.))]
+                .into_iter()
+                .map(|(average_throughput, average_rtt)| FlowProperties {
+                    average_throughput: Rate::new(average_throughput),
+                    average_rtt: average_rtt.map(TimeSpan::new).ok_or(NoPacketsAcked),
+                })
+                .average(),
+            Ok(FlowProperties {
+                average_throughput: Rate::new(0.5),
+                average_rtt: Ok(TimeSpan::new(3.))
+            })
+        );
+        assert_eq!(
+            vec![]
+                .into_iter()
+                .map(
+                    |(average_throughput, average_rtt): (Float, Option<Float>)| FlowProperties {
+                        average_throughput: Rate::new(average_throughput),
+                        average_rtt: average_rtt.map(TimeSpan::new).ok_or(NoPacketsAcked),
+                    }
+                )
+                .average(),
+            Err(NoItems)
+        );
+    }
+
+    #[test]
+    fn flow_utility_aggregator() {
+        let flows = (0..5)
+            .map(|x| {
+                Rc::new(Some(FlowProperties {
+                    average_throughput: Rate::new(Float::from(x)),
+                    average_rtt: Err(NoPacketsAcked),
+                })) as Rc<dyn Flow>
+            })
+            .collect_vec();
+        assert_eq!(
+            FlowUtilityAggregator::Mean.total_utility(
+                &flows,
+                |props| props.average_throughput.value(),
+                Time::sim_start(),
+            ),
+            Ok((
+                2.,
+                FlowProperties {
+                    average_throughput: Rate::new(2.),
+                    average_rtt: Err(NoPacketsAcked)
+                }
+            ))
+        );
+        assert_eq!(
+            FlowUtilityAggregator::Minimum.total_utility(
+                &flows,
+                |props| props.average_throughput.value(),
+                Time::sim_start(),
+            ),
+            Ok((
+                0.,
+                FlowProperties {
+                    average_throughput: Rate::new(0.),
+                    average_rtt: Err(NoPacketsAcked)
+                }
+            ))
+        );
     }
 }

@@ -4,7 +4,7 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    average::{AverageSeparately, IterAverage, SameEmptiness},
+    average::{AveragePair, IterAverage, SameEmptiness},
     flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
     network::{config::NetworkConfig, Network, NetworkSlots},
     rand::Rng,
@@ -57,7 +57,7 @@ impl EvaluationConfig {
             .par_bridge()
             .map(score_network)
             .filter_map(Result::ok)
-            .map(AverageSeparately::new)
+            .map(AveragePair::new)
             .collect::<Vec<_>>()
             .average()
             .assert_same_emptiness()

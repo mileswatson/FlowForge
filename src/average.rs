@@ -39,11 +39,11 @@ where
 }
 
 #[derive(Clone, Debug)]
-pub struct AverageSeparately<T, U>(pub T, pub U);
+pub struct AveragePair<T, U>(pub T, pub U);
 
-impl<T, U> AverageSeparately<T, U> {
+impl<T, U> AveragePair<T, U> {
     pub fn new((t, u): (T, U)) -> Self {
-        AverageSeparately(t, u)
+        AveragePair(t, u)
     }
 
     fn into_inner(self) -> (T, U) {
@@ -51,7 +51,7 @@ impl<T, U> AverageSeparately<T, U> {
     }
 }
 
-impl<T, U> Average for AverageSeparately<T, U>
+impl<T, U> Average for AveragePair<T, U>
 where
     T: Average,
     U: Average,
@@ -62,8 +62,7 @@ where
     where
         I: IntoIterator<Item = Self>,
     {
-        let (ts, us): (Vec<_>, Vec<_>) =
-            items.into_iter().map(AverageSeparately::into_inner).unzip();
+        let (ts, us): (Vec<_>, Vec<_>) = items.into_iter().map(AveragePair::into_inner).unzip();
         (T::average(ts), U::average(us))
     }
 }
@@ -143,7 +142,7 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::iter::once;
 
     use crate::{
@@ -151,7 +150,7 @@ mod test {
         time::Float,
     };
 
-    use super::{AverageSeparately, SameEmptiness};
+    use super::{AveragePair, SameEmptiness};
 
     #[test]
     fn empty() {
@@ -168,7 +167,7 @@ mod test {
                     .map(AverageIfSome::some)
                     .chain(once(AverageIfSome::new(None))),
             )
-            .map(AverageSeparately::new)
+            .map(AveragePair::new)
             .average();
         assert_eq!((average.0.unwrap(), average.1.unwrap()), (2., 6.5));
     }
@@ -179,7 +178,7 @@ mod test {
             (0..0)
                 .map(Float::from)
                 .zip((1..1).map(Float::from))
-                .map(AverageSeparately::new)
+                .map(AveragePair::new)
                 .average()
                 .assert_same_emptiness(),
             Err(NoItems)
@@ -188,7 +187,7 @@ mod test {
             (0..2)
                 .map(Float::from)
                 .zip((2..4).map(Float::from))
-                .map(AverageSeparately::new)
+                .map(AveragePair::new)
                 .average()
                 .assert_same_emptiness(),
             Ok((0.5, 2.5))
@@ -199,7 +198,7 @@ mod test {
     #[should_panic = "different emptiness"]
     fn different_emptiness1() {
         let _ = (0..2)
-            .map(|x| AverageSeparately(Float::from(x), AverageIfSome::<Float>::new(None)))
+            .map(|x| AveragePair(Float::from(x), AverageIfSome::<Float>::new(None)))
             .average()
             .assert_same_emptiness();
     }
@@ -208,7 +207,7 @@ mod test {
     #[should_panic = "different emptiness"]
     fn different_emptiness2() {
         let _ = (0..2)
-            .map(|x| AverageSeparately(AverageIfSome::<Float>::new(None), Float::from(x)))
+            .map(|x| AveragePair(AverageIfSome::<Float>::new(None), Float::from(x)))
             .average()
             .assert_same_emptiness();
     }
