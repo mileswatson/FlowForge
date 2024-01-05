@@ -14,7 +14,6 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use evaluator::PopulateComponents;
 use flow::{FlowProperties, NoActiveFlows, UtilityFunction};
 use network::config::NetworkConfig;
 use rand::Rng;
@@ -67,7 +66,7 @@ where
     }
 }
 
-pub trait Dna: PopulateComponents + Sized + Send + Sync {
+pub trait Dna: Sized + Send + Sync {
     const NAME: &'static str;
     fn serialize(&self) -> Result<Vec<u8>>;
     fn deserialize(buf: &[u8]) -> Result<Self>;

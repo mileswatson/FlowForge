@@ -16,6 +16,8 @@ debug = true
 [dependencies]
 anyhow = "1.0.75"
 clap = { version = "4.4.6", features = ["derive"] }
+float-cmp = "0.9.0"
+format_num = "0.1.0"
 itertools = "0.12.0"
 ordered-float = "4.1.1"
 pretty_assertions = "1.4.0"

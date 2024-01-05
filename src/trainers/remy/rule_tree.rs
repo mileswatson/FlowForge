@@ -5,6 +5,8 @@ use std::{
 
 use protobuf::MessageField;
 
+use crate::time::Float;
+
 use super::{
     action::Action,
     autogen::remy_dna::{Whisker, WhiskerTree},
@@ -13,8 +15,8 @@ use super::{
     RemyConfig,
 };
 
-pub trait RuleTree: Debug {
-    fn action(&self, point: &Point) -> Option<&Action>;
+pub trait RuleTree<const TESTING: bool = false>: Debug {
+    fn action(&self, point: &Point) -> Option<&Action<TESTING>>;
 }
 
 #[derive(Debug)]
@@ -58,23 +60,32 @@ impl<'a> CountingRuleTree<'a> {
         }
     }
 
-    fn _most_used_rule<const ONLY_UNOPTIMISED: bool>(mut self) -> Option<LeafHandle<'a>> {
-        self.tree.greatest_leaf_node(move |idx, optimized| {
-            if ONLY_UNOPTIMISED && optimized {
-                None
-            } else {
-                Some(*self.counts[idx].get_mut())
-            }
-        })
+    fn _most_used_rule<const ONLY_UNOPTIMISED: bool>(mut self) -> Option<(Float, LeafHandle<'a>)> {
+        self.tree
+            .greatest_leaf_node(|idx, optimized| {
+                if ONLY_UNOPTIMISED && optimized {
+                    None
+                } else {
+                    Some(*self.counts[idx].get_mut())
+                }
+            })
+            .map(|handle| {
+                #[allow(clippy::cast_precision_loss)]
+                return (
+                    *self.counts[handle.rule].get_mut() as Float
+                        / self.counts.iter_mut().map(|c| *c.get_mut()).sum::<u64>() as Float,
+                    handle,
+                );
+            })
     }
 
     #[must_use]
-    pub fn most_used_rule(self) -> LeafHandle<'a> {
+    pub fn most_used_rule(self) -> (Float, LeafHandle<'a>) {
         self._most_used_rule::<false>().unwrap()
     }
 
     #[must_use]
-    pub fn most_used_unoptimized_rule(self) -> Option<LeafHandle<'a>> {
+    pub fn most_used_unoptimized_rule(self) -> Option<(Float, LeafHandle<'a>)> {
         self._most_used_rule::<true>()
     }
 }
@@ -107,6 +118,14 @@ impl<'a> LeafHandle<'a> {
         }
     }
 
+    #[must_use]
+    pub fn domain(&self) -> &Cube {
+        match &self.tree.nodes[self.rule] {
+            RuleTreeNode::Node { .. } => panic!(),
+            RuleTreeNode::Leaf { domain, .. } => domain,
+        }
+    }
+
     pub fn split(self) {
         let children: Vec<_> = match &self.tree.nodes[self.rule] {
             RuleTreeNode::Node { .. } => panic!(),
@@ -134,24 +153,24 @@ impl<'a> LeafHandle<'a> {
 }
 
 #[derive(Debug)]
-pub enum RuleTreeNode {
+pub enum RuleTreeNode<const TESTING: bool = false> {
     Node {
         domain: Cube,
         children: Vec<usize>,
     },
     Leaf {
         domain: Cube,
-        action: Action,
+        action: Action<TESTING>,
         optimized: bool,
     },
 }
 
-impl RuleTreeNode {
+impl<const TESTING: bool> RuleTreeNode<TESTING> {
     fn equals(
-        lhs: &RuleTreeNode,
-        lhs_tree: &BaseRuleTree,
-        rhs: &RuleTreeNode,
-        rhs_tree: &BaseRuleTree,
+        lhs: &RuleTreeNode<TESTING>,
+        lhs_tree: &BaseRuleTree<TESTING>,
+        rhs: &RuleTreeNode<TESTING>,
+        rhs_tree: &BaseRuleTree<TESTING>,
     ) -> bool {
         match (lhs, rhs) {
             (
@@ -166,7 +185,7 @@ impl RuleTreeNode {
             ) => {
                 l_domain == r_domain
                     && l_children.iter().zip(r_children).all(|(x, y)| {
-                        RuleTreeNode::equals(
+                        RuleTreeNode::<TESTING>::equals(
                             &lhs_tree.nodes[*x],
                             lhs_tree,
                             &rhs_tree.nodes[*y],
@@ -198,20 +217,23 @@ impl RuleTreeNode {
 }
 
 #[derive(Debug)]
-pub struct BaseRuleTree {
+pub struct BaseRuleTree<const TESTING: bool = false> {
     root: usize,
-    nodes: Vec<RuleTreeNode>,
+    nodes: Vec<RuleTreeNode<TESTING>>,
 }
 
-fn _push_whisker_tree(nodes: &mut Vec<RuleTreeNode>, value: &WhiskerTree) -> usize {
+fn _push_whisker_tree<const TESTING: bool>(
+    nodes: &mut Vec<RuleTreeNode<TESTING>>,
+    value: &WhiskerTree,
+) -> usize {
     let domain = Cube {
         min: Point::from_memory(&value.domain.lower),
         max: Point::from_memory(&value.domain.upper),
     };
     let new_node = if value.leaf.is_some() {
-        RuleTreeNode::Leaf {
+        RuleTreeNode::<TESTING>::Leaf {
             domain,
-            action: Action::from_whisker(&value.leaf),
+            action: Action::<TESTING>::from_whisker(&value.leaf),
             optimized: false,
         }
     } else {
@@ -220,7 +242,7 @@ fn _push_whisker_tree(nodes: &mut Vec<RuleTreeNode>, value: &WhiskerTree) -> usi
             children: value
                 .children
                 .iter()
-                .map(|child| _push_whisker_tree(nodes, child))
+                .map(|child| _push_whisker_tree::<TESTING>(nodes, child))
                 .collect(),
         }
     };
@@ -228,7 +250,11 @@ fn _push_whisker_tree(nodes: &mut Vec<RuleTreeNode>, value: &WhiskerTree) -> usi
     nodes.len() - 1
 }
 
-fn push_tree(nodes: &mut Vec<RuleTreeNode>, root: usize, tree: &BaseRuleTree) -> usize {
+fn push_tree<const TESTING: bool>(
+    nodes: &mut Vec<RuleTreeNode<TESTING>>,
+    root: usize,
+    tree: &BaseRuleTree<TESTING>,
+) -> usize {
     let new_node = match &tree.nodes[root] {
         RuleTreeNode::Node { domain, children } => RuleTreeNode::Node {
             children: children
@@ -247,9 +273,9 @@ fn push_tree(nodes: &mut Vec<RuleTreeNode>, root: usize, tree: &BaseRuleTree) ->
     nodes.len() - 1
 }
 
-impl BaseRuleTree {
+impl<const TESTING: bool> BaseRuleTree<TESTING> {
     #[must_use]
-    pub fn from_tree(self: &BaseRuleTree) -> BaseRuleTree {
+    pub fn from_tree(self: &BaseRuleTree<TESTING>) -> BaseRuleTree<TESTING> {
         let mut nodes = Vec::new();
         let root = push_tree(&mut nodes, self.root, self);
         BaseRuleTree { root, nodes }
@@ -260,9 +286,9 @@ impl BaseRuleTree {
         current_idx: usize,
         point: &Point,
         leaf_override: &F,
-    ) -> Option<&Action>
+    ) -> Option<&Action<TESTING>>
     where
-        F: Fn(usize) -> Option<&'a Action>,
+        F: Fn(usize) -> Option<&'a Action<TESTING>>,
     {
         let current = &self.nodes[current_idx];
         if !current.domain().contains(point) {
@@ -281,6 +307,37 @@ impl BaseRuleTree {
         }
     }
 
+    fn _to_whisker_tree(&self, root: usize) -> WhiskerTree {
+        let value = &self.nodes[root];
+        let mut tree = WhiskerTree::new();
+        let cube = value.domain().clone();
+        let domain = tree.domain.mut_or_insert_default();
+        domain.lower = MessageField::some(cube.min.to_memory());
+        domain.upper = MessageField::some(cube.max.to_memory());
+        match value {
+            RuleTreeNode::Node { children, .. } => {
+                tree.children = children.iter().map(|i| self._to_whisker_tree(*i)).collect();
+            }
+            RuleTreeNode::Leaf { action, .. } => {
+                tree.leaf = MessageField::some(Whisker::create(action, &cube.min, &cube.max));
+            }
+        };
+        tree
+    }
+
+    #[must_use]
+    pub fn to_whisker_tree(&self) -> WhiskerTree {
+        self._to_whisker_tree(self.root)
+    }
+
+    pub fn from_whisker_tree(value: &WhiskerTree) -> BaseRuleTree<TESTING> {
+        let mut nodes = Vec::new();
+        let root = _push_whisker_tree::<TESTING>(&mut nodes, value);
+        BaseRuleTree { root, nodes }
+    }
+}
+
+impl BaseRuleTree {
     fn greatest_leaf_node<F>(&mut self, mut score: F) -> Option<LeafHandle<'_>>
     where
         F: FnMut(usize, bool) -> Option<u64>,
@@ -311,35 +368,6 @@ impl BaseRuleTree {
         }
     }
 
-    fn _to_whisker_tree(&self, root: usize) -> WhiskerTree {
-        let value = &self.nodes[root];
-        let mut tree = WhiskerTree::new();
-        let cube = value.domain().clone();
-        let domain = tree.domain.mut_or_insert_default();
-        domain.lower = MessageField::some(cube.min.to_memory());
-        domain.upper = MessageField::some(cube.max.to_memory());
-        match value {
-            RuleTreeNode::Node { children, .. } => {
-                tree.children = children.iter().map(|i| self._to_whisker_tree(*i)).collect();
-            }
-            RuleTreeNode::Leaf { action, .. } => {
-                tree.leaf = MessageField::some(Whisker::create(action, &cube.min, &cube.max));
-            }
-        };
-        tree
-    }
-
-    #[must_use]
-    pub fn to_whisker_tree(&self) -> WhiskerTree {
-        self._to_whisker_tree(self.root)
-    }
-
-    pub fn from_whisker_tree(value: &WhiskerTree) -> BaseRuleTree {
-        let mut nodes = Vec::new();
-        let root = _push_whisker_tree(&mut nodes, value);
-        BaseRuleTree { root, nodes }
-    }
-
     pub fn mark_all_unoptimized(&mut self) {
         self.nodes.iter_mut().for_each(|n| {
             if let RuleTreeNode::Leaf { optimized, .. } = n {
@@ -355,7 +383,7 @@ impl RuleTree for BaseRuleTree {
     }
 }
 
-impl PartialEq for BaseRuleTree {
+impl<const TESTING: bool> PartialEq for BaseRuleTree<TESTING> {
     fn eq(&self, other: &Self) -> bool {
         self.root == other.root
             && RuleTreeNode::equals(
@@ -400,13 +428,13 @@ mod tests {
         Ok(b1 == b2)
     }
 
-    fn check_to_pb(dna: &RemyDna) {
-        let cycled = BaseRuleTree::from_whisker_tree(&dna.tree.to_whisker_tree());
+    fn check_to_pb(dna: &RemyDna<true>) {
+        let cycled = BaseRuleTree::<true>::from_whisker_tree(&dna.tree.to_whisker_tree());
         assert_eq!(dna.tree, cycled);
     }
 
     fn check_to_dna(pb: &WhiskerTree) {
-        let cycled = BaseRuleTree::from_whisker_tree(pb).to_whisker_tree();
+        let cycled = BaseRuleTree::<true>::from_whisker_tree(pb).to_whisker_tree();
         assert_eq!(pb, &cycled);
     }
 
@@ -423,7 +451,7 @@ mod tests {
 
         for original_file in dna_files {
             let tmp_file = tmp_dir.path().join(original_file.file_name().unwrap());
-            let original = RemyDna::load(&original_file)?;
+            let original = RemyDna::<true>::load(&original_file)?;
             original.save(&tmp_file)?;
             check_to_pb(&original);
             let mut file = File::open(original_file.clone())?;

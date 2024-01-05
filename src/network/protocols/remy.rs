@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 
 use crate::{
-    meters::EWMA,
     flow::{Flow, FlowNeverActive, FlowProperties},
     logging::Logger,
+    meters::EWMA,
     network::{NetworkEffect, NetworkMessage},
     simulation::{Component, ComponentId, EffectContext},
     time::{Time, TimeSpan},
@@ -100,7 +100,7 @@ where
         let Action {
             window_multiplier,
             window_increment,
-            intersend_ms,
+            intersend_delay: intersend_ms,
             ..
         } = self.action();
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -111,7 +111,7 @@ where
             )
             .unwrap();
         }
-        current.intersend_delay = TimeSpan::new(*intersend_ms);
+        current.intersend_delay = *intersend_ms;
         log!(logger, "Action is {:?}", current);
     }
 }

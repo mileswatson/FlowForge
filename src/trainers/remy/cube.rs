@@ -2,10 +2,27 @@ use crate::time::Float;
 
 use super::point::Point;
 
-#[derive(Clone, Debug, PartialEq)]
+use std::fmt::Debug;
+
+#[derive(Clone, PartialEq)]
 pub struct Cube {
     pub min: Point,
     pub max: Point,
+}
+
+impl Debug for Cube {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Cube {{ ack_ewma: {:.4}-{:.4}, send_ewma: {:.4}-{:.4}, rtt_ratio: {:.4}-{:.4} }}",
+            self.min.ack_ewma,
+            self.max.ack_ewma,
+            self.min.send_ewma,
+            self.max.send_ewma,
+            self.min.rtt_ratio,
+            self.max.rtt_ratio
+        )
+    }
 }
 
 impl Default for Cube {

@@ -56,28 +56,28 @@ impl Default for RemyConfig {
             min_action: Action {
                 window_multiplier: 0.,
                 window_increment: 0,
-                intersend_ms: 0.25,
+                intersend_delay: 0.00025.into(),
             },
             max_action: Action {
                 window_multiplier: 1.,
                 window_increment: 256,
-                intersend_ms: 3.,
+                intersend_delay: 0.003.into(),
             },
             initial_action_change: Action {
                 window_multiplier: 0.01,
                 window_increment: 1,
-                intersend_ms: 0.05,
+                intersend_delay: 0.0005.into(),
             },
             max_action_change: Action {
                 window_multiplier: 0.5,
                 window_increment: 32,
-                intersend_ms: 1.,
+                intersend_delay: 0.001.into(),
             },
             action_change_multiplier: 4,
             default_action: Action {
                 window_multiplier: 1.,
                 window_increment: 1,
-                intersend_ms: 0.01,
+                intersend_delay: 0.01.into(),
             },
             evaluation_config: EvaluationConfig::default(),
         }
@@ -85,8 +85,8 @@ impl Default for RemyConfig {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct RemyDna {
-    tree: BaseRuleTree,
+pub struct RemyDna<const TESTING: bool = false> {
+    tree: BaseRuleTree<TESTING>,
 }
 
 impl RemyDna {
@@ -98,15 +98,15 @@ impl RemyDna {
     }
 }
 
-impl Dna for RemyDna {
+impl<const TESTING: bool> Dna for RemyDna<TESTING> {
     const NAME: &'static str = "remy";
     fn serialize(&self) -> Result<Vec<u8>> {
         Ok(self.tree.to_whisker_tree().write_to_bytes()?)
     }
 
-    fn deserialize(buf: &[u8]) -> Result<RemyDna> {
+    fn deserialize(buf: &[u8]) -> Result<RemyDna<TESTING>> {
         Ok(RemyDna {
-            tree: BaseRuleTree::from_whisker_tree(&WhiskerTree::parse_from_bytes(buf)?),
+            tree: BaseRuleTree::<TESTING>::from_whisker_tree(&WhiskerTree::parse_from_bytes(buf)?),
         })
     }
 }
@@ -232,20 +232,36 @@ impl Trainer<RemyDna> for RemyTrainer {
         let mut dna = RemyDna::default(&self.config);
         let (mut score, mut props, mut counts) = evaluate_and_count(&mut dna.tree, rng);
         for i in 0..=self.config.rule_splits {
-            if i > 0 {
-                counts.most_used_rule().split();
-                println!("Split rule!");
+            if i == 0 {
+                println!("Starting optimisation.");
+            } else {
+                let (fraction_used, leaf) = counts.most_used_rule();
+                println!(
+                    "Split rule {:?} with usage {:.2}%",
+                    leaf.domain(),
+                    fraction_used * 100.
+                );
+                leaf.split();
                 (score, props, counts) = evaluate_and_count(&mut dna.tree, rng);
             }
-            println!("Score: {score}");
             for optimization_round in 0..self.config.optimization_rounds_per_split {
                 println!(
-                    "Starting optimisation round {}/{}",
+                    "  Starting optimisation round {}/{}",
                     optimization_round + 1,
                     self.config.optimization_rounds_per_split
                 );
-                while let Some(mut leaf) = counts.most_used_unoptimized_rule() {
-                    while let Some((s, props, new_action)) = leaf
+                while let Some((fraction_used, mut leaf)) = counts.most_used_unoptimized_rule() {
+                    if fraction_used == 0. {
+                        println!("    Skipped remaining rules with 0% usage");
+                        break;
+                    }
+                    println!(
+                        "    Optimizing {:?} with usage {:.2}%",
+                        leaf.domain(),
+                        fraction_used * 100.
+                    );
+                    println!("      Currently {:?}", leaf.action());
+                    while let Some((s, _, new_action)) = leaf
                         .action()
                         .possible_improvements(&self.config)
                         .map(|action| {
@@ -255,7 +271,7 @@ impl Trainer<RemyDna> for RemyTrainer {
                         .filter(|(s, _, _)| s > &score)
                         .max_by_key(|(s, _, _)| NotNan::new(*s).unwrap())
                     {
-                        println!("Improved score from {score} to {s} using {new_action:?}");
+                        println!("      Changed to {new_action:?}");
                         score = s;
                         *leaf.action() = new_action;
                     }
@@ -269,12 +285,12 @@ impl Trainer<RemyDna> for RemyTrainer {
                         ),
                         Some(&dna),
                     );
-                    (score, props, counts) = evaluate_and_count(&mut dna.tree, rng);
-                    println!("Base: {score}");
+                    (score, _, counts) = evaluate_and_count(&mut dna.tree, rng);
                 }
                 dna.tree.mark_all_unoptimized();
                 (score, props, counts) = evaluate_and_count(&mut dna.tree, rng);
             }
+            println!("Achieved score {score} with properties {props:?}");
         }
         progress_handler.update_progress(1., Some(&dna));
         dna
