@@ -4,21 +4,14 @@ use std::{
     ops::{Add, Div, Mul, MulAssign, Sub},
 };
 
-use float_cmp::approx_eq;
 use format_num::format_num;
 use rand_distr::num_traits::Zero;
 use serde::{Deserialize, Serialize};
 
 pub type Float = f64;
 
-#[derive(PartialOrd, Clone, Copy, Serialize, Deserialize)]
+#[derive(PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize)]
 pub struct TimeSpan(Float);
-
-impl PartialEq for TimeSpan {
-    fn eq(&self, other: &Self) -> bool {
-        approx_eq!(Float, self.0, other.0, epsilon = 0.000_000_000_001)
-    }
-}
 
 impl Debug for TimeSpan {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
