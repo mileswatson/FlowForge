@@ -108,7 +108,7 @@ impl Network {
                 })
                 .collect(),
             sender_link_id: builder.insert(DynComponent::new(Link::create(
-                0.5 * self.rtt,
+                self.rtt,
                 self.packet_rate,
                 self.loss_rate,
                 self.buffer_size,

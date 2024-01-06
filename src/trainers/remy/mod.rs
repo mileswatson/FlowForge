@@ -56,7 +56,7 @@ impl Default for RemyConfig {
             min_action: Action {
                 window_multiplier: 0.,
                 window_increment: 0,
-                intersend_delay: 0.00025.into(),
+                intersend_delay: 0.000_25.into(),
             },
             max_action: Action {
                 window_multiplier: 1.,
@@ -66,7 +66,7 @@ impl Default for RemyConfig {
             initial_action_change: Action {
                 window_multiplier: 0.01,
                 window_increment: 1,
-                intersend_delay: 0.0005.into(),
+                intersend_delay: 0.000_05.into(),
             },
             max_action_change: Action {
                 window_multiplier: 0.5,
@@ -77,7 +77,7 @@ impl Default for RemyConfig {
             default_action: Action {
                 window_multiplier: 1.,
                 window_increment: 1,
-                intersend_delay: 0.01.into(),
+                intersend_delay: 0.003.into(),
             },
             evaluation_config: EvaluationConfig::default(),
         }
@@ -233,7 +233,7 @@ impl Trainer<RemyDna> for RemyTrainer {
         let (mut score, mut props, mut counts) = evaluate_and_count(&mut dna.tree, rng);
         for i in 0..=self.config.rule_splits {
             if i == 0 {
-                println!("Starting optimisation.");
+                println!("Starting optimization.");
             } else {
                 let (fraction_used, leaf) = counts.most_used_rule();
                 println!(
@@ -246,7 +246,7 @@ impl Trainer<RemyDna> for RemyTrainer {
             }
             for optimization_round in 0..self.config.optimization_rounds_per_split {
                 println!(
-                    "  Starting optimisation round {}/{}",
+                    "  Starting optimization round {}/{}",
                     optimization_round + 1,
                     self.config.optimization_rounds_per_split
                 );
@@ -290,7 +290,7 @@ impl Trainer<RemyDna> for RemyTrainer {
                 dna.tree.mark_all_unoptimized();
                 (score, props, counts) = evaluate_and_count(&mut dna.tree, rng);
             }
-            println!("Achieved score {score} with properties {props:?}");
+            println!("Achieved score {score:.2} with properties {props:?}");
         }
         progress_handler.update_progress(1., Some(&dna));
         dna

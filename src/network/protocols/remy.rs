@@ -45,8 +45,8 @@ where
 
     fn point(&self) -> Point {
         Point {
-            ack_ewma: self.ack_ewma.value().map_or(0., |t| t.value()),
-            send_ewma: self.send_ewma.value().map_or(0., |t| t.value()),
+            ack_ewma: self.ack_ewma.value().unwrap_or(TimeSpan::new(0.)),
+            send_ewma: self.send_ewma.value().unwrap_or(TimeSpan::new(0.)),
             rtt_ratio: self.rtt.as_ref().map_or(0., |rtt| rtt.current / rtt.min),
         }
     }

@@ -1,5 +1,3 @@
-use crate::time::Float;
-
 use super::point::Point;
 
 use std::fmt::Debug;
@@ -34,16 +32,19 @@ impl Default for Cube {
     }
 }
 
-fn within(min: Float, x: Float, max: Float) -> bool {
+fn within<T>(min: &T, x: &T, max: &T) -> bool
+where
+    T: PartialOrd,
+{
     min <= x && x < max
 }
 
 impl Cube {
     #[must_use]
     pub fn contains(&self, point: &Point) -> bool {
-        within(self.min.rtt_ratio, point.rtt_ratio, self.max.rtt_ratio)
-            && within(self.min.ack_ewma, point.ack_ewma, self.max.ack_ewma)
-            && within(self.min.send_ewma, point.send_ewma, self.max.send_ewma)
+        within(&self.min.rtt_ratio, &point.rtt_ratio, &self.max.rtt_ratio)
+            && within(&self.min.ack_ewma, &point.ack_ewma, &self.max.ack_ewma)
+            && within(&self.min.send_ewma, &point.send_ewma, &self.max.send_ewma)
     }
 
     fn split_ack_ewma(&self) -> Vec<Cube> {

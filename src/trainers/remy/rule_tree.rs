@@ -60,10 +60,10 @@ impl<'a> CountingRuleTree<'a> {
         }
     }
 
-    fn _most_used_rule<const ONLY_UNOPTIMISED: bool>(mut self) -> Option<(Float, LeafHandle<'a>)> {
+    fn _most_used_rule<const ONLY_UNOPTIMIZED: bool>(mut self) -> Option<(Float, LeafHandle<'a>)> {
         self.tree
             .greatest_leaf_node(|idx, optimized| {
-                if ONLY_UNOPTIMISED && optimized {
+                if ONLY_UNOPTIMIZED && optimized {
                     None
                 } else {
                     Some(*self.counts[idx].get_mut())
