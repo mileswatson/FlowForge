@@ -105,11 +105,9 @@ where
         } = self.action();
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         {
-            current.window = u32::checked_add_signed(
-                (f64::from(current.window) * window_multiplier) as u32,
-                *window_increment,
-            )
-            .unwrap();
+            current.window = ((f64::from(current.window) * window_multiplier) as i32
+                + *window_increment)
+                .clamp(0, 1_000_000) as u32;
         }
         current.intersend_delay = *intersend_ms;
         log!(logger, "Action is {:?}", current);

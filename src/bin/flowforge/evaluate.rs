@@ -2,43 +2,35 @@ use std::path::Path;
 
 use anyhow::Result;
 use flowforge::{
-    flow::UtilityConfig,
+    flow::{FlowProperties, UtilityConfig},
     network::config::NetworkConfig,
     rand::Rng,
+    time::Float,
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, TrainerConfig},
     Config, Trainer,
 };
 
-pub fn _train<T>(
+pub fn _evaluate<T>(
     trainer_config: &T::Config,
     network_config: &NetworkConfig,
     utility_config: &UtilityConfig,
-    output_path: &Path,
+    input_path: &Path,
     rng: &mut Rng,
-) where
+) -> (Float, FlowProperties)
+where
     T: Trainer,
 {
-    assert!(T::Dna::valid_path(output_path));
+    let dna = T::Dna::load(input_path).unwrap();
     T::new(trainer_config)
-        .train(
-            network_config,
-            utility_config.inner(),
-            &mut |_progress, d: Option<&T::Dna>| {
-                if let Some(x) = d {
-                    x.save(output_path).unwrap()
-                }
-            },
-            rng,
-        )
-        .save(output_path)
-        .unwrap();
+        .evaluate(&dna, network_config, utility_config.inner(), rng)
+        .unwrap()
 }
 
-pub fn train(
+pub fn evaluate(
     trainer_config: &Path,
     network_config: &Path,
     utility_config: &Path,
-    output_path: &Path,
+    input_path: &Path,
 ) -> Result<()> {
     let trainer_config = TrainerConfig::load(trainer_config)?;
     let network_config = NetworkConfig::load(network_config)?;
@@ -46,22 +38,23 @@ pub fn train(
 
     let mut rng = Rng::from_seed(0);
 
-    match trainer_config {
-        TrainerConfig::Remy(cfg) => _train::<RemyTrainer>(
+    let (score, flow_properties) = match trainer_config {
+        TrainerConfig::Remy(cfg) => {
+            _evaluate::<RemyTrainer>(&cfg, &network_config, &utility_config, input_path, &mut rng)
+        }
+        TrainerConfig::DelayMultiplier(cfg) => _evaluate::<DelayMultiplierTrainer>(
             &cfg,
             &network_config,
             &utility_config,
-            output_path,
-            &mut rng,
-        ),
-        TrainerConfig::DelayMultiplier(cfg) => _train::<DelayMultiplierTrainer>(
-            &cfg,
-            &network_config,
-            &utility_config,
-            output_path,
+            input_path,
             &mut rng,
         ),
     };
+
+    println!(
+        "Achieved expected utility {} with {:?}",
+        score, flow_properties
+    );
 
     Ok(())
 }

@@ -304,6 +304,8 @@ impl Trainer for RemyTrainer {
         utility_function: &dyn UtilityFunction,
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
-        todo!()
+        self.config
+            .evaluation_config
+            .evaluate(network_config, d, utility_function, rng)
     }
 }

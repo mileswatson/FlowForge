@@ -4,9 +4,11 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use create_configs::create_all_configs;
+use evaluate::evaluate;
 use train::train;
 
 mod create_configs;
+mod evaluate;
 mod train;
 
 #[derive(Subcommand, Debug)]
@@ -35,6 +37,24 @@ enum Command {
         #[arg(short, long)]
         output: PathBuf,
     },
+    /// Evaluate a congestion control algorithm for a given network
+    Evaluate {
+        /// Trainer config file (JSON)
+        #[arg(long)]
+        trainer: PathBuf,
+
+        /// Network config file (JSON)
+        #[arg(long)]
+        network: PathBuf,
+
+        /// Utility function config file (JSON)
+        #[arg(long)]
+        utility: PathBuf,
+
+        /// File to read congestion control algorithm DNA from
+        #[arg(short, long)]
+        input: PathBuf,
+    },
 }
 
 #[derive(Parser, Debug)]
@@ -59,5 +79,11 @@ fn main() -> Result<()> {
             utility,
             output,
         } => train(&trainer, &network, &utility, &output),
+        Command::Evaluate {
+            trainer,
+            network,
+            utility,
+            input,
+        } => evaluate(&trainer, &network, &utility, &input),
     }
 }
