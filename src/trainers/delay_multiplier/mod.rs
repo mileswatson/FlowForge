@@ -21,7 +21,7 @@ pub struct DelayMultiplierConfig {
 }
 
 pub struct DelayMultiplierTrainer {
-    genetic_trainer: GeneticTrainer,
+    genetic_trainer: GeneticTrainer<DelayMultiplierDna>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -81,12 +81,13 @@ impl GeneticDna for DelayMultiplierDna {
     }
 }
 
-impl Trainer<DelayMultiplierDna> for DelayMultiplierTrainer {
+impl Trainer for DelayMultiplierTrainer {
     type Config = DelayMultiplierConfig;
+    type Dna = DelayMultiplierDna;
 
     fn new(config: &Self::Config) -> Self {
         DelayMultiplierTrainer {
-            genetic_trainer: Trainer::<DelayMultiplierDna>::new(&config.genetic_config),
+            genetic_trainer: GeneticTrainer::new(&config.genetic_config),
         }
     }
 

@@ -114,11 +114,9 @@ impl<D: Dna, F: FnMut(Float, Option<&D>) + Send> ProgressHandler<D> for F {
     }
 }
 
-pub trait Trainer<D>
-where
-    D: Dna,
-{
+pub trait Trainer {
     type Config: Config<Json>;
+    type Dna: Dna;
 
     fn new(config: &Self::Config) -> Self;
 
@@ -128,13 +126,13 @@ where
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
-    ) -> D
+    ) -> Self::Dna
     where
-        H: ProgressHandler<D>;
+        H: ProgressHandler<Self::Dna>;
 
     fn evaluate(
         &self,
-        d: &D,
+        d: &Self::Dna,
         network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         rng: &mut Rng,

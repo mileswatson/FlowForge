@@ -155,11 +155,11 @@ impl<'a> LeafHandle<'a> {
 #[derive(Debug)]
 pub enum RuleTreeNode<const TESTING: bool = false> {
     Node {
-        domain: Cube,
+        domain: Cube<TESTING>,
         children: Vec<usize>,
     },
     Leaf {
-        domain: Cube,
+        domain: Cube<TESTING>,
         action: Action<TESTING>,
         optimized: bool,
     },
@@ -209,7 +209,7 @@ impl<const TESTING: bool> RuleTreeNode<TESTING> {
         }
     }
 
-    const fn domain(&self) -> &Cube {
+    const fn domain(&self) -> &Cube<TESTING> {
         match self {
             RuleTreeNode::Node { domain, .. } | RuleTreeNode::Leaf { domain, .. } => domain,
         }

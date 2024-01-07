@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, iter::repeat, sync::Mutex};
+use std::{cmp::Reverse, iter::repeat, sync::Mutex, marker::PhantomData};
 
 use anyhow::Result;
 use ordered_float::NotNan;
@@ -30,10 +30,11 @@ impl Default for GeneticConfig {
     }
 }
 
-pub struct GeneticTrainer {
+pub struct GeneticTrainer<D> {
     iters: u32,
     population_size: u32,
     evaluation_config: EvaluationConfig,
+    dna: PhantomData<D>,
 }
 
 pub trait GeneticDna: Dna + PopulateComponents {
@@ -43,17 +44,19 @@ pub trait GeneticDna: Dna + PopulateComponents {
     fn spawn_child(&self, rng: &mut Rng) -> Self;
 }
 
-impl<D> Trainer<D> for GeneticTrainer
+impl<D> Trainer for GeneticTrainer<D>
 where
     D: GeneticDna,
 {
     type Config = GeneticConfig;
+    type Dna = D;
 
     fn new(config: &Self::Config) -> Self {
         GeneticTrainer {
             iters: config.iters,
             population_size: config.population_size,
             evaluation_config: config.evaluation_config.clone(),
+            dna: PhantomData,
         }
     }
 

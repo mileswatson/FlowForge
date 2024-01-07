@@ -193,8 +193,9 @@ where
     f
 }
 
-impl Trainer<RemyDna> for RemyTrainer {
+impl Trainer for RemyTrainer {
     type Config = RemyConfig;
+    type Dna = RemyDna;
 
     fn new(config: &RemyConfig) -> RemyTrainer {
         RemyTrainer {

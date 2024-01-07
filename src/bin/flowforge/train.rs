@@ -5,13 +5,34 @@ use flowforge::{
     flow::UtilityConfig,
     network::config::NetworkConfig,
     rand::Rng,
-    trainers::{
-        delay_multiplier::{DelayMultiplierDna, DelayMultiplierTrainer},
-        remy::{RemyDna, RemyTrainer},
-        TrainerConfig,
-    },
+    trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, TrainerConfig},
     Config, Trainer,
 };
+
+pub fn _train<T>(
+    trainer_config: &T::Config,
+    network_config: &NetworkConfig,
+    utility_config: &UtilityConfig,
+    output_path: &Path,
+    rng: &mut Rng,
+) where
+    T: Trainer,
+{
+    assert!(T::Dna::valid_path(output_path));
+    T::new(trainer_config)
+        .train(
+            network_config,
+            utility_config.inner(),
+            &mut |_progress, d: Option<&T::Dna>| {
+                if let Some(x) = d {
+                    x.save(output_path).unwrap()
+                }
+            },
+            rng,
+        )
+        .save(output_path)
+        .unwrap();
+}
 
 pub fn train(
     trainer_config: &Path,
@@ -27,25 +48,15 @@ pub fn train(
 
     match trainer_config {
         TrainerConfig::Remy(cfg) => {
-            RemyTrainer::new(&cfg).train(
-                &network_config,
-                utility_config.inner(),
-                &mut |progress, d: Option<&RemyDna>| {},
-                &mut rng,
-            );
+            _train::<RemyTrainer>(&cfg, &network_config, &utility_config, output, &mut rng)
         }
-        TrainerConfig::DelayMultiplier(cfg) => {
-            DelayMultiplierTrainer::new(&cfg).train(
-                &network_config,
-                utility_config.inner(),
-                &mut |progress, d: Option<&DelayMultiplierDna>| {
-                    if let Some(d) = d {
-                        println!("{} {:?}", progress, d);
-                    }
-                },
-                &mut rng,
-            );
-        }
+        TrainerConfig::DelayMultiplier(cfg) => _train::<DelayMultiplierTrainer>(
+            &cfg,
+            &network_config,
+            &utility_config,
+            output,
+            &mut rng,
+        ),
     };
 
     Ok(())

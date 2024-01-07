@@ -115,7 +115,11 @@ impl<const TESTING: bool> Action<TESTING> {
 }
 
 impl Whisker {
-    pub fn create<const TESTING: bool>(value: &Action<TESTING>, min: &Point, max: &Point) -> Self {
+    pub fn create<const TESTING: bool>(
+        value: &Action<TESTING>,
+        min: &Point<TESTING>,
+        max: &Point<TESTING>,
+    ) -> Self {
         let mut memory_range = MemoryRange::new();
         memory_range.lower = MessageField::some(min.to_memory());
         memory_range.upper = MessageField::some(max.to_memory());

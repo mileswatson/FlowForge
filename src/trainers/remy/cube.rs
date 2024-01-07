@@ -3,12 +3,12 @@ use super::point::Point;
 use std::fmt::Debug;
 
 #[derive(Clone, PartialEq)]
-pub struct Cube {
-    pub min: Point,
-    pub max: Point,
+pub struct Cube<const TESTING: bool = false> {
+    pub min: Point<TESTING>,
+    pub max: Point<TESTING>,
 }
 
-impl Debug for Cube {
+impl<const TESTING: bool> Debug for Cube<TESTING> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -39,7 +39,7 @@ where
     min <= x && x < max
 }
 
-impl Cube {
+impl<const TESTING: bool> Cube<TESTING> {
     #[must_use]
     pub fn contains(&self, point: &Point) -> bool {
         within(&self.min.rtt_ratio, &point.rtt_ratio, &self.max.rtt_ratio)
@@ -47,7 +47,7 @@ impl Cube {
             && within(&self.min.send_ewma, &point.send_ewma, &self.max.send_ewma)
     }
 
-    fn split_ack_ewma(&self) -> Vec<Cube> {
+    fn split_ack_ewma(&self) -> Vec<Cube<TESTING>> {
         let ack_ewma = (self.max.ack_ewma + self.min.ack_ewma) / 2.;
         vec![
             Cube {
@@ -67,7 +67,7 @@ impl Cube {
         ]
     }
 
-    fn split_send_ewma(&self) -> Vec<Cube> {
+    fn split_send_ewma(&self) -> Vec<Cube<TESTING>> {
         let send_ewma = (self.max.send_ewma + self.min.send_ewma) / 2.;
         vec![
             Cube {
@@ -87,7 +87,7 @@ impl Cube {
         ]
     }
 
-    fn split_rtt_ratio(&self) -> Vec<Cube> {
+    fn split_rtt_ratio(&self) -> Vec<Cube<TESTING>> {
         let rtt_ratio = (self.max.rtt_ratio + self.min.rtt_ratio) / 2.;
         vec![
             Cube {
@@ -108,7 +108,7 @@ impl Cube {
     }
 
     #[must_use]
-    pub fn split(&self) -> Vec<Cube> {
+    pub fn split(&self) -> Vec<Cube<TESTING>> {
         self.split_ack_ewma()
             .into_iter()
             .flat_map(|x| x.split_send_ewma())
