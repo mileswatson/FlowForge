@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, iter::repeat, sync::Mutex, marker::PhantomData};
+use std::{cmp::Reverse, iter::repeat, marker::PhantomData, sync::Mutex};
 
 use anyhow::Result;
 use ordered_float::NotNan;
@@ -95,7 +95,6 @@ where
             let mut scores: Vec<_> = population
                 .into_iter()
                 .map(|d| (d, rng.create_child()))
-                //.par_bridge()
                 .filter_map(|(d, mut rng)| {
                     let score = self.evaluation_config.evaluate(
                         network_config,

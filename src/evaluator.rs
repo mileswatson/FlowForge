@@ -1,6 +1,7 @@
 use std::rc::Rc;
 
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use itertools::Itertools;
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -52,9 +53,11 @@ impl EvaluationConfig {
             utility_function.total_utility(&flows, Time::sim_start() + run_sim_for)
         };
 
-        (0..self.network_samples)
+        let networks = (0..self.network_samples)
             .map(|_| (rng.sample(network_config), rng.create_child()))
-            .par_bridge()
+            .collect_vec();
+        networks
+            .into_par_iter()
             .map(score_network)
             .filter_map(Result::ok)
             .map(AveragePair::new)

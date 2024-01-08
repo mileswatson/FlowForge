@@ -46,7 +46,7 @@ where
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AveragePair<T, U>(pub T, pub U);
 
 impl<T, U> AveragePair<T, U> {
