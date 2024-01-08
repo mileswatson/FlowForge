@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 
 use crate::{
-    meters::{DisabledRateMeter, EnabledRateMeter, Mean, RateMeterNeverEnabled},
     flow::{Flow, FlowNeverActive, FlowProperties, NoPacketsAcked},
     logging::Logger,
+    meters::{DisabledRateMeter, EnabledRateMeter, Mean, RateMeterNeverEnabled},
     network::{toggler::Toggle, NetworkEffect, NetworkMessage, Packet},
     simulation::{
         try_case, Component, ComponentId, EffectContext, HasVariant, MaybeHasVariant, Message,
@@ -261,7 +261,7 @@ where
         match &self.state {
             LossyWindowState::WaitingForEnable(WaitingForEnable { average_rtt, .. })
             | LossyWindowState::Enabled(Enabled { average_rtt, .. }) => {
-                average_rtt.value().ok_or(NoPacketsAcked {})
+                average_rtt.value().map_err(|_| NoPacketsAcked)
             }
         }
     }

@@ -2,41 +2,38 @@ use std::ops::{Add, Div, Mul};
 
 use rand_distr::num_traits::Zero;
 
-use crate::time::{Float, Rate, Time, TimeSpan};
+use crate::{
+    average::Average,
+    time::{Float, Rate, Time, TimeSpan},
+};
 
 #[derive(Clone, Debug)]
-pub struct Mean<T> {
-    sum: T,
-    count: u64,
+pub struct Mean<T>
+where
+    T: Average,
+{
+    aggregator: T::Aggregator,
 }
 
 impl<T> Mean<T>
 where
-    T: Copy + Add<T, Output = T> + Zero + Div<Float, Output = T>,
+    T: Average,
+    T::Aggregator: Clone,
 {
     #[must_use]
-    #[allow(clippy::cast_precision_loss)]
     pub fn new() -> Mean<T> {
         Mean {
-            sum: T::zero(),
-            count: 0,
+            aggregator: T::new_aggregator(),
         }
     }
 
     pub fn record(&mut self, value: T) {
-        self.sum = self.sum + value;
-        self.count += 1;
+        self.aggregator = T::aggregate(self.aggregator.clone(), value);
     }
 
     #[must_use]
-    pub fn value(&self) -> Option<T> {
-        if self.count.is_zero() {
-            None
-        } else {
-            #[allow(clippy::cast_precision_loss)]
-            let value = Some(self.sum / self.count as Float);
-            value
-        }
+    pub fn value(&self) -> T::Output {
+        T::average(self.aggregator.clone())
     }
 }
 

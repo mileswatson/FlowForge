@@ -9,30 +9,38 @@ use crate::time::Float;
 pub struct NoItems;
 
 pub trait Average: Sized {
+    type Aggregator;
     type Output;
 
-    fn average<I>(items: I) -> Self::Output
-    where
-        I: IntoIterator<Item = Self>;
+    fn new_aggregator() -> Self::Aggregator;
+
+    fn aggregate(aggregator: Self::Aggregator, next: Self) -> Self::Aggregator;
+
+    fn average(aggregator: Self::Aggregator) -> Self::Output;
 }
 
 impl<T> Average for T
 where
     T: Add<T, Output = T> + Div<Float, Output = T>,
 {
+    type Aggregator = Option<(T, usize)>;
     type Output = Result<T, NoItems>;
 
-    fn average<'a, I>(items: I) -> Result<T, NoItems>
-    where
-        I: IntoIterator<Item = Self>,
-    {
-        let mut iter = items.into_iter();
-        match iter.next() {
-            Some(first_item) => {
-                let x = iter.fold((first_item, 1usize), |(acc, count), x| (acc + x, count + 1));
-                #[allow(clippy::cast_precision_loss)]
-                return Ok(x.0 / x.1 as Float);
-            }
+    fn new_aggregator() -> Self::Aggregator {
+        None
+    }
+
+    fn aggregate(aggregator: Self::Aggregator, next: Self) -> Self::Aggregator {
+        match aggregator {
+            Some((total, count)) => Some((total + next, count + 1)),
+            None => Some((next, 1)),
+        }
+    }
+
+    fn average(aggregator: Self::Aggregator) -> Self::Output {
+        #[allow(clippy::cast_precision_loss)]
+        match aggregator {
+            Some((total, count)) => Ok(total / count as Float),
             None => Err(NoItems),
         }
     }
@@ -45,10 +53,6 @@ impl<T, U> AveragePair<T, U> {
     pub fn new((t, u): (T, U)) -> Self {
         AveragePair(t, u)
     }
-
-    fn into_inner(self) -> (T, U) {
-        (self.0, self.1)
-    }
 }
 
 impl<T, U> Average for AveragePair<T, U>
@@ -56,14 +60,22 @@ where
     T: Average,
     U: Average,
 {
+    type Aggregator = (T::Aggregator, U::Aggregator);
     type Output = (T::Output, U::Output);
 
-    fn average<I>(items: I) -> Self::Output
-    where
-        I: IntoIterator<Item = Self>,
-    {
-        let (ts, us): (Vec<_>, Vec<_>) = items.into_iter().map(AveragePair::into_inner).unzip();
-        (T::average(ts), U::average(us))
+    fn new_aggregator() -> Self::Aggregator {
+        (T::new_aggregator(), U::new_aggregator())
+    }
+
+    fn aggregate(current: Self::Aggregator, next: Self) -> Self::Aggregator {
+        (
+            T::aggregate(current.0, next.0),
+            U::aggregate(current.1, next.1),
+        )
+    }
+
+    fn average(aggregate: Self::Aggregator) -> Self::Output {
+        (T::average(aggregate.0), U::average(aggregate.1))
     }
 }
 
@@ -111,16 +123,22 @@ impl<T> Average for AverageIfSome<T>
 where
     T: Average,
 {
+    type Aggregator = T::Aggregator;
     type Output = T::Output;
 
-    fn average<I>(items: I) -> Self::Output
-    where
-        I: IntoIterator<Item = Self>,
-    {
-        items
-            .into_iter()
-            .filter_map(AverageIfSome::into_inner)
-            .average()
+    fn new_aggregator() -> Self::Aggregator {
+        T::new_aggregator()
+    }
+
+    fn aggregate(current: Self::Aggregator, next: Self) -> Self::Aggregator {
+        match next.0 {
+            Some(next) => T::aggregate(current, next),
+            None => current,
+        }
+    }
+
+    fn average(aggregator: Self::Aggregator) -> Self::Output {
+        T::average(aggregator)
     }
 }
 
@@ -137,7 +155,7 @@ where
     T: Average,
 {
     fn average(self) -> <T as Average>::Output {
-        T::average(self)
+        T::average(self.into_iter().fold(T::new_aggregator(), T::aggregate))
     }
 }
 

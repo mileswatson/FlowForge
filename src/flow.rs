@@ -19,21 +19,12 @@ pub struct FlowProperties {
 }
 
 impl Average for FlowProperties {
+    type Aggregator = <AveragePair<Rate, AverageIfSome<TimeSpan>> as Average>::Aggregator;
     type Output = Result<FlowProperties, NoItems>;
 
-    fn average<I>(items: I) -> Self::Output
-    where
-        I: IntoIterator<Item = Self>,
-    {
-        let (average_throughput, average_rtt) = items
-            .into_iter()
-            .map(|props| {
-                AveragePair(
-                    props.average_throughput,
-                    AverageIfSome::new(props.average_rtt.ok()),
-                )
-            })
-            .average();
+    fn average(aggregator: Self::Aggregator) -> Self::Output {
+        let (average_throughput, average_rtt) =
+            AveragePair::<Rate, AverageIfSome<TimeSpan>>::average(aggregator);
         match average_throughput {
             Ok(average_throughput) => Ok(FlowProperties {
                 average_throughput,
@@ -44,6 +35,20 @@ impl Average for FlowProperties {
                 Err(NoItems)
             }
         }
+    }
+
+    fn new_aggregator() -> Self::Aggregator {
+        AveragePair::<Rate, AverageIfSome<TimeSpan>>::new_aggregator()
+    }
+
+    fn aggregate(aggregator: Self::Aggregator, next: Self) -> Self::Aggregator {
+        AveragePair::<Rate, AverageIfSome<TimeSpan>>::aggregate(
+            aggregator,
+            AveragePair(
+                next.average_throughput,
+                AverageIfSome::new(next.average_rtt.ok()),
+            ),
+        )
     }
 }
 
@@ -126,7 +131,6 @@ impl FlowUtilityAggregator {
         let scores = flows
             .iter()
             .filter_map(|flow| flow.properties(time).map(|x| (flow_utility(&x), x)).ok());
-        #[allow(clippy::cast_precision_loss)]
         match self {
             FlowUtilityAggregator::Mean => scores
                 .map(AveragePair::new)
