@@ -102,7 +102,7 @@ impl Div<TimeSpan> for TimeSpan {
     }
 }
 
-#[derive(PartialEq, PartialOrd, Clone, Copy)]
+#[derive(PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize)]
 pub struct Rate(Float);
 
 impl Debug for Rate {

@@ -154,6 +154,8 @@ pub struct AlphaFairness {
     beta: Float,
     /// Relative importance of delay
     delta: Float,
+    /// Worst-case (max) round-trip delay
+    worst_case_rtt: TimeSpan,
     /// Aggregation
     flow_utility_aggregator: FlowUtilityAggregator,
 }
@@ -163,6 +165,7 @@ impl AlphaFairness {
         alpha: 1.,
         beta: 1.,
         delta: 1.,
+        worst_case_rtt: TimeSpan::new(10.),
         flow_utility_aggregator: FlowUtilityAggregator::Mean,
     };
 
@@ -170,15 +173,22 @@ impl AlphaFairness {
         alpha: 2.,
         beta: 0.,
         delta: 0.,
+        worst_case_rtt: TimeSpan::new(10.),
         flow_utility_aggregator: FlowUtilityAggregator::Mean,
     };
 
     fn flow_utility(&self, properties: &FlowProperties) -> Float {
         let throughput_utility = alpha_fairness(properties.average_throughput.value(), self.alpha);
-        let rtt_utility = match properties.average_rtt {
-            Ok(average_rtt) => -self.delta * alpha_fairness(average_rtt.value(), self.beta),
-            Err(NoPacketsAcked) => 0.,
-        };
+        let rtt_utility = -self.delta
+            * alpha_fairness(
+                properties
+                    .average_rtt
+                    .as_ref()
+                    .unwrap_or(&self.worst_case_rtt)
+                    .value()
+                    .clamp(0., self.worst_case_rtt.value()),
+                self.beta,
+            );
         throughput_utility + rtt_utility
     }
 }
@@ -226,6 +236,19 @@ mod tests {
             Ok(FlowProperties {
                 average_throughput: Rate::new(0.5),
                 average_rtt: Ok(TimeSpan::new(3.))
+            })
+        );
+        assert_eq!(
+            vec![(0., None), (1., None)]
+                .into_iter()
+                .map(|(average_throughput, average_rtt)| FlowProperties {
+                    average_throughput: Rate::new(average_throughput),
+                    average_rtt: average_rtt.map(TimeSpan::new).ok_or(NoPacketsAcked),
+                })
+                .average(),
+            Ok(FlowProperties {
+                average_throughput: Rate::new(0.5),
+                average_rtt: Err(NoPacketsAcked)
             })
         );
         assert_eq!(

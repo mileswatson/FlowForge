@@ -322,7 +322,7 @@ mod tests {
     use super::{RemyConfig, RemyTrainer};
 
     #[test]
-    #[ignore = "Long runtime."]
+    #[ignore = "long runtime"]
     fn determinism() {
         let rng = Rng::from_seed(123_456);
         let remy_config = RemyConfig {
