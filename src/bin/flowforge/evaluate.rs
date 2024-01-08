@@ -36,7 +36,7 @@ pub fn evaluate(
     let network_config = NetworkConfig::load(network_config)?;
     let utility_config = UtilityConfig::load(utility_config)?;
 
-    let mut rng = Rng::from_seed(0);
+    let mut rng = Rng::from_seed(534522);
 
     let (score, flow_properties) = match trainer_config {
         TrainerConfig::Remy(cfg) => {
