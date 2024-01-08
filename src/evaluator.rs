@@ -23,8 +23,8 @@ pub trait PopulateComponents: Sync {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EvaluationConfig {
-    network_samples: u32,
-    run_sim_for: Float,
+    pub network_samples: u32,
+    pub run_sim_for: Float,
 }
 
 impl Default for EvaluationConfig {

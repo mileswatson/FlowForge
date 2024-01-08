@@ -1,4 +1,4 @@
-use std::ops::{Add, Div, Mul};
+use std::ops::{Add, Mul};
 
 use rand_distr::num_traits::Zero;
 
@@ -22,9 +22,7 @@ where
 {
     #[must_use]
     pub fn new() -> Mean<T> {
-        Mean {
-            aggregator: T::new_aggregator(),
-        }
+        Mean::default()
     }
 
     pub fn record(&mut self, value: T) {
@@ -39,10 +37,12 @@ where
 
 impl<T> Default for Mean<T>
 where
-    T: Copy + Add<T, Output = T> + Zero + Div<Float, Output = T>,
+    T: Average,
 {
     fn default() -> Self {
-        Self::new()
+        Mean {
+            aggregator: T::new_aggregator(),
+        }
     }
 }
 

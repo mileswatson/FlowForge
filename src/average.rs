@@ -113,10 +113,6 @@ where
     pub const fn some(value: T) -> AverageIfSome<T> {
         AverageIfSome(Some(value))
     }
-
-    pub fn into_inner(self) -> Option<T> {
-        self.0
-    }
 }
 
 impl<T> Average for AverageIfSome<T>

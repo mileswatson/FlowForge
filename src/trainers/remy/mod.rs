@@ -37,15 +37,15 @@ mod autogen {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RemyConfig {
-    rule_splits: u32,
-    optimization_rounds_per_split: u32,
-    min_action: Action,
-    max_action: Action,
-    initial_action_change: Action,
-    max_action_change: Action,
-    action_change_multiplier: i32,
-    default_action: Action,
-    evaluation_config: EvaluationConfig,
+    pub rule_splits: u32,
+    pub optimization_rounds_per_split: u32,
+    pub min_action: Action,
+    pub max_action: Action,
+    pub initial_action_change: Action,
+    pub max_action_change: Action,
+    pub action_change_multiplier: i32,
+    pub default_action: Action,
+    pub evaluation_config: EvaluationConfig,
 }
 
 impl Default for RemyConfig {
@@ -307,5 +307,50 @@ impl Trainer for RemyTrainer {
         self.config
             .evaluation_config
             .evaluate(network_config, d, utility_function, rng)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use crate::{
+        evaluator::EvaluationConfig, flow::AlphaFairness, network::config::NetworkConfig,
+        rand::Rng, trainers::remy::RemyDna, Trainer,
+    };
+
+    use super::{RemyConfig, RemyTrainer};
+
+    #[test]
+    #[ignore = "Long runtime."]
+    fn determinism() {
+        let rng = Rng::from_seed(123_456);
+        let remy_config = RemyConfig {
+            rule_splits: 10,
+            optimization_rounds_per_split: 1,
+            evaluation_config: EvaluationConfig {
+                network_samples: 10,
+                ..EvaluationConfig::default()
+            },
+            ..RemyConfig::default()
+        };
+        let evaluate = || {
+            let mut rng = rng.clone();
+            let trainer = RemyTrainer::new(&remy_config);
+            let dna = trainer.train(
+                &NetworkConfig::default(),
+                &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
+                &mut |_, _: Option<&RemyDna>| {},
+                &mut rng,
+            );
+            trainer.evaluate(
+                &dna,
+                &NetworkConfig::default(),
+                &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
+                &mut rng,
+            )
+        };
+
+        assert_eq!(evaluate(), evaluate());
     }
 }
