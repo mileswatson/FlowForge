@@ -5,12 +5,12 @@ pub type Float = f64;
 pub mod information;
 pub mod information_rate;
 pub mod time;
-pub mod timespan;
+pub mod time_span;
 
 pub use information::*;
 pub use information_rate::*;
 pub use time::*;
-pub use timespan::*;
+pub use time_span::*;
 
 impl Div<InformationRate> for Information {
     type Output = TimeSpan;
