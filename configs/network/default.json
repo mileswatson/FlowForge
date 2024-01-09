@@ -4,10 +4,10 @@
     "mean": 0.005,
     "std_dev": 0.001
   },
-  "packet_rate": {
+  "bandwidth": {
     "type": "uniform",
-    "min": 12.0,
-    "max": 18.0
+    "min": 134400.0,
+    "max": 201600.0
   },
   "loss_rate": {
     "type": "normal",

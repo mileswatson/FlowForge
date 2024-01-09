@@ -5,10 +5,10 @@ use crate::{
     logging::Logger,
     meters::{DisabledInfoRateMeter, EnabledInfoRateMeter, InfoRateMeterNeverEnabled, Mean},
     network::{toggler::Toggle, NetworkEffect, NetworkMessage, Packet},
+    quantities::{latest, InformationRate, Time, TimeSpan},
     simulation::{
         try_case, Component, ComponentId, EffectContext, HasVariant, MaybeHasVariant, Message,
     },
-    quantities::{latest, InformationRate, Time, TimeSpan},
 };
 
 #[derive(Debug)]
@@ -150,7 +150,7 @@ where
                 Enabled::new(
                     new_behavior(),
                     0,
-                    EnabledInfoRateMeter::new(Time::sim_start()),
+                    EnabledInfoRateMeter::new(Time::SIM_START),
                     Mean::new(),
                 )
                 .into()

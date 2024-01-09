@@ -82,8 +82,8 @@ pub struct Network {
     pub loss_rate: Float,
     pub buffer_size: Option<Information>,
     pub num_senders: usize,
-    pub off_time: PositiveContinuousDistribution<Float>,
-    pub on_time: PositiveContinuousDistribution<Float>,
+    pub off_time: PositiveContinuousDistribution<TimeSpan>,
+    pub on_time: PositiveContinuousDistribution<TimeSpan>,
 }
 
 pub struct NetworkSlots<'a, 'b> {

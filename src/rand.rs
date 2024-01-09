@@ -1,85 +1,110 @@
 use rand::SeedableRng;
-use rand_distr::{
-    num_traits::{Float, PrimInt},
-    Distribution, Exp, Normal, Uniform,
-};
+use rand_distr::{num_traits::PrimInt, Distribution, Exp, Normal, Uniform};
 use rand_xoshiro::Xoshiro256PlusPlus;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum ContinuousDistribution<F> {
-    Always { value: F },
-    Uniform { min: F, max: F },
-    Normal { mean: F, std_dev: F },
-    Exponential { mean: F },
+use crate::quantities::Float;
+
+pub trait Wrapper {
+    type Underlying;
+    fn from_underlying(value: Self::Underlying) -> Self;
+    fn to_underlying(self) -> Self::Underlying;
 }
 
-impl<F> Distribution<F> for ContinuousDistribution<F>
-where
-    F: Float + rand_distr::uniform::SampleUniform,
-    rand_distr::Exp1: rand_distr::Distribution<F>,
-    rand_distr::StandardNormal: rand_distr::Distribution<F>,
-{
-    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> F {
-        match self {
-            ContinuousDistribution::Uniform { min, max } => rng.sample(Uniform::new(min, max)),
-            ContinuousDistribution::Normal { mean, std_dev } => {
-                rng.sample(Normal::new(*mean, *std_dev).unwrap())
-            }
-            ContinuousDistribution::Exponential { mean } => {
-                rng.sample(Exp::new(F::one() / *mean).unwrap())
-            }
-            ContinuousDistribution::Always { value } => *value,
-        }
+impl Wrapper for Float {
+    type Underlying = Float;
+
+    fn from_underlying(value: Self::Underlying) -> Self {
+        value
+    }
+
+    fn to_underlying(self) -> Self::Underlying {
+        self
+    }
+}
+
+impl Wrapper for u32 {
+    type Underlying = u32;
+
+    fn from_underlying(value: Self::Underlying) -> Self {
+        value
+    }
+
+    fn to_underlying(self) -> Self::Underlying {
+        self
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum DiscreteDistribution<I: PrimInt> {
+pub enum ContinuousDistribution<T> {
+    Always { value: T },
+    Uniform { min: T, max: T },
+    Normal { mean: T, std_dev: T },
+    Exponential { mean: T },
+}
+
+impl<T> Distribution<T> for ContinuousDistribution<T>
+where
+    T: Copy + Wrapper<Underlying = Float>,
+{
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> T {
+        T::from_underlying(match self {
+            ContinuousDistribution::Uniform { min, max } => {
+                rng.sample(Uniform::new((*min).to_underlying(), (*max).to_underlying()))
+            }
+            ContinuousDistribution::Normal { mean, std_dev } => rng
+                .sample(Normal::new((*mean).to_underlying(), (*std_dev).to_underlying()).unwrap()),
+            ContinuousDistribution::Exponential { mean } => {
+                rng.sample(Exp::new(1. / (*mean).to_underlying()).unwrap())
+            }
+            ContinuousDistribution::Always { value } => (*value).to_underlying(),
+        })
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum DiscreteDistribution<T> {
     /// A max-exclusive uniform distribution in the range [min, max].
     Uniform {
-        min: I,
-        max: I,
+        min: T,
+        max: T,
     },
     Always {
-        value: I,
+        value: T,
     },
 }
 
-impl<I> Distribution<I> for DiscreteDistribution<I>
+impl<T> Distribution<T> for DiscreteDistribution<T>
 where
-    I: PrimInt + rand_distr::uniform::SampleUniform + From<u16>,
+    T: Copy + Wrapper,
+    T::Underlying: PrimInt + rand_distr::uniform::SampleUniform + From<u16>,
 {
-    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> I {
-        match self {
-            DiscreteDistribution::Uniform { min, max } => {
-                rng.sample(Uniform::new(min, *max + <I as From<u16>>::from(1)))
-            }
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> T {
+        T::from_underlying(match self {
+            DiscreteDistribution::Uniform { min, max } => rng.sample(Uniform::new(
+                min.to_underlying(),
+                max.to_underlying() + <T::Underlying as From<u16>>::from(1),
+            )),
 
-            DiscreteDistribution::Always { value } => *value,
-        }
+            DiscreteDistribution::Always { value } => value.to_underlying(),
+        })
     }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ProbabilityDistribution<F>(pub ContinuousDistribution<F>);
+pub struct ProbabilityDistribution(pub ContinuousDistribution<Float>);
 
-impl<F> Distribution<F> for ProbabilityDistribution<F>
-where
-    F: Float + rand_distr::uniform::SampleUniform + From<f32>,
-    rand_distr::Exp1: rand_distr::Distribution<F>,
-    rand_distr::StandardNormal: rand_distr::Distribution<F>,
-{
-    fn sample<R: rand::prelude::Rng + ?Sized>(&self, rng: &mut R) -> F {
+impl Distribution<Float> for ProbabilityDistribution {
+    fn sample<R: rand::prelude::Rng + ?Sized>(&self, rng: &mut R) -> Float {
         let mut i = 0;
         loop {
             if i == 100 {
                 println!("WARNING: a probability distribution is overwhelmingly returning numbers outside [0, 1]. If the program is hanging, this is a likely cause.");
             }
             let v = rng.sample(&self.0);
-            if <F as From<f32>>::from(0.) <= v && v <= From::from(1.) {
+            if (0. ..=1.).contains(&v) {
                 return v;
             }
             i += 1;
@@ -88,22 +113,20 @@ where
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PositiveContinuousDistribution<F>(pub ContinuousDistribution<F>);
+pub struct PositiveContinuousDistribution<T>(pub ContinuousDistribution<T>);
 
-impl<F> Distribution<F> for PositiveContinuousDistribution<F>
+impl<T> Distribution<T> for PositiveContinuousDistribution<T>
 where
-    F: Float + rand_distr::uniform::SampleUniform + From<f32>,
-    rand_distr::Exp1: rand_distr::Distribution<F>,
-    rand_distr::StandardNormal: rand_distr::Distribution<F>,
+    T: Copy + Wrapper<Underlying = Float>,
 {
-    fn sample<R: rand::prelude::Rng + ?Sized>(&self, rng: &mut R) -> F {
+    fn sample<R: rand::prelude::Rng + ?Sized>(&self, rng: &mut R) -> T {
         let mut i = 0;
         loop {
             if i == 100 {
                 println!("WARNING: a probability distribution is overwhelmingly returning numbers outside [0, 1]. If the program is hanging, this is a likely cause.");
             }
             let v = rng.sample(&self.0);
-            if <F as From<f32>>::from(0.) < v {
+            if <T::Underlying as From<f32>>::from(0.) < v.to_underlying() {
                 return v;
             }
             i += 1;

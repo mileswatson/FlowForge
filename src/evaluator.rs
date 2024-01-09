@@ -49,7 +49,7 @@ impl EvaluationConfig {
                 components.populate_components(slots, rng)
             });
             sim.run_for(self.run_sim_for);
-            utility_function.total_utility(&flows, Time::sim_start() + self.run_sim_for)
+            utility_function.total_utility(&flows, Time::SIM_START + self.run_sim_for)
         };
 
         let networks = (0..self.network_samples)

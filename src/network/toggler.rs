@@ -1,7 +1,7 @@
 use crate::{
+    quantities::{Time, TimeSpan},
     rand::{PositiveContinuousDistribution, Rng},
     simulation::{Component, ComponentId, EffectContext, HasVariant, Message},
-    quantities::{seconds, Float, Time},
 };
 
 #[derive(PartialEq, Eq, Debug)]
@@ -14,16 +14,16 @@ pub enum Toggle {
 pub struct Toggler {
     target: ComponentId,
     enabled: bool,
-    on_distribution: PositiveContinuousDistribution<Float>,
-    off_distribution: PositiveContinuousDistribution<Float>,
+    on_distribution: PositiveContinuousDistribution<TimeSpan>,
+    off_distribution: PositiveContinuousDistribution<TimeSpan>,
     next_toggle: Time,
 }
 
 impl Toggler {
     pub fn new(
         target: ComponentId,
-        on_distribution: PositiveContinuousDistribution<Float>,
-        off_distribution: PositiveContinuousDistribution<Float>,
+        on_distribution: PositiveContinuousDistribution<TimeSpan>,
+        off_distribution: PositiveContinuousDistribution<TimeSpan>,
         rng: &mut Rng,
     ) -> Toggler {
         Toggler {
@@ -55,7 +55,7 @@ where
                 effects.push(Message::new(self.target, Toggle::Disable));
                 &self.off_distribution
             };
-            self.next_toggle = context.time + seconds(context.rng.sample(dist));
+            self.next_toggle = context.time + context.rng.sample(dist);
         }
         effects
     }

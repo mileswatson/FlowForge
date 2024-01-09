@@ -14,8 +14,8 @@ use priority_queue::PriorityQueue;
 
 use crate::{
     logging::Logger,
-    rand::Rng,
     quantities::{Time, TimeSpan},
+    rand::Rng,
 };
 
 #[derive(Debug)]
@@ -399,7 +399,7 @@ where
     }
 
     pub fn run_for(mut self, timespan: TimeSpan) {
-        let end_time = Time::sim_start() + timespan;
+        let end_time = Time::SIM_START + timespan;
         self.components
             .iter()
             .enumerate()
@@ -407,7 +407,7 @@ where
                 self.tick_queue.insert_or_update(
                     ComponentId::new(idx, self.id),
                     (),
-                    component.borrow().next_tick(Time::sim_start()),
+                    component.borrow().next_tick(Time::SIM_START),
                 );
             });
         while let Some((time, component_id, ())) = self.tick_queue.pop_next() {

@@ -7,13 +7,31 @@ use std::{
 use format_num::format_num;
 use serde::{Deserialize, Serialize};
 
+use crate::rand::Wrapper;
+
 pub type Float = f64;
 
-#[derive(PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(PartialEq, Clone, Copy, Serialize, Deserialize, Debug)]
 pub struct TimeSpan(Float);
+
+impl Eq for TimeSpan {}
+
+impl PartialOrd for TimeSpan {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for TimeSpan {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.total_cmp(&other.0)
+    }
+}
 
 impl TimeSpan {
     pub const ZERO: TimeSpan = TimeSpan(0.);
+    pub const MIN: TimeSpan = TimeSpan(Float::MIN);
+    pub const MAX: TimeSpan = TimeSpan(Float::MAX);
 
     #[must_use]
     pub const fn seconds(self) -> Float {
@@ -28,6 +46,18 @@ impl TimeSpan {
     #[must_use]
     pub fn is_negative(&self) -> bool {
         self.0 < 0.
+    }
+}
+
+impl Wrapper for TimeSpan {
+    type Underlying = Float;
+
+    fn from_underlying(value: Self::Underlying) -> Self {
+        TimeSpan(value)
+    }
+
+    fn to_underlying(self) -> Self::Underlying {
+        self.0
     }
 }
 
@@ -52,6 +82,14 @@ impl Add for TimeSpan {
 
     fn add(self, rhs: Self) -> Self::Output {
         TimeSpan(self.0 + rhs.0)
+    }
+}
+
+impl Sub for TimeSpan {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        TimeSpan(self.0 - rhs.0)
     }
 }
 
@@ -149,6 +187,18 @@ impl Div<TimeSpan> for Information {
 #[derive(PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize, Debug)]
 pub struct InformationRate(Float);
 
+impl Wrapper for InformationRate {
+    type Underlying = Float;
+
+    fn from_underlying(value: Self::Underlying) -> Self {
+        InformationRate(value)
+    }
+
+    fn to_underlying(self) -> Self::Underlying {
+        self.0
+    }
+}
+
 impl InformationRate {
     #[must_use]
     pub const fn value(&self) -> Float {
@@ -194,8 +244,8 @@ impl Display for InformationRate {
     }
 }
 
-#[derive(PartialEq, Clone, Copy)]
-pub struct Time(Float);
+#[derive(PartialEq, Eq, Clone, Copy, PartialOrd, Ord)]
+pub struct Time(TimeSpan);
 
 impl Debug for Time {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -204,47 +254,29 @@ impl Debug for Time {
 }
 
 impl Time {
-    pub const MIN: Time = Time(Float::MIN);
-    pub const MAX: Time = Time(Float::MAX);
+    pub const MIN: Time = Time(TimeSpan::MIN);
+    pub const MAX: Time = Time(TimeSpan::MAX);
+    pub const SIM_START: Time = Time(TimeSpan::ZERO);
 
     #[must_use]
-    pub const fn from_sim_start(t: Float) -> Time {
-        Time(t)
-    }
-
-    #[must_use]
-    pub const fn sim_start() -> Time {
-        Time::from_sim_start(0.)
-    }
-}
-
-impl Eq for Time {}
-
-impl PartialOrd for Time {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for Time {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.total_cmp(&other.0)
+    pub fn from_sim_start(t: TimeSpan) -> Time {
+        Time::SIM_START + t
     }
 }
 
 impl Sub<Time> for Time {
     type Output = TimeSpan;
 
-    fn sub(self, Time(t): Time) -> Self::Output {
-        TimeSpan(self.0 - t)
+    fn sub(self, other: Time) -> Self::Output {
+        self.0 - other.0
     }
 }
 
 impl Add<TimeSpan> for Time {
     type Output = Time;
 
-    fn add(self, TimeSpan(ts): TimeSpan) -> Self::Output {
-        Time::from_sim_start(self.0 + ts)
+    fn add(self, other: TimeSpan) -> Self::Output {
+        Time(self.0 + other)
     }
 }
 
@@ -264,7 +296,9 @@ pub fn earliest_opt(times: &[Option<Time>]) -> Option<Time> {
     times
         .iter()
         .fold(None, |prev, current| match (prev, *current) {
-            (Some(Time(t1)), Some(Time(t2))) => Some(Time::from_sim_start(Float::min(t1, t2))),
+            (Some(Time(TimeSpan(t1))), Some(Time(TimeSpan(t2)))) => {
+                Some(Time(TimeSpan(Float::min(t1, t2))))
+            }
             (m, None) | (None, m) => m,
         })
 }
@@ -279,7 +313,7 @@ pub fn latest_opt(times: &[Option<Time>]) -> Option<Time> {
     times
         .iter()
         .fold(None, |prev, current| match (prev, *current) {
-            (Some(Time(t1)), Some(Time(t2))) => Some(Time::from_sim_start(Float::max(t1, t2))),
+            (Some(Time(t1)), Some(Time(t2))) => Some(Time(TimeSpan::max(t1, t2))),
             (m, None) | (None, m) => m,
         })
 }

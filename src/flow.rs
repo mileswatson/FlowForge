@@ -279,7 +279,7 @@ mod tests {
             FlowUtilityAggregator::Mean.total_utility(
                 &flows,
                 |props| props.average_throughput.value(),
-                Time::sim_start(),
+                Time::SIM_START,
             ),
             Ok((
                 2.,
@@ -293,7 +293,7 @@ mod tests {
             FlowUtilityAggregator::Minimum.total_utility(
                 &flows,
                 |props| props.average_throughput.value(),
-                Time::sim_start(),
+                Time::SIM_START,
             ),
             Ok((
                 0.,
