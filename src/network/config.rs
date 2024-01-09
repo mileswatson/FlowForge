@@ -2,11 +2,11 @@ use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    quantities::{packets, packets_per_second, seconds, Float},
     rand::{
         ContinuousDistribution, DiscreteDistribution, PositiveContinuousDistribution,
         ProbabilityDistribution,
     },
-    quantities::{packets_per_second, seconds, Float},
 };
 
 use super::Network;
@@ -55,7 +55,10 @@ impl Distribution<Network> for NetworkConfig {
             rtt: seconds(rng.sample(&self.rtt)),
             packet_rate: packets_per_second(rng.sample(&self.packet_rate)),
             loss_rate: rng.sample(&self.loss_rate),
-            buffer_size: self.buffer_size.as_ref().map(|d| rng.sample(d) as usize),
+            buffer_size: self
+                .buffer_size
+                .as_ref()
+                .map(|d| packets(u64::from(rng.sample(d)))),
             num_senders: rng.sample(&self.num_senders) as usize,
             off_time: self.off_time.clone(),
             on_time: self.on_time.clone(),

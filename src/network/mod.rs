@@ -1,11 +1,11 @@
 use crate::{
     logging::NothingLogger,
+    quantities::{packets, Float, Information, InformationRate, Time, TimeSpan},
     rand::{PositiveContinuousDistribution, Rng},
     simulation::{
         ComponentId, ComponentSlot, DynComponent, MaybeHasVariant, Message, Simulator,
         SimulatorBuilder,
     },
-    quantities::{packets, Float, Information, InformationRate, Time, TimeSpan},
 };
 
 use self::{
@@ -80,7 +80,7 @@ pub struct Network {
     pub rtt: TimeSpan,
     pub packet_rate: InformationRate,
     pub loss_rate: Float,
-    pub buffer_size: Option<usize>,
+    pub buffer_size: Option<Information>,
     pub num_senders: usize,
     pub off_time: PositiveContinuousDistribution<Float>,
     pub on_time: PositiveContinuousDistribution<Float>,

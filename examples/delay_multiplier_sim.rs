@@ -7,9 +7,9 @@ use flowforge::{
         protocols::{delay_multiplier::LossySender, window::lossy_window::LossyBouncer},
         NetworkEffect,
     },
+    quantities::{packets, packets_per_second, seconds},
     rand::Rng,
     simulation::{DynComponent, SimulatorBuilder},
-    quantities::{packets_per_second, seconds},
 };
 
 fn main() {
@@ -35,7 +35,7 @@ fn main() {
         seconds(1.5),
         packets_per_second(0.2),
         0.1,
-        Some(1),
+        Some(packets(1)),
         table.logger(2),
     );
     let mut receiver = LossyBouncer::new(link2_slot.id(), table.logger(3));
@@ -43,7 +43,7 @@ fn main() {
         seconds(1.5),
         packets_per_second(0.2),
         0.1,
-        Some(1),
+        Some(packets(1)),
         table.logger(4),
     );
 

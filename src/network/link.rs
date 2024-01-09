@@ -2,9 +2,9 @@ use std::{collections::VecDeque, fmt::Debug};
 
 use crate::{
     logging::Logger,
+    quantities::{earliest_opt, latest, Information, InformationRate, Time, TimeSpan},
     rand::{ContinuousDistribution, Rng},
     simulation::{Component, EffectContext, MaybeHasVariant, Message},
-    quantities::{earliest_opt, latest, InformationRate, Time, TimeSpan},
 };
 
 use super::{NetworkEffect, NetworkMessage, Packet};
@@ -14,8 +14,9 @@ pub struct Link<L> {
     delay: TimeSpan,
     packet_rate: InformationRate,
     loss: f64,
-    buffer_size: Option<usize>,
+    buffer_size: Option<Information>,
     earliest_transmit: Time,
+    buffer_contains: Information,
     buffer: VecDeque<Packet>,
     transmitting: VecDeque<(Packet, Time)>,
     logger: L,
@@ -30,7 +31,7 @@ where
         delay: TimeSpan,
         packet_rate: InformationRate,
         loss: f64,
-        buffer_size: Option<usize>,
+        buffer_size: Option<Information>,
         logger: L,
     ) -> Self {
         Link {
@@ -39,6 +40,7 @@ where
             loss,
             buffer_size,
             earliest_transmit: Time::MIN,
+            buffer_contains: Information::ZERO,
             buffer: VecDeque::new(),
             transmitting: VecDeque::new(),
             logger,
@@ -59,6 +61,7 @@ where
         if let Some(p) = self.buffer.pop_front() {
             // Don't transmit another packet until this time
             self.earliest_transmit = time + p.size() / self.packet_rate;
+            self.buffer_contains = self.buffer_contains - p.size();
             self.transmitting.push_back((p, time + self.delay));
         }
     }
@@ -97,14 +100,15 @@ where
     }
 
     fn receive(&mut self, effect: NetworkEffect, _ctx: EffectContext) -> Vec<NetworkMessage> {
-        let packet = MaybeHasVariant::try_into(effect).unwrap();
+        let packet: Packet = MaybeHasVariant::try_into(effect).unwrap();
         if self
             .buffer_size
-            .is_some_and(|limit| self.buffer.len() == limit)
+            .is_some_and(|limit| self.buffer_contains + packet.size() > limit)
         {
             log!(self.logger, "Dropped packet (buffer full)");
         } else {
             log!(self.logger, "Buffered packet");
+            self.buffer_contains = self.buffer_contains + packet.size();
             self.buffer.push_back(packet);
         }
         vec![]

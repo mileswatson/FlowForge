@@ -120,6 +120,14 @@ impl Add<Information> for Information {
     }
 }
 
+impl Sub<Information> for Information {
+    type Output = Information;
+
+    fn sub(self, rhs: Information) -> Self::Output {
+        Information(self.0 - rhs.0)
+    }
+}
+
 impl Div<InformationRate> for Information {
     type Output = TimeSpan;
 
