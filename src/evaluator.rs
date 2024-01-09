@@ -48,7 +48,7 @@ impl EvaluationConfig {
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
         let score_network = |(n, mut rng): (Network, Rng)| {
             make_guard!(guard);
-            let (sim, flows) = n.to_sim(guard.into(), &mut rng, |slots, rng| {
+            let (sim, flows) = n.to_sim(guard, &mut rng, |slots, rng| {
                 components.populate_components(slots, rng)
             });
             sim.run_for(self.run_sim_for);

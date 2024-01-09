@@ -18,7 +18,7 @@ fn main() {
     // ManuallyDrop is used to re-order drop(builder) to before drop(sender),
     // as it can contain a ref to sender
     make_guard!(guard);
-    let builder = ManuallyDrop::new(SimulatorBuilder::<NetworkEffect>::new(guard.into()));
+    let builder = ManuallyDrop::new(SimulatorBuilder::<NetworkEffect>::new(guard));
 
     let sender_slot = builder.reserve_slot();
     let link1_slot = builder.reserve_slot();

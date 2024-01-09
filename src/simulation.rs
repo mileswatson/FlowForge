@@ -1,4 +1,4 @@
-use generativity::Id;
+use generativity::{Guard, Id};
 use rustc_hash::{FxHashMap, FxHasher};
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -292,9 +292,9 @@ pub struct SimulatorBuilder<'sim, 'a, E> {
 
 impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
     #[must_use]
-    pub const fn new(id: Id<'sim>) -> SimulatorBuilder<'sim, 'a, E> {
+    pub fn new(guard: Guard<'sim>) -> SimulatorBuilder<'sim, 'a, E> {
         SimulatorBuilder {
-            id,
+            id: guard.into(),
             components: RefCell::new(Vec::new()),
         }
     }

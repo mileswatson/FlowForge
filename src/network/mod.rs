@@ -1,4 +1,4 @@
-use generativity::Id;
+use generativity::Guard;
 
 use crate::{
     logging::NothingLogger,
@@ -97,11 +97,11 @@ impl Network {
     #[must_use]
     pub fn to_sim<'sim, 'a, R>(
         &self,
-        id: Id<'sim>,
+        guard: Guard<'sim>,
         rng: &'a mut Rng,
         populate_components: impl FnOnce(NetworkSlots<'sim, 'a, '_>, &mut Rng) -> R + 'a,
     ) -> (Simulator<'sim, 'a, NetworkEffect<'sim>, NothingLogger>, R) {
-        let builder = SimulatorBuilder::<'sim, '_>::new(id);
+        let builder = SimulatorBuilder::<'sim, '_>::new(guard);
         let slots = NetworkSlots {
             sender_slots: (0..self.num_senders)
                 .map(|_| {
