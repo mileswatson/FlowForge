@@ -92,6 +92,6 @@ impl<'de> Deserialize<'de> for InformationRate {
 
 impl Display for InformationRate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        display(self, f)
+        display(self, f, |f| f)
     }
 }

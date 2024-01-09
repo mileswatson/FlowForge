@@ -2,7 +2,9 @@ use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    quantities::{bits_per_second, milliseconds, packets, seconds, InformationRate, TimeSpan},
+    quantities::{
+        bits_per_second, milliseconds, seconds, Information, InformationRate, TimeSpan,
+    },
     rand::{
         ContinuousDistribution, DiscreteDistribution, PositiveContinuousDistribution,
         ProbabilityDistribution,
@@ -16,7 +18,7 @@ pub struct NetworkConfig {
     pub rtt: PositiveContinuousDistribution<TimeSpan>,
     pub bandwidth: PositiveContinuousDistribution<InformationRate>,
     pub loss_rate: ProbabilityDistribution,
-    pub buffer_size: Option<DiscreteDistribution<u32>>,
+    pub buffer_size: Option<DiscreteDistribution<Information>>,
     pub num_senders: DiscreteDistribution<u32>,
     pub off_time: PositiveContinuousDistribution<TimeSpan>,
     pub on_time: PositiveContinuousDistribution<TimeSpan>,
@@ -52,10 +54,7 @@ impl Distribution<Network> for NetworkConfig {
             rtt: rng.sample(&self.rtt),
             packet_rate: rng.sample(&self.bandwidth),
             loss_rate: rng.sample(&self.loss_rate),
-            buffer_size: self
-                .buffer_size
-                .as_ref()
-                .map(|d| packets(u64::from(rng.sample(d)))),
+            buffer_size: self.buffer_size.as_ref().map(|d| rng.sample(d)),
             num_senders: rng.sample(&self.num_senders) as usize,
             off_time: self.off_time.clone(),
             on_time: self.on_time.clone(),

@@ -124,30 +124,33 @@ where
     deserializer.deserialize_str(QuantityVisitor::<Q>(PhantomData))
 }
 
-fn display<Q>(quantity: &Q, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+fn display<Q>(
+    quantity: &Q,
+    f: &mut std::fmt::Formatter<'_>,
+    convert: impl Fn(Q::Underlying) -> Float,
+) -> std::fmt::Result
 where
     Q: Quantity,
-    Float: From<Q::Underlying>,
 {
     write!(
         f,
         "{}{}",
-        format_num!(".3s", quantity.to_underlying()),
+        format_num!(".3s", convert(quantity.to_underlying())),
         Q::BASE_UNIT
     )
 }
 
 struct Uno;
 
-impl UnitPrefix<Float> for Uno {
+impl<U> UnitPrefix<U> for Uno {
     fn symbol(&self) -> &'static str {
         ""
     }
-    fn parsed_to_underlying(&self, value: Float) -> Float {
+    fn parsed_to_underlying(&self, value: U) -> U {
         value
     }
 
-    fn quantity_to_parseable(&self, value: Float) -> Result<Float, NoMatch> {
+    fn quantity_to_parseable(&self, value: U) -> Result<U, NoMatch> {
         Ok(value)
     }
 }
@@ -178,7 +181,7 @@ where
     U: From<u32> + Mul<U, Output = U> + Div<U, Output = U> + Rem<U, Output = U> + PartialEq + Copy,
 {
     fn symbol(&self) -> &'static str {
-        "k"
+        "K"
     }
 
     fn parsed_to_underlying(&self, value: U) -> U {

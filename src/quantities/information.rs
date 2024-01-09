@@ -1,8 +1,15 @@
-use std::ops::{Add, Sub};
+use std::{
+    fmt::Display,
+    ops::{Add, Sub},
+};
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
-#[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Serialize, Deserialize, Debug)]
+use crate::rand::Wrapper;
+
+use super::{deserialize, display, serialize, Float, Giga, Kilo, Mega, Quantity, UnitPrefix, Uno};
+
+#[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Debug)]
 pub struct Information(u64);
 
 impl Information {
@@ -42,5 +49,47 @@ impl Sub<Information> for Information {
 
     fn sub(self, rhs: Information) -> Self::Output {
         Information(self.0 - rhs.0)
+    }
+}
+
+impl Wrapper for Information {
+    type Underlying = u64;
+
+    fn from_underlying(value: Self::Underlying) -> Self {
+        Information(value)
+    }
+
+    fn to_underlying(self) -> Self::Underlying {
+        self.0
+    }
+}
+
+impl Quantity for Information {
+    const BASE_UNIT: &'static str = "B";
+    const UNIT_PREFIXES: &'static [&'static dyn UnitPrefix<u64>] = &[&Giga, &Mega, &Kilo, &Uno];
+}
+
+impl Serialize for Information {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serialize(self, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Information {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserialize(deserializer)
+    }
+}
+
+impl Display for Information {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        #[allow(clippy::cast_precision_loss)]
+        display(self, f, |i| i as Float)
     }
 }
