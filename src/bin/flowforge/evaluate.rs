@@ -5,7 +5,7 @@ use flowforge::{
     flow::{FlowProperties, UtilityConfig},
     network::config::NetworkConfig,
     rand::Rng,
-    time::Float,
+    quantities::Float,
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, TrainerConfig},
     Config, Trainer,
 };

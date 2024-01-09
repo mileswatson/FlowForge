@@ -6,7 +6,7 @@ use crate::{
         ContinuousDistribution, DiscreteDistribution, PositiveContinuousDistribution,
         ProbabilityDistribution,
     },
-    time::{Float, Rate, TimeSpan},
+    quantities::{packets_per_second, seconds, Float},
 };
 
 use super::Network;
@@ -52,8 +52,8 @@ impl Default for NetworkConfig {
 impl Distribution<Network> for NetworkConfig {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Network {
         Network {
-            rtt: TimeSpan::new(rng.sample(&self.rtt)),
-            packet_rate: Rate::new(rng.sample(&self.packet_rate)),
+            rtt: seconds(rng.sample(&self.rtt)),
+            packet_rate: packets_per_second(rng.sample(&self.packet_rate)),
             loss_rate: rng.sample(&self.loss_rate),
             buffer_size: self.buffer_size.as_ref().map(|d| rng.sample(d) as usize),
             num_senders: rng.sample(&self.num_senders) as usize,

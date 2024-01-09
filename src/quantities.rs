@@ -5,29 +5,24 @@ use std::{
 };
 
 use format_num::format_num;
-use rand_distr::num_traits::Zero;
 use serde::{Deserialize, Serialize};
 
 pub type Float = f64;
 
-#[derive(PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize)]
+#[derive(PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize, Debug)]
 pub struct TimeSpan(Float);
 
-impl Debug for TimeSpan {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self, f)
-    }
-}
-
 impl TimeSpan {
+    pub const ZERO: TimeSpan = TimeSpan(0.);
+
     #[must_use]
-    pub const fn new(ts: Float) -> TimeSpan {
-        TimeSpan(ts)
+    pub const fn seconds(self) -> Float {
+        self.0
     }
 
     #[must_use]
-    pub const fn value(&self) -> Float {
-        self.0
+    pub fn milliseconds(self) -> Float {
+        self.0 * 1000.
     }
 
     #[must_use]
@@ -42,33 +37,21 @@ impl Display for TimeSpan {
     }
 }
 
-impl From<i32> for TimeSpan {
-    fn from(value: i32) -> Self {
-        TimeSpan::new(value.into())
-    }
+#[must_use]
+pub const fn seconds(value: Float) -> TimeSpan {
+    TimeSpan(value)
 }
 
-impl From<Float> for TimeSpan {
-    fn from(value: Float) -> Self {
-        TimeSpan::new(value)
-    }
-}
-
-impl Zero for TimeSpan {
-    fn zero() -> Self {
-        TimeSpan::new(0.)
-    }
-
-    fn is_zero(&self) -> bool {
-        self.0 == 0.
-    }
+#[must_use]
+pub fn milliseconds(value: Float) -> TimeSpan {
+    seconds(value / 1000.)
 }
 
 impl Add for TimeSpan {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        TimeSpan::new(self.0 + rhs.0)
+        TimeSpan(self.0 + rhs.0)
     }
 }
 
@@ -76,7 +59,7 @@ impl Mul<TimeSpan> for Float {
     type Output = TimeSpan;
 
     fn mul(self, rhs: TimeSpan) -> Self::Output {
-        TimeSpan::new(self * rhs.0)
+        TimeSpan(self * rhs.0)
     }
 }
 
@@ -90,7 +73,7 @@ impl Div<Float> for TimeSpan {
     type Output = TimeSpan;
 
     fn div(self, rhs: Float) -> Self::Output {
-        TimeSpan::new(self.0 / rhs)
+        TimeSpan(self.0 / rhs)
     }
 }
 
@@ -102,59 +85,104 @@ impl Div<TimeSpan> for TimeSpan {
     }
 }
 
-#[derive(PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize)]
-pub struct Rate(Float);
+#[derive(PartialEq, Eq, PartialOrd, Clone, Copy, Serialize, Deserialize, Debug)]
+pub struct Information(u64);
 
-impl Debug for Rate {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self, f)
-    }
-}
+impl Information {
+    pub const ZERO: Information = Information(0);
 
-impl Rate {
     #[must_use]
-    pub const fn new(r: Float) -> Rate {
-        Rate(r)
+    pub const fn bits(self) -> u64 {
+        self.bytes() * 8
     }
 
     #[must_use]
-    pub fn period(&self) -> TimeSpan {
-        TimeSpan::new(1. / self.0)
-    }
-
-    #[must_use]
-    pub const fn value(&self) -> Float {
+    pub const fn bytes(self) -> u64 {
         self.0
     }
 }
 
-impl Add<Rate> for Rate {
-    type Output = Rate;
+#[must_use]
+pub const fn bytes(value: u64) -> Information {
+    Information(value)
+}
 
-    fn add(self, rhs: Rate) -> Self::Output {
-        Rate(self.0 + rhs.0)
+#[must_use]
+pub const fn packets(value: u64) -> Information {
+    bytes(1400 * value)
+}
+
+impl Add<Information> for Information {
+    type Output = Information;
+
+    fn add(self, rhs: Information) -> Self::Output {
+        Information(self.0 + rhs.0)
     }
 }
 
-impl Div<TimeSpan> for Float {
-    type Output = Rate;
+impl Div<InformationRate> for Information {
+    type Output = TimeSpan;
+
+    fn div(self, rhs: InformationRate) -> Self::Output {
+        #[allow(clippy::cast_precision_loss)]
+        seconds(self.bits() as Float / rhs.bits_per_second())
+    }
+}
+
+impl Div<TimeSpan> for Information {
+    type Output = InformationRate;
 
     fn div(self, rhs: TimeSpan) -> Self::Output {
-        Rate(self / rhs.0)
+        #[allow(clippy::cast_precision_loss)]
+        bits_per_second(self.bits() as Float / rhs.seconds())
     }
 }
 
-impl Div<Float> for Rate {
-    type Output = Rate;
+#[derive(PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize, Debug)]
+pub struct InformationRate(Float);
+
+impl InformationRate {
+    #[must_use]
+    pub const fn value(&self) -> Float {
+        self.0
+    }
+
+    #[must_use]
+    pub const fn bits_per_second(self) -> Float {
+        self.0
+    }
+}
+
+#[must_use]
+pub const fn bits_per_second(r: Float) -> InformationRate {
+    InformationRate(r)
+}
+
+#[must_use]
+pub fn packets_per_second(value: Float) -> InformationRate {
+    #[allow(clippy::cast_precision_loss)]
+    bits_per_second(value * packets(1).bits() as Float)
+}
+
+impl Add<InformationRate> for InformationRate {
+    type Output = InformationRate;
+
+    fn add(self, rhs: InformationRate) -> Self::Output {
+        InformationRate(self.0 + rhs.0)
+    }
+}
+
+impl Div<Float> for InformationRate {
+    type Output = InformationRate;
 
     fn div(self, rhs: Float) -> Self::Output {
-        Rate::new(self.0 / rhs)
+        InformationRate(self.0 / rhs)
     }
 }
 
-impl Display for Rate {
+impl Display for InformationRate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.4}s^-1", self.0)
+        write!(f, "{:.4}bps", self.0)
     }
 }
 
@@ -200,7 +228,7 @@ impl Sub<Time> for Time {
     type Output = TimeSpan;
 
     fn sub(self, Time(t): Time) -> Self::Output {
-        TimeSpan::new(self.0 - t)
+        TimeSpan(self.0 - t)
     }
 }
 

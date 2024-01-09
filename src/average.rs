@@ -3,7 +3,7 @@ use std::{
     ops::{Add, Div},
 };
 
-use crate::time::Float;
+use crate::quantities::Float;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NoItems;
@@ -161,7 +161,7 @@ mod tests {
 
     use crate::{
         average::{AverageIfSome, IterAverage, NoItems},
-        time::Float,
+        quantities::Float,
     };
 
     use super::{AveragePair, SameEmptiness};

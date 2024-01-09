@@ -18,7 +18,7 @@ use flow::{FlowProperties, NoActiveFlows, UtilityFunction};
 use network::config::NetworkConfig;
 use rand::Rng;
 use serde::{de::DeserializeOwned, Serialize};
-use time::Float;
+use quantities::Float;
 
 #[macro_use]
 pub mod logging;
@@ -29,7 +29,7 @@ pub mod meters;
 pub mod network;
 pub mod rand;
 pub mod simulation;
-pub mod time;
+pub mod quantities;
 pub mod trainers;
 
 pub struct Json;

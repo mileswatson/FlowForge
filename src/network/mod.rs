@@ -5,7 +5,7 @@ use crate::{
         ComponentId, ComponentSlot, DynComponent, MaybeHasVariant, Message, Simulator,
         SimulatorBuilder,
     },
-    time::{Float, Rate, Time, TimeSpan},
+    quantities::{packets, Float, Information, InformationRate, Time, TimeSpan},
 };
 
 use self::{
@@ -29,6 +29,11 @@ pub struct Packet {
 impl Packet {
     fn pop_next_hop(&mut self) -> ComponentId {
         self.destination
+    }
+
+    #[allow(clippy::unused_self)]
+    const fn size(&self) -> Information {
+        packets(1)
     }
 }
 
@@ -73,7 +78,7 @@ impl From<Packet> for NetworkEffect {
 #[derive(Debug)]
 pub struct Network {
     pub rtt: TimeSpan,
-    pub packet_rate: Rate,
+    pub packet_rate: InformationRate,
     pub loss_rate: Float,
     pub buffer_size: Option<usize>,
     pub num_senders: usize,

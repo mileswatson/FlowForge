@@ -4,7 +4,7 @@ use crate::{
     logging::Logger,
     rand::{ContinuousDistribution, Rng},
     simulation::{Component, EffectContext, MaybeHasVariant, Message},
-    time::{earliest_opt, latest, Rate, Time, TimeSpan},
+    quantities::{earliest_opt, latest, InformationRate, Time, TimeSpan},
 };
 
 use super::{NetworkEffect, NetworkMessage, Packet};
@@ -12,7 +12,7 @@ use super::{NetworkEffect, NetworkMessage, Packet};
 #[derive(Debug)]
 pub struct Link<L> {
     delay: TimeSpan,
-    packet_rate: Rate,
+    packet_rate: InformationRate,
     loss: f64,
     buffer_size: Option<usize>,
     earliest_transmit: Time,
@@ -28,7 +28,7 @@ where
     #[must_use]
     pub fn create(
         delay: TimeSpan,
-        packet_rate: Rate,
+        packet_rate: InformationRate,
         loss: f64,
         buffer_size: Option<usize>,
         logger: L,
@@ -57,9 +57,9 @@ where
         }
 
         if let Some(p) = self.buffer.pop_front() {
-            self.transmitting.push_back((p, time + self.delay));
             // Don't transmit another packet until this time
-            self.earliest_transmit = time + self.packet_rate.period();
+            self.earliest_transmit = time + p.size() / self.packet_rate;
+            self.transmitting.push_back((p, time + self.delay));
         }
     }
 

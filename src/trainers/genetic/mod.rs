@@ -9,7 +9,7 @@ use crate::{
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
     network::config::NetworkConfig,
     rand::Rng,
-    time::Float,
+    quantities::Float,
     Dna, ProgressHandler, Trainer,
 };
 

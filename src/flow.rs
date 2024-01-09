@@ -1,12 +1,11 @@
 use std::{cell::RefCell, rc::Rc};
 
 use ordered_float::NotNan;
-use rand_distr::num_traits::Zero;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     average::{Average, AverageIfSome, AveragePair, IterAverage, NoItems, SameEmptiness},
-    time::{Float, Rate, Time, TimeSpan},
+    quantities::{seconds, Float, InformationRate, Time, TimeSpan},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -14,17 +13,18 @@ pub struct NoPacketsAcked;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlowProperties {
-    pub average_throughput: Rate,
+    pub average_throughput: InformationRate,
     pub average_rtt: Result<TimeSpan, NoPacketsAcked>,
 }
 
 impl Average for FlowProperties {
-    type Aggregator = <AveragePair<Rate, AverageIfSome<TimeSpan>> as Average>::Aggregator;
+    type Aggregator =
+        <AveragePair<InformationRate, AverageIfSome<TimeSpan>> as Average>::Aggregator;
     type Output = Result<FlowProperties, NoItems>;
 
     fn average(aggregator: Self::Aggregator) -> Self::Output {
         let (average_throughput, average_rtt) =
-            AveragePair::<Rate, AverageIfSome<TimeSpan>>::average(aggregator);
+            AveragePair::<InformationRate, AverageIfSome<TimeSpan>>::average(aggregator);
         match average_throughput {
             Ok(average_throughput) => Ok(FlowProperties {
                 average_throughput,
@@ -38,11 +38,11 @@ impl Average for FlowProperties {
     }
 
     fn new_aggregator() -> Self::Aggregator {
-        AveragePair::<Rate, AverageIfSome<TimeSpan>>::new_aggregator()
+        AveragePair::<InformationRate, AverageIfSome<TimeSpan>>::new_aggregator()
     }
 
     fn aggregate(aggregator: Self::Aggregator, next: Self) -> Self::Aggregator {
-        AveragePair::<Rate, AverageIfSome<TimeSpan>>::aggregate(
+        AveragePair::<InformationRate, AverageIfSome<TimeSpan>>::aggregate(
             aggregator,
             AveragePair(
                 next.average_throughput,
@@ -79,7 +79,7 @@ where
 
 fn alpha_fairness(x: Float, alpha: Float) -> Float {
     let x = x + 0.000_001;
-    if (1. - alpha).is_zero() {
+    if (alpha - 1.).abs() < 0.000_001 {
         x.ln()
     } else {
         x.powf(1. - alpha) / (1. - alpha)
@@ -165,7 +165,7 @@ impl AlphaFairness {
         alpha: 1.,
         beta: 1.,
         delta: 1.,
-        worst_case_rtt: TimeSpan::new(10.),
+        worst_case_rtt: seconds(10.),
         flow_utility_aggregator: FlowUtilityAggregator::Mean,
     };
 
@@ -173,7 +173,7 @@ impl AlphaFairness {
         alpha: 2.,
         beta: 0.,
         delta: 0.,
-        worst_case_rtt: TimeSpan::new(10.),
+        worst_case_rtt: seconds(10.),
         flow_utility_aggregator: FlowUtilityAggregator::Mean,
     };
 
@@ -185,8 +185,8 @@ impl AlphaFairness {
                     .average_rtt
                     .as_ref()
                     .unwrap_or(&self.worst_case_rtt)
-                    .value()
-                    .clamp(0., self.worst_case_rtt.value()),
+                    .seconds()
+                    .clamp(0., self.worst_case_rtt.seconds()),
                 self.beta,
             );
         throughput_utility + rtt_utility
@@ -212,7 +212,7 @@ mod tests {
 
     use crate::{
         average::{IterAverage, NoItems},
-        time::{Float, Rate, Time, TimeSpan},
+        quantities::{bits_per_second, seconds, Float, Time},
     };
 
     use super::{Flow, FlowNeverActive, FlowProperties, FlowUtilityAggregator, NoPacketsAcked};
@@ -229,25 +229,25 @@ mod tests {
             vec![(0., None), (1., Some(3.))]
                 .into_iter()
                 .map(|(average_throughput, average_rtt)| FlowProperties {
-                    average_throughput: Rate::new(average_throughput),
-                    average_rtt: average_rtt.map(TimeSpan::new).ok_or(NoPacketsAcked),
+                    average_throughput: bits_per_second(average_throughput),
+                    average_rtt: average_rtt.map(seconds).ok_or(NoPacketsAcked),
                 })
                 .average(),
             Ok(FlowProperties {
-                average_throughput: Rate::new(0.5),
-                average_rtt: Ok(TimeSpan::new(3.))
+                average_throughput: bits_per_second(0.5),
+                average_rtt: Ok(seconds(3.))
             })
         );
         assert_eq!(
             vec![(0., None), (1., None)]
                 .into_iter()
                 .map(|(average_throughput, average_rtt)| FlowProperties {
-                    average_throughput: Rate::new(average_throughput),
-                    average_rtt: average_rtt.map(TimeSpan::new).ok_or(NoPacketsAcked),
+                    average_throughput: bits_per_second(average_throughput),
+                    average_rtt: average_rtt.map(seconds).ok_or(NoPacketsAcked),
                 })
                 .average(),
             Ok(FlowProperties {
-                average_throughput: Rate::new(0.5),
+                average_throughput: bits_per_second(0.5),
                 average_rtt: Err(NoPacketsAcked)
             })
         );
@@ -256,8 +256,8 @@ mod tests {
                 .into_iter()
                 .map(
                     |(average_throughput, average_rtt): (Float, Option<Float>)| FlowProperties {
-                        average_throughput: Rate::new(average_throughput),
-                        average_rtt: average_rtt.map(TimeSpan::new).ok_or(NoPacketsAcked),
+                        average_throughput: bits_per_second(average_throughput),
+                        average_rtt: average_rtt.map(seconds).ok_or(NoPacketsAcked),
                     }
                 )
                 .average(),
@@ -270,7 +270,7 @@ mod tests {
         let flows = (0..5)
             .map(|x| {
                 Rc::new(Some(FlowProperties {
-                    average_throughput: Rate::new(Float::from(x)),
+                    average_throughput: bits_per_second(Float::from(x)),
                     average_rtt: Err(NoPacketsAcked),
                 })) as Rc<dyn Flow>
             })
@@ -284,7 +284,7 @@ mod tests {
             Ok((
                 2.,
                 FlowProperties {
-                    average_throughput: Rate::new(2.),
+                    average_throughput: bits_per_second(2.),
                     average_rtt: Err(NoPacketsAcked)
                 }
             ))
@@ -298,7 +298,7 @@ mod tests {
             Ok((
                 0.,
                 FlowProperties {
-                    average_throughput: Rate::new(0.),
+                    average_throughput: bits_per_second(0.),
                     average_rtt: Err(NoPacketsAcked)
                 }
             ))

@@ -1,10 +1,10 @@
 use crate::{
-    meters::EWMA,
     flow::{Flow, FlowNeverActive, FlowProperties},
     logging::Logger,
+    meters::EWMA,
     network::{NetworkEffect, NetworkMessage},
     simulation::{Component, ComponentId, EffectContext},
-    time::{Float, Time, TimeSpan},
+    quantities::{Float, Time, TimeSpan},
 };
 
 use super::window::lossy_window::{LossyWindowBehavior, LossyWindowSender, LossyWindowSettings};
@@ -22,7 +22,7 @@ where
     fn initial_settings(&self) -> LossyWindowSettings {
         LossyWindowSettings {
             window: 1,
-            intersend_delay: TimeSpan::new(0.),
+            intersend_delay: TimeSpan::ZERO,
         }
     }
 

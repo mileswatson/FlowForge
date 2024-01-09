@@ -6,7 +6,7 @@ use crate::{
     meters::EWMA,
     network::{NetworkEffect, NetworkMessage},
     simulation::{Component, ComponentId, EffectContext},
-    time::{Time, TimeSpan},
+    quantities::{Time, TimeSpan},
     trainers::remy::{action::Action, point::Point, rule_tree::RuleTree},
 };
 
@@ -45,8 +45,8 @@ where
 
     fn point(&self) -> Point {
         Point {
-            ack_ewma: self.ack_ewma.value().unwrap_or(TimeSpan::new(0.)),
-            send_ewma: self.send_ewma.value().unwrap_or(TimeSpan::new(0.)),
+            ack_ewma: self.ack_ewma.value().unwrap_or(TimeSpan::ZERO),
+            send_ewma: self.send_ewma.value().unwrap_or(TimeSpan::ZERO),
             rtt_ratio: self.rtt.as_ref().map_or(0., |rtt| rtt.current / rtt.min),
         }
     }
@@ -66,7 +66,7 @@ where
     fn initial_settings(&self) -> LossyWindowSettings {
         LossyWindowSettings {
             window: 1,
-            intersend_delay: TimeSpan::new(0.),
+            intersend_delay: TimeSpan::ZERO,
         }
     }
 

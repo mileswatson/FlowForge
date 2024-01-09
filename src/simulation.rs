@@ -15,7 +15,7 @@ use priority_queue::PriorityQueue;
 use crate::{
     logging::Logger,
     rand::Rng,
-    time::{Time, TimeSpan},
+    quantities::{Time, TimeSpan},
 };
 
 #[derive(Debug)]

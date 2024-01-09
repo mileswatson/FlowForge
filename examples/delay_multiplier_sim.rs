@@ -9,7 +9,7 @@ use flowforge::{
     },
     rand::Rng,
     simulation::{DynComponent, SimulatorBuilder},
-    time::{Rate, TimeSpan},
+    quantities::{packets_per_second, seconds},
 };
 
 fn main() {
@@ -32,16 +32,16 @@ fn main() {
         table.logger(1),
     );
     let mut link1 = Link::create(
-        TimeSpan::new(1.5),
-        Rate::new(0.2),
+        seconds(1.5),
+        packets_per_second(0.2),
         0.1,
         Some(1),
         table.logger(2),
     );
     let mut receiver = LossyBouncer::new(link2_slot.id(), table.logger(3));
     let mut link2 = Link::create(
-        TimeSpan::new(1.5),
-        Rate::new(0.2),
+        seconds(1.5),
+        packets_per_second(0.2),
         0.1,
         Some(1),
         table.logger(4),
@@ -54,7 +54,7 @@ fn main() {
 
     let mut rng = Rng::from_seed(1_234_987_348);
     let sim = ManuallyDrop::into_inner(builder).build(&mut rng, table.logger(0));
-    sim.run_for(TimeSpan::new(100.));
+    sim.run_for(seconds(100.));
 
     println!("{}", table.build());
 }

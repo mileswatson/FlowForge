@@ -1,10 +1,8 @@
 use std::ops::{Add, Mul};
 
-use rand_distr::num_traits::Zero;
-
 use crate::{
     average::Average,
-    time::{Float, Rate, Time, TimeSpan},
+    quantities::{Float, Information, InformationRate, Time, TimeSpan},
 };
 
 #[derive(Clone, Debug)]
@@ -94,7 +92,7 @@ impl DisabledTimer {
     #[must_use]
     pub const fn new() -> DisabledTimer {
         DisabledTimer {
-            total_time: TimeSpan::new(0.),
+            total_time: TimeSpan::ZERO,
         }
     }
 
@@ -116,7 +114,7 @@ impl EnabledTimer {
     #[must_use]
     pub const fn new(time: Time) -> EnabledTimer {
         EnabledTimer {
-            total_time: TimeSpan::new(0.),
+            total_time: TimeSpan::ZERO,
             current_start: time,
         }
     }
@@ -135,71 +133,80 @@ impl EnabledTimer {
 }
 
 #[derive(Clone, Debug)]
-pub struct DisabledRateMeter {
+pub struct DisabledInfoRateMeter {
     timer: DisabledTimer,
-    count: u64,
+    total: Information,
 }
 
 #[derive(Clone, Debug)]
-pub struct EnabledRateMeter {
+pub struct EnabledInfoRateMeter {
     timer: EnabledTimer,
-    count: u64,
+    total: Information,
 }
 
-fn calculate_rate(count: u64, enabled_time: TimeSpan) -> Result<Rate, RateMeterNeverEnabled> {
+fn calculate_rate(
+    total: Information,
+    enabled_time: TimeSpan,
+) -> Result<InformationRate, InfoRateMeterNeverEnabled> {
     assert!(!enabled_time.is_negative());
-    if enabled_time.is_zero() {
-        return Err(RateMeterNeverEnabled);
+    if enabled_time == TimeSpan::ZERO {
+        return Err(InfoRateMeterNeverEnabled);
     }
     #[allow(clippy::cast_precision_loss)]
-    return Ok(count as f64 / enabled_time);
+    return Ok(total / enabled_time);
 }
 
-impl DisabledRateMeter {
+impl DisabledInfoRateMeter {
     #[must_use]
-    pub const fn new() -> DisabledRateMeter {
-        DisabledRateMeter {
+    pub const fn new() -> DisabledInfoRateMeter {
+        DisabledInfoRateMeter {
             timer: DisabledTimer::new(),
-            count: 0,
+            total: Information::ZERO,
         }
     }
 
     #[must_use]
-    pub const fn enable(self, time: Time) -> EnabledRateMeter {
-        EnabledRateMeter {
+    pub const fn enable(self, time: Time) -> EnabledInfoRateMeter {
+        EnabledInfoRateMeter {
             timer: self.timer.enable(time),
-            count: self.count,
+            total: self.total,
         }
     }
 
-    pub fn current_value(&self) -> Result<Rate, RateMeterNeverEnabled> {
-        calculate_rate(self.count, self.timer.current_value())
+    pub fn current_value(&self) -> Result<InformationRate, InfoRateMeterNeverEnabled> {
+        calculate_rate(self.total, self.timer.current_value())
     }
 }
 
-pub struct RateMeterNeverEnabled;
+impl Default for DisabledInfoRateMeter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-impl EnabledRateMeter {
+pub struct InfoRateMeterNeverEnabled;
+
+impl EnabledInfoRateMeter {
     #[must_use]
-    pub const fn new(time: Time) -> EnabledRateMeter {
-        EnabledRateMeter {
+    pub const fn new(time: Time) -> EnabledInfoRateMeter {
+        EnabledInfoRateMeter {
             timer: EnabledTimer::new(time),
-            count: 0,
+            total: Information::ZERO,
         }
     }
-    pub fn record_event(&mut self) {
-        self.count += 1;
+    pub fn record_info(&mut self, info: Information) {
+        self.total = self.total + info;
     }
 
-    pub fn current_value(&self, time: Time) -> Result<Rate, RateMeterNeverEnabled> {
-        calculate_rate(self.count, self.timer.current_value(time))
+    pub fn current_value(&self, time: Time) -> Result<InformationRate, InfoRateMeterNeverEnabled> {
+        calculate_rate(self.total, self.timer.current_value(time))
     }
 
     #[must_use]
-    pub fn disable(self, time: Time) -> DisabledRateMeter {
-        DisabledRateMeter {
+    pub fn disable(self, time: Time) -> DisabledInfoRateMeter {
+        DisabledInfoRateMeter {
             timer: self.timer.disable(time),
-            count: self.count,
+            total: self.total,
         }
     }
 }

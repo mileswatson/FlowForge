@@ -3,12 +3,12 @@ use std::fmt::Debug;
 use crate::{
     flow::{Flow, FlowNeverActive, FlowProperties, NoPacketsAcked},
     logging::Logger,
-    meters::{DisabledRateMeter, EnabledRateMeter, Mean, RateMeterNeverEnabled},
+    meters::{DisabledInfoRateMeter, EnabledInfoRateMeter, InfoRateMeterNeverEnabled, Mean},
     network::{toggler::Toggle, NetworkEffect, NetworkMessage, Packet},
     simulation::{
         try_case, Component, ComponentId, EffectContext, HasVariant, MaybeHasVariant, Message,
     },
-    time::{latest, Rate, Time, TimeSpan},
+    quantities::{latest, InformationRate, Time, TimeSpan},
 };
 
 #[derive(Debug)]
@@ -31,7 +31,7 @@ pub trait LossyWindowBehavior<'a, L>: Debug {
 #[derive(Debug)]
 struct WaitingForEnable {
     packets_sent: u64,
-    average_throughput: DisabledRateMeter,
+    average_throughput: DisabledInfoRateMeter,
     average_rtt: Mean<TimeSpan>,
 }
 
@@ -42,7 +42,7 @@ struct Enabled<B> {
     settings: LossyWindowSettings,
     packets_sent: u64,
     behavior: B,
-    average_throughput: EnabledRateMeter,
+    average_throughput: EnabledInfoRateMeter,
     average_rtt: Mean<TimeSpan>,
 }
 
@@ -50,7 +50,7 @@ impl<B> Enabled<B> {
     fn new<'a, L>(
         behavior: B,
         packets_sent: u64,
-        average_throughput: EnabledRateMeter,
+        average_throughput: EnabledInfoRateMeter,
         average_rtt: Mean<TimeSpan>,
     ) -> Self
     where
@@ -142,7 +142,7 @@ where
             state: if wait_for_enable {
                 WaitingForEnable {
                     packets_sent: 0,
-                    average_throughput: DisabledRateMeter::new(),
+                    average_throughput: DisabledInfoRateMeter::new(),
                     average_rtt: Mean::new(),
                 }
                 .into()
@@ -150,7 +150,7 @@ where
                 Enabled::new(
                     new_behavior(),
                     0,
-                    EnabledRateMeter::new(Time::sim_start()),
+                    EnabledInfoRateMeter::new(Time::sim_start()),
                     Mean::new(),
                 )
                 .into()
@@ -178,7 +178,7 @@ where
                 ..
             }) => {
                 average_rtt.record(time - packet.sent_time);
-                average_throughput.record_event();
+                average_throughput.record_info(packet.size());
                 behavior.ack_received(settings, packet.sent_time, time, &mut self.logger);
                 log!(self.logger, "Received packet {}", packet.seq);
                 *greatest_ack = (*greatest_ack).max(packet.seq);
@@ -246,7 +246,10 @@ where
         }
     }
 
-    fn average_throughput(&self, current_time: Time) -> Result<Rate, RateMeterNeverEnabled> {
+    fn average_throughput(
+        &self,
+        current_time: Time,
+    ) -> Result<InformationRate, InfoRateMeterNeverEnabled> {
         match &self.state {
             LossyWindowState::WaitingForEnable(WaitingForEnable {
                 average_throughput, ..

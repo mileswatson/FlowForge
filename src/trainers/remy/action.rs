@@ -9,7 +9,7 @@ use itertools::Itertools;
 use protobuf::MessageField;
 use serde::{Deserialize, Serialize};
 
-use crate::time::{Float, TimeSpan};
+use crate::quantities::{Float, TimeSpan, seconds, milliseconds};
 
 use super::{
     autogen::remy_dna::{MemoryRange, Whisker},
@@ -105,11 +105,11 @@ impl<const TESTING: bool> Action<TESTING> {
         Action {
             window_multiplier: whisker.window_multiple(),
             window_increment: whisker.window_increment(),
-            intersend_delay: TimeSpan::new(if TESTING {
-                whisker.intersend()
+            intersend_delay: if TESTING {
+                seconds(whisker.intersend())
             } else {
-                whisker.intersend() / 1000.
-            }),
+                milliseconds(whisker.intersend())
+            },
         }
     }
 }
@@ -125,9 +125,9 @@ impl Whisker {
         memory_range.upper = MessageField::some(max.to_memory());
         let mut whisker = Whisker::new();
         whisker.set_intersend(if TESTING {
-            value.intersend_delay.value()
+            value.intersend_delay.seconds()
         } else {
-            value.intersend_delay.value() * 1000.
+            value.intersend_delay.milliseconds()
         });
         whisker.set_window_increment(value.window_increment);
         whisker.set_window_multiple(value.window_multiplier);

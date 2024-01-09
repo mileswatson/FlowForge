@@ -9,7 +9,7 @@ use crate::{
     flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
     network::{config::NetworkConfig, Network, NetworkSlots},
     rand::Rng,
-    time::{Float, Time, TimeSpan},
+    quantities::{Float, Time, TimeSpan, seconds},
 };
 
 pub trait PopulateComponents: Sync {
@@ -24,14 +24,14 @@ pub trait PopulateComponents: Sync {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EvaluationConfig {
     pub network_samples: u32,
-    pub run_sim_for: Float,
+    pub run_sim_for: TimeSpan,
 }
 
 impl Default for EvaluationConfig {
     fn default() -> Self {
         Self {
             network_samples: 1000,
-            run_sim_for: 120.,
+            run_sim_for: seconds(120.),
         }
     }
 }
@@ -44,13 +44,12 @@ impl EvaluationConfig {
         utility_function: &(impl UtilityFunction + ?Sized),
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
-        let run_sim_for = TimeSpan::new(self.run_sim_for);
         let score_network = |(n, mut rng): (Network, Rng)| {
             let (sim, flows) = n.to_sim(&mut rng, |slots, rng| {
                 components.populate_components(slots, rng)
             });
-            sim.run_for(run_sim_for);
-            utility_function.total_utility(&flows, Time::sim_start() + run_sim_for)
+            sim.run_for(self.run_sim_for);
+            utility_function.total_utility(&flows, Time::sim_start() + self.run_sim_for)
         };
 
         let networks = (0..self.network_samples)

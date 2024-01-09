@@ -5,7 +5,7 @@ use std::{
 
 use protobuf::MessageField;
 
-use crate::time::Float;
+use crate::quantities::Float;
 
 use super::{
     action::Action,

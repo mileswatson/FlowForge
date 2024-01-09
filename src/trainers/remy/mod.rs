@@ -14,7 +14,7 @@ use crate::{
     },
     rand::Rng,
     simulation::{DynComponent, MaybeHasVariant},
-    time::Float,
+    quantities::{milliseconds, Float},
     Dna, ProgressHandler, Trainer,
 };
 
@@ -56,28 +56,28 @@ impl Default for RemyConfig {
             min_action: Action {
                 window_multiplier: 0.,
                 window_increment: 0,
-                intersend_delay: 0.000_25.into(),
+                intersend_delay: milliseconds(0.25),
             },
             max_action: Action {
                 window_multiplier: 1.,
                 window_increment: 256,
-                intersend_delay: 0.003.into(),
+                intersend_delay: milliseconds(3.),
             },
             initial_action_change: Action {
                 window_multiplier: 0.01,
                 window_increment: 1,
-                intersend_delay: 0.000_05.into(),
+                intersend_delay: milliseconds(0.05),
             },
             max_action_change: Action {
                 window_multiplier: 0.5,
                 window_increment: 32,
-                intersend_delay: 0.001.into(),
+                intersend_delay: milliseconds(1.),
             },
             action_change_multiplier: 4,
             default_action: Action {
                 window_multiplier: 1.,
                 window_increment: 1,
-                intersend_delay: 0.003.into(),
+                intersend_delay: milliseconds(3.),
             },
             evaluation_config: EvaluationConfig::default(),
         }

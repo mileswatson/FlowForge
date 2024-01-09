@@ -1,6 +1,6 @@
 use protobuf::MessageField;
 
-use crate::time::{Float, TimeSpan};
+use crate::quantities::{milliseconds, seconds, Float, TimeSpan};
 
 use super::autogen::remy_dna::Memory;
 
@@ -13,33 +13,39 @@ pub struct Point<const TESTING: bool = false> {
 
 impl<const TESTING: bool> Point<TESTING> {
     pub const MIN: Self = Point {
-        ack_ewma: TimeSpan::new(0.),
-        send_ewma: TimeSpan::new(0.),
+        ack_ewma: seconds(0.),
+        send_ewma: seconds(0.),
         rtt_ratio: 0.,
     };
     // TODO
     pub const MAX: Self = Point {
-        ack_ewma: TimeSpan::new(163_840.),
-        send_ewma: TimeSpan::new(163_840.),
+        ack_ewma: seconds(163_840.),
+        send_ewma: seconds(163_840.),
         rtt_ratio: 163_840.,
     };
 
     #[must_use]
     pub fn from_memory(memory: &MessageField<Memory>) -> Self {
-        let convert = |x| if TESTING { x } else { x / 1000. };
+        let convert = |x| if TESTING { seconds(x) } else { milliseconds(x) };
         Point {
-            ack_ewma: convert(memory.rec_rec_ewma().into()),
-            send_ewma: convert(memory.rec_send_ewma().into()),
+            ack_ewma: convert(memory.rec_rec_ewma()),
+            send_ewma: convert(memory.rec_send_ewma()),
             rtt_ratio: memory.rtt_ratio(),
         }
     }
 
     #[must_use]
     pub fn to_memory(&self) -> Memory {
-        let convert = |x| if TESTING { x } else { x * 1000. };
+        let convert = |x: TimeSpan| {
+            if TESTING {
+                x.seconds()
+            } else {
+                x.milliseconds()
+            }
+        };
         let mut memory = Memory::new();
-        memory.set_rec_rec_ewma(convert(self.ack_ewma.value()));
-        memory.set_rec_send_ewma(convert(self.send_ewma.value()));
+        memory.set_rec_rec_ewma(convert(self.ack_ewma));
+        memory.set_rec_send_ewma(convert(self.send_ewma));
         memory.set_rtt_ratio(self.rtt_ratio);
         memory
     }

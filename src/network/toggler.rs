@@ -1,7 +1,7 @@
 use crate::{
     rand::{PositiveContinuousDistribution, Rng},
     simulation::{Component, ComponentId, EffectContext, HasVariant, Message},
-    time::{Float, Time, TimeSpan},
+    quantities::{seconds, Float, Time},
 };
 
 #[derive(PartialEq, Eq, Debug)]
@@ -55,7 +55,7 @@ where
                 effects.push(Message::new(self.target, Toggle::Disable));
                 &self.off_distribution
             };
-            self.next_toggle = context.time + TimeSpan::new(context.rng.sample(&dist));
+            self.next_toggle = context.time + seconds(context.rng.sample(dist));
         }
         effects
     }

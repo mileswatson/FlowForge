@@ -9,7 +9,7 @@ use crate::{
     network::{config::NetworkConfig, protocols::delay_multiplier::LossySender, NetworkSlots},
     rand::{ContinuousDistribution, Rng},
     simulation::DynComponent,
-    time::Float,
+    quantities::Float,
     Dna, Trainer,
 };
 
