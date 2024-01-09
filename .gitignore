@@ -8,7 +8,6 @@ flamegraph.svg
 !/configs/network
 /configs/network/*
 !/configs/network/default.json
-!/configs/network/general_purpose_remy.json
 
 !/configs/trainer
 /configs/trainer/*

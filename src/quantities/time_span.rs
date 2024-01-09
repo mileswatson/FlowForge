@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::rand::Wrapper;
 
-use super::Float;
+use super::{deserialize, serialize, Float, Milli, Quantity, UnitPrefix, Uno};
 
-#[derive(PartialEq, Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(PartialEq, Clone, Copy, Debug)]
 pub struct TimeSpan(Float);
 
 impl Eq for TimeSpan {}
@@ -119,5 +119,28 @@ impl Div<TimeSpan> for TimeSpan {
 
     fn div(self, rhs: TimeSpan) -> Self::Output {
         self.0 / rhs.0
+    }
+}
+
+impl Quantity for TimeSpan {
+    const BASE_UNIT: &'static str = "s";
+    const UNIT_PREFIXES: &'static [&'static dyn UnitPrefix<Float>] = &[&Milli, &Uno];
+}
+
+impl Serialize for TimeSpan {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serialize(self, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for TimeSpan {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserialize(deserializer)
     }
 }

@@ -1,12 +1,17 @@
-use std::{ops::{Add, Div}, fmt::Display};
+use std::{
+    fmt::Display,
+    ops::{Add, Div},
+};
 
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use crate::rand::Wrapper;
 
-use super::{Float, packets};
+use super::{
+    deserialize, packets, serialize, Float, Giga, Kilo, Mega, Milli, Quantity, UnitPrefix, Uno,
+};
 
-#[derive(PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
 pub struct InformationRate(Float);
 
 impl Wrapper for InformationRate {
@@ -63,5 +68,29 @@ impl Div<Float> for InformationRate {
 impl Display for InformationRate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:.4}bps", self.0)
+    }
+}
+
+impl Quantity for InformationRate {
+    const BASE_UNIT: &'static str = "b/s";
+    const UNIT_PREFIXES: &'static [&'static dyn UnitPrefix<Float>] =
+        &[&Giga, &Mega, &Kilo, &Milli, &Uno];
+}
+
+impl Serialize for InformationRate {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serialize(self, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for InformationRate {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserialize(deserializer)
     }
 }

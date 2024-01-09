@@ -5,31 +5,31 @@
   "min_action": {
     "window_multiplier": 0.0,
     "window_increment": 0,
-    "intersend_delay": 0.00025
+    "intersend_delay": "0.25ms"
   },
   "max_action": {
     "window_multiplier": 1.0,
     "window_increment": 256,
-    "intersend_delay": 0.003
+    "intersend_delay": "3ms"
   },
   "initial_action_change": {
     "window_multiplier": 0.01,
     "window_increment": 1,
-    "intersend_delay": 0.00005
+    "intersend_delay": "0.05ms"
   },
   "max_action_change": {
     "window_multiplier": 0.5,
     "window_increment": 32,
-    "intersend_delay": 0.001
+    "intersend_delay": "1ms"
   },
   "action_change_multiplier": 4,
   "default_action": {
     "window_multiplier": 1.0,
     "window_increment": 1,
-    "intersend_delay": 0.003
+    "intersend_delay": "3ms"
   },
   "evaluation_config": {
     "network_samples": 1000,
-    "run_sim_for": 120.0
+    "run_sim_for": "120s"
   }
 }

@@ -2,7 +2,7 @@ use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    quantities::{milliseconds, packets, packets_per_second, seconds, InformationRate, TimeSpan},
+    quantities::{bits_per_second, milliseconds, packets, seconds, InformationRate, TimeSpan},
     rand::{
         ContinuousDistribution, DiscreteDistribution, PositiveContinuousDistribution,
         ProbabilityDistribution,
@@ -25,20 +25,17 @@ pub struct NetworkConfig {
 impl Default for NetworkConfig {
     fn default() -> NetworkConfig {
         NetworkConfig {
-            rtt: PositiveContinuousDistribution(ContinuousDistribution::Normal {
-                mean: milliseconds(5.),
-                std_dev: milliseconds(1.),
+            rtt: PositiveContinuousDistribution(ContinuousDistribution::Uniform {
+                min: milliseconds(100.),
+                max: milliseconds(200.),
             }),
             bandwidth: PositiveContinuousDistribution(ContinuousDistribution::Uniform {
-                min: packets_per_second(12.),
-                max: packets_per_second(18.),
+                min: bits_per_second(10_000_000.),
+                max: bits_per_second(20_000_000.),
             }),
-            loss_rate: ProbabilityDistribution(ContinuousDistribution::Normal {
-                mean: 0.1,
-                std_dev: 0.01,
-            }),
+            loss_rate: ProbabilityDistribution(ContinuousDistribution::Always { value: 0. }),
             buffer_size: None,
-            num_senders: DiscreteDistribution::Uniform { min: 1, max: 3 },
+            num_senders: DiscreteDistribution::Uniform { min: 1, max: 16 },
             off_time: PositiveContinuousDistribution(ContinuousDistribution::Exponential {
                 mean: seconds(5.),
             }),

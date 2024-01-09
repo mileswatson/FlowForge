@@ -3,7 +3,7 @@
     "alpha": 1.0,
     "beta": 1.0,
     "delta": 1.0,
-    "worst_case_rtt": 10.0,
+    "worst_case_rtt": "10s",
     "flow_utility_aggregator": "Mean"
   }
 }
