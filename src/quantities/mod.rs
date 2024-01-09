@@ -13,6 +13,7 @@ pub mod information_rate;
 pub mod time;
 pub mod time_span;
 
+use format_num::format_num;
 pub use information::*;
 pub use information_rate::*;
 use itertools::Itertools;
@@ -121,6 +122,19 @@ where
     D: serde::Deserializer<'de>,
 {
     deserializer.deserialize_str(QuantityVisitor::<Q>(PhantomData))
+}
+
+fn display<Q>(quantity: &Q, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+where
+    Q: Quantity,
+    Float: From<Q::Underlying>,
+{
+    write!(
+        f,
+        "{}{}",
+        format_num!(".3s", quantity.to_underlying()),
+        Q::BASE_UNIT
+    )
 }
 
 struct Uno;

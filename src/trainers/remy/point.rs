@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use protobuf::MessageField;
 
 use crate::quantities::{milliseconds, seconds, Float, TimeSpan};
@@ -11,6 +13,16 @@ pub struct Point<const TESTING: bool = false> {
     pub rtt_ratio: Float,
 }
 
+impl<const TESTING: bool> Display for Point<TESTING> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Point {{ ack_ewma: {}, send_ewma: {}, rtt_ratio: {} }}",
+            self.ack_ewma, self.send_ewma, self.rtt_ratio
+        )
+    }
+}
+
 impl<const TESTING: bool> Point<TESTING> {
     pub const MIN: Self = Point {
         ack_ewma: seconds(0.),
@@ -19,9 +31,9 @@ impl<const TESTING: bool> Point<TESTING> {
     };
     // TODO
     pub const MAX: Self = Point {
-        ack_ewma: seconds(163_840.),
-        send_ewma: seconds(163_840.),
-        rtt_ratio: 163_840.,
+        ack_ewma: seconds(600.),
+        send_ewma: seconds(600.),
+        rtt_ratio: 1000.,
     };
 
     #[must_use]

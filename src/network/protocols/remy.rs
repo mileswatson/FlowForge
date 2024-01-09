@@ -5,8 +5,8 @@ use crate::{
     logging::Logger,
     meters::EWMA,
     network::{NetworkEffect, NetworkMessage},
-    simulation::{Component, ComponentId, EffectContext},
     quantities::{Time, TimeSpan},
+    simulation::{Component, ComponentId, EffectContext},
     trainers::remy::{action::Action, point::Point, rule_tree::RuleTree},
 };
 
@@ -54,7 +54,7 @@ where
     fn action(&self) -> &Action {
         self.rule_tree
             .action(&self.point())
-            .expect("point to map to an action")
+            .unwrap_or_else(|| panic!("Expected {} to map to an action", self.point()))
     }
 }
 

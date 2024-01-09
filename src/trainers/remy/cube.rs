@@ -1,18 +1,18 @@
 use super::point::Point;
 
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct Cube<const TESTING: bool = false> {
     pub min: Point<TESTING>,
     pub max: Point<TESTING>,
 }
 
-impl<const TESTING: bool> Debug for Cube<TESTING> {
+impl<const TESTING: bool> Display for Cube<TESTING> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Cube {{ ack_ewma: {:.4}-{:.4}, send_ewma: {:.4}-{:.4}, rtt_ratio: {:.4}-{:.4} }}",
+            "Cube {{ ack_ewma: {}-{}, send_ewma: {}-{}, rtt_ratio: {:.4}-{:.4} }}",
             self.min.ack_ewma,
             self.max.ack_ewma,
             self.min.send_ewma,

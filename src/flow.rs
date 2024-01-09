@@ -1,4 +1,4 @@
-use std::{cell::RefCell, rc::Rc};
+use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
@@ -15,6 +15,23 @@ pub struct NoPacketsAcked;
 pub struct FlowProperties {
     pub average_throughput: InformationRate,
     pub average_rtt: Result<TimeSpan, NoPacketsAcked>,
+}
+
+impl Display for FlowProperties {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.average_rtt {
+            Ok(average_rtt) => write!(
+                f,
+                "FlowProperties {{ throughput: {}, rtt: {} }}",
+                self.average_throughput, average_rtt
+            ),
+            Err(_) => write!(
+                f,
+                "FlowProperties {{ throughput: {}, rtt: NoPacketsAcked }}",
+                self.average_throughput
+            ),
+        }
+    }
 }
 
 impl Average for FlowProperties {

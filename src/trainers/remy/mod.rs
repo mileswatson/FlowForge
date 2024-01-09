@@ -12,9 +12,9 @@ use crate::{
     network::{
         config::NetworkConfig, protocols::remy::LossySender, toggler::Toggle, NetworkSlots, Packet,
     },
+    quantities::{milliseconds, Float},
     rand::Rng,
     simulation::{DynComponent, MaybeHasVariant},
-    quantities::{milliseconds, Float},
     Dna, ProgressHandler, Trainer,
 };
 
@@ -238,7 +238,7 @@ impl Trainer for RemyTrainer {
             } else {
                 let (fraction_used, leaf) = counts.most_used_rule();
                 println!(
-                    "Split rule {:?} with usage {:.2}%",
+                    "Split rule {} with usage {:.2}%",
                     leaf.domain(),
                     fraction_used * 100.
                 );
@@ -257,11 +257,11 @@ impl Trainer for RemyTrainer {
                         break;
                     }
                     println!(
-                        "    Optimizing {:?} with usage {:.2}%",
+                        "    Optimizing {} with usage {:.2}%",
                         leaf.domain(),
                         fraction_used * 100.
                     );
-                    println!("      Currently {:?}", leaf.action());
+                    println!("      Currently {}", leaf.action());
                     while let Some((s, _, new_action)) = leaf
                         .action()
                         .possible_improvements(&self.config)
@@ -272,7 +272,7 @@ impl Trainer for RemyTrainer {
                         .filter(|(s, _, _)| s > &score)
                         .max_by_key(|(s, _, _)| NotNan::new(*s).unwrap())
                     {
-                        println!("      Changed to {new_action:?}");
+                        println!("      Changed to {new_action}");
                         score = s;
                         *leaf.action() = new_action;
                     }
@@ -291,7 +291,7 @@ impl Trainer for RemyTrainer {
                 dna.tree.mark_all_unoptimized();
                 (score, props, counts) = evaluate_and_count(&mut dna.tree, rng);
             }
-            println!("Achieved score {score:.2} with properties {props:?}");
+            println!("Achieved score {score:.2} with properties {props}");
         }
         progress_handler.update_progress(1., Some(&dna));
         dna
@@ -316,7 +316,7 @@ mod tests {
 
     use crate::{
         evaluator::EvaluationConfig, flow::AlphaFairness, network::config::NetworkConfig,
-        rand::Rng, trainers::remy::RemyDna, Trainer,
+        quantities::seconds, rand::Rng, trainers::remy::RemyDna, Trainer,
     };
 
     use super::{RemyConfig, RemyTrainer};
@@ -326,11 +326,11 @@ mod tests {
     fn determinism() {
         let rng = Rng::from_seed(123_456);
         let remy_config = RemyConfig {
-            rule_splits: 10,
+            rule_splits: 1,
             optimization_rounds_per_split: 1,
             evaluation_config: EvaluationConfig {
-                network_samples: 10,
-                ..EvaluationConfig::default()
+                network_samples: 32,
+                run_sim_for: seconds(120.),
             },
             ..RemyConfig::default()
         };

@@ -4,8 +4,8 @@ use anyhow::Result;
 use flowforge::{
     flow::{FlowProperties, UtilityConfig},
     network::config::NetworkConfig,
-    rand::Rng,
     quantities::Float,
+    rand::Rng,
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, TrainerConfig},
     Config, Trainer,
 };
@@ -52,7 +52,7 @@ pub fn evaluate(
     };
 
     println!(
-        "Achieved expected utility {} with {:?}",
+        "Achieved expected utility {} with {}",
         score, flow_properties
     );
 

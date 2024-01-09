@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use crate::rand::Wrapper;
 
 use super::{
-    deserialize, packets, serialize, Float, Giga, Kilo, Mega, Milli, Quantity, UnitPrefix, Uno,
+    deserialize, display, packets, serialize, Float, Giga, Kilo, Mega, Milli, Quantity, UnitPrefix,
+    Uno,
 };
 
 #[derive(PartialEq, PartialOrd, Clone, Copy, Debug)]
@@ -65,12 +66,6 @@ impl Div<Float> for InformationRate {
     }
 }
 
-impl Display for InformationRate {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.4}bps", self.0)
-    }
-}
-
 impl Quantity for InformationRate {
     const BASE_UNIT: &'static str = "b/s";
     const UNIT_PREFIXES: &'static [&'static dyn UnitPrefix<Float>] =
@@ -92,5 +87,11 @@ impl<'de> Deserialize<'de> for InformationRate {
         D: serde::Deserializer<'de>,
     {
         deserialize(deserializer)
+    }
+}
+
+impl Display for InformationRate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        display(self, f)
     }
 }

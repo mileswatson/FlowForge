@@ -1,5 +1,5 @@
 use std::{
-    fmt::Debug,
+    fmt::{Debug, Display},
     iter::successors,
     ops::{Add, Mul},
 };
@@ -9,7 +9,7 @@ use itertools::Itertools;
 use protobuf::MessageField;
 use serde::{Deserialize, Serialize};
 
-use crate::quantities::{Float, TimeSpan, seconds, milliseconds};
+use crate::quantities::{milliseconds, seconds, Float, TimeSpan};
 
 use super::{
     autogen::remy_dna::{MemoryRange, Whisker},
@@ -17,14 +17,14 @@ use super::{
     RemyConfig,
 };
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct Action<const TESTING: bool = false> {
     pub window_multiplier: Float,
     pub window_increment: i32,
     pub intersend_delay: TimeSpan,
 }
 
-impl<const TESTING: bool> Debug for Action<TESTING> {
+impl<const TESTING: bool> Display for Action<TESTING> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
