@@ -52,7 +52,7 @@ pub fn evaluate(
     };
 
     println!(
-        "Achieved expected utility {} with {:?}",
+        "Achieved expected utility {} with {}",
         score, flow_properties
     );
 

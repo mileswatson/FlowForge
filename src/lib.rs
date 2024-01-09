@@ -7,6 +7,9 @@
     clippy::suboptimal_flops
 )]
 
+#[macro_use]
+extern crate uom;
+
 use std::{
     fs::File,
     io::{Read, Write},

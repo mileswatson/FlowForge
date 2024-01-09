@@ -1,3 +1,8 @@
+use uom::si::{
+    f64::{InformationRate, Time},
+    u64::Information,
+};
+
 use crate::{
     logging::NothingLogger,
     rand::{PositiveContinuousDistribution, Rng},
@@ -5,7 +10,7 @@ use crate::{
         ComponentId, ComponentSlot, DynComponent, MaybeHasVariant, Message, Simulator,
         SimulatorBuilder,
     },
-    time::{Float, Rate, Time, TimeSpan},
+    time::{packet::packet, Float, TimePoint},
 };
 
 use self::{
@@ -23,12 +28,16 @@ pub struct Packet {
     seq: u64,
     source: ComponentId,
     destination: ComponentId,
-    sent_time: Time,
+    sent_time: TimePoint,
 }
 
 impl Packet {
     fn pop_next_hop(&mut self) -> ComponentId {
         self.destination
+    }
+
+    fn size() -> Information {
+        Information::new::<packet>(1)
     }
 }
 
@@ -72,10 +81,10 @@ impl From<Packet> for NetworkEffect {
 
 #[derive(Debug)]
 pub struct Network {
-    pub rtt: TimeSpan,
-    pub packet_rate: Rate,
+    pub rtt: Time,
+    pub packet_rate: InformationRate,
     pub loss_rate: Float,
-    pub buffer_size: Option<usize>,
+    pub buffer_size: Option<Information>,
     pub num_senders: usize,
     pub off_time: PositiveContinuousDistribution<Float>,
     pub on_time: PositiveContinuousDistribution<Float>,

@@ -1,249 +1,152 @@
 use std::{
     fmt::Debug,
-    fmt::Display,
-    ops::{Add, Div, Mul, MulAssign, Sub},
+    ops::{Add, Sub},
 };
 
 use format_num::format_num;
-use rand_distr::num_traits::Zero;
-use serde::{Deserialize, Serialize};
+use uom::si::{
+    f64::{self, InformationRate, Time},
+    information::bit,
+    information_rate::bit_per_second,
+    time::second,
+    u64::Information,
+};
+
+pub mod packet {
+    unit! {
+        system: uom::si;
+        quantity: uom::si::information;
+
+        @packet: 1450.; "p", "packet", "packets";
+    }
+}
+
+pub mod packet_per_second {
+    unit! {
+        system: uom::si;
+        quantity: uom::si::information_rate;
+
+        @packet_per_second: 1450.; "p/s", "packet", "packets";
+    }
+}
 
 pub type Float = f64;
 
-#[derive(PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize)]
-pub struct TimeSpan(Float);
+pub trait Quantity {
+    fn display(&self) -> String;
+}
 
-impl Debug for TimeSpan {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self, f)
+impl Quantity for Time {
+    fn display(&self) -> String {
+        format!("{}s", format_num!(".3s", self.get::<second>()))
     }
 }
 
-impl TimeSpan {
-    #[must_use]
-    pub const fn new(ts: Float) -> TimeSpan {
-        TimeSpan(ts)
-    }
-
-    #[must_use]
-    pub const fn value(&self) -> Float {
-        self.0
-    }
-
-    #[must_use]
-    pub fn is_negative(&self) -> bool {
-        self.0 < 0.
+impl Quantity for TimePoint {
+    fn display(&self) -> String {
+        format!("{}t", format_num!(".4f", self.0.get::<second>()))
     }
 }
 
-impl Display for TimeSpan {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}s", format_num!(".3s", self.0))
+impl Quantity for Information {
+    fn display(&self) -> String {
+        #[allow(clippy::cast_precision_loss)]
+        return format!("{}b", format_num!(".3s", self.get::<bit>() as Float));
     }
 }
 
-impl From<i32> for TimeSpan {
-    fn from(value: i32) -> Self {
-        TimeSpan::new(value.into())
+impl Quantity for InformationRate {
+    fn display(&self) -> String {
+        format!("{}bps", format_num!(".3s", self.get::<bit_per_second>()))
     }
 }
 
-impl From<Float> for TimeSpan {
-    fn from(value: Float) -> Self {
-        TimeSpan::new(value)
-    }
+#[must_use]
+pub fn transmission_time(information: Information, rate: InformationRate) -> Time {
+    #[allow(clippy::cast_precision_loss)]
+    return f64::Information::new::<bit>(information.get::<bit>() as Float) / rate;
 }
 
-impl Zero for TimeSpan {
-    fn zero() -> Self {
-        TimeSpan::new(0.)
-    }
+#[derive(PartialEq, Debug, Clone, Copy)]
+pub struct TimePoint(Time);
 
-    fn is_zero(&self) -> bool {
-        self.0 == 0.
-    }
-}
-
-impl Add for TimeSpan {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        TimeSpan::new(self.0 + rhs.0)
-    }
-}
-
-impl Mul<TimeSpan> for Float {
-    type Output = TimeSpan;
-
-    fn mul(self, rhs: TimeSpan) -> Self::Output {
-        TimeSpan::new(self * rhs.0)
-    }
-}
-
-impl MulAssign<Float> for TimeSpan {
-    fn mul_assign(&mut self, rhs: Float) {
-        self.0 *= rhs;
-    }
-}
-
-impl Div<Float> for TimeSpan {
-    type Output = TimeSpan;
-
-    fn div(self, rhs: Float) -> Self::Output {
-        TimeSpan::new(self.0 / rhs)
-    }
-}
-
-impl Div<TimeSpan> for TimeSpan {
-    type Output = Float;
-
-    fn div(self, rhs: TimeSpan) -> Self::Output {
-        self.0 / rhs.0
-    }
-}
-
-#[derive(PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize)]
-pub struct Rate(Float);
-
-impl Debug for Rate {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self, f)
-    }
-}
-
-impl Rate {
-    #[must_use]
-    pub const fn new(r: Float) -> Rate {
-        Rate(r)
-    }
-
-    #[must_use]
-    pub fn period(&self) -> TimeSpan {
-        TimeSpan::new(1. / self.0)
-    }
-
-    #[must_use]
-    pub const fn value(&self) -> Float {
-        self.0
-    }
-}
-
-impl Add<Rate> for Rate {
-    type Output = Rate;
-
-    fn add(self, rhs: Rate) -> Self::Output {
-        Rate(self.0 + rhs.0)
-    }
-}
-
-impl Div<TimeSpan> for Float {
-    type Output = Rate;
-
-    fn div(self, rhs: TimeSpan) -> Self::Output {
-        Rate(self / rhs.0)
-    }
-}
-
-impl Div<Float> for Rate {
-    type Output = Rate;
-
-    fn div(self, rhs: Float) -> Self::Output {
-        Rate::new(self.0 / rhs)
-    }
-}
-
-impl Display for Rate {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.4}s^-1", self.0)
-    }
-}
-
-#[derive(PartialEq, Clone, Copy)]
-pub struct Time(Float);
-
-impl Debug for Time {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&self, f)
-    }
-}
-
-impl Time {
-    pub const MIN: Time = Time(Float::MIN);
-    pub const MAX: Time = Time(Float::MAX);
-
-    #[must_use]
-    pub const fn from_sim_start(t: Float) -> Time {
-        Time(t)
-    }
-
-    #[must_use]
-    pub const fn sim_start() -> Time {
-        Time::from_sim_start(0.)
-    }
-}
-
-impl Eq for Time {}
-
-impl PartialOrd for Time {
+impl PartialOrd for TimePoint {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for Time {
+impl Ord for TimePoint {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.total_cmp(&other.0)
+        self.0.partial_cmp(&other.0).unwrap()
     }
 }
 
-impl Sub<Time> for Time {
-    type Output = TimeSpan;
+impl Eq for TimePoint {}
 
-    fn sub(self, Time(t): Time) -> Self::Output {
-        TimeSpan::new(self.0 - t)
+impl TimePoint {
+    #[must_use]
+    pub fn min() -> TimePoint {
+        TimePoint(Time::new::<second>(Float::MIN))
+    }
+    #[must_use]
+    pub fn max() -> TimePoint {
+        TimePoint(Time::new::<second>(Float::MAX))
+    }
+
+    #[must_use]
+    pub fn from_sim_start(t: Float) -> TimePoint {
+        TimePoint(Time::new::<second>(t))
+    }
+
+    #[must_use]
+    pub fn sim_start() -> TimePoint {
+        TimePoint::from_sim_start(0.)
     }
 }
 
-impl Add<TimeSpan> for Time {
+impl Sub<TimePoint> for TimePoint {
     type Output = Time;
 
-    fn add(self, TimeSpan(ts): TimeSpan) -> Self::Output {
-        Time::from_sim_start(self.0 + ts)
+    fn sub(self, other: TimePoint) -> Self::Output {
+        self.0 - other.0
     }
 }
 
-impl Display for Time {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:.4}t", self.0)
+impl Add<Time> for TimePoint {
+    type Output = TimePoint;
+
+    fn add(self, time: Time) -> Self::Output {
+        TimePoint(self.0 + time)
     }
 }
 
 #[must_use]
-pub fn earliest(times: &[Time]) -> Time {
-    times.iter().copied().min().unwrap_or(Time::MIN)
+pub fn earliest(times: &[TimePoint]) -> TimePoint {
+    times.iter().copied().min().unwrap_or_else(TimePoint::min)
 }
 
 #[must_use]
-pub fn earliest_opt(times: &[Option<Time>]) -> Option<Time> {
+pub fn earliest_opt(times: &[Option<TimePoint>]) -> Option<TimePoint> {
     times
         .iter()
         .fold(None, |prev, current| match (prev, *current) {
-            (Some(Time(t1)), Some(Time(t2))) => Some(Time::from_sim_start(Float::min(t1, t2))),
+            (Some(TimePoint(t1)), Some(TimePoint(t2))) => Some(TimePoint(Time::min(t1, t2))),
             (m, None) | (None, m) => m,
         })
 }
 
 #[must_use]
-pub fn latest(times: &[Time]) -> Time {
-    times.iter().copied().max().unwrap_or(Time::MAX)
+pub fn latest(times: &[TimePoint]) -> TimePoint {
+    times.iter().copied().max().unwrap_or_else(TimePoint::max)
 }
 
 #[must_use]
-pub fn latest_opt(times: &[Option<Time>]) -> Option<Time> {
+pub fn latest_opt(times: &[Option<TimePoint>]) -> Option<TimePoint> {
     times
         .iter()
         .fold(None, |prev, current| match (prev, *current) {
-            (Some(Time(t1)), Some(Time(t2))) => Some(Time::from_sim_start(Float::max(t1, t2))),
+            (Some(TimePoint(t1)), Some(TimePoint(t2))) => Some(TimePoint(Time::max(t1, t2))),
             (m, None) | (None, m) => m,
         })
 }

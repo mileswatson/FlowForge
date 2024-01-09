@@ -20,9 +20,9 @@ pub fn create_all_configs(folder: &Path) -> Result<()> {
     TrainerConfig::DelayMultiplier(DelayMultiplierConfig::default())
         .save(&folder.join("trainer/delay_multiplier/default.json"))?;
 
-    UtilityConfig::AlphaFairness(AlphaFairness::MINIMISE_FIXED_LENGTH_FILE_TRANSFER)
+    UtilityConfig::AlphaFairness(AlphaFairness::minimized_fixed_length_file_transfer())
         .save(&folder.join("utility/mflft_default.json"))?;
-    UtilityConfig::AlphaFairness(AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS)
+    UtilityConfig::AlphaFairness(AlphaFairness::proportional_throughput_delay_fairness())
         .save(&folder.join("utility/ptdf_default.json"))?;
     Ok(())
 }

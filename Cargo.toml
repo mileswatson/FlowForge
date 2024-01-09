@@ -31,6 +31,13 @@ serde = { version = "1.0.189", features = ["derive", "std"] }
 serde_json = { version = "1.0.107", features = ["std"] }
 tabled = "0.14.0"
 tempfile = "3.8.0"
+uom = { version = "0.35.0", default-features = false, features = [
+    "f64",
+    "u64",
+    "si",
+    "std",
+    "serde",
+] }
 
 [build-dependencies]
 protobuf-codegen = "3.3.0"

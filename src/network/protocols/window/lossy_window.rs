@@ -1,20 +1,22 @@
 use std::fmt::Debug;
 
+use uom::si::f64::{InformationRate, Time};
+
 use crate::{
     flow::{Flow, FlowNeverActive, FlowProperties, NoPacketsAcked},
     logging::Logger,
-    meters::{DisabledRateMeter, EnabledRateMeter, Mean, RateMeterNeverEnabled},
+    meters::{DisabledInfoRateMeter, EnabledInfoRateMeter, Mean, RateMeterNeverEnabled},
     network::{toggler::Toggle, NetworkEffect, NetworkMessage, Packet},
     simulation::{
         try_case, Component, ComponentId, EffectContext, HasVariant, MaybeHasVariant, Message,
     },
-    time::{latest, Rate, Time, TimeSpan},
+    time::{latest, TimePoint},
 };
 
 #[derive(Debug)]
 pub struct LossyWindowSettings {
     pub window: u32,
-    pub intersend_delay: TimeSpan,
+    pub intersend_delay: Time,
 }
 
 pub trait LossyWindowBehavior<'a, L>: Debug {
@@ -22,8 +24,8 @@ pub trait LossyWindowBehavior<'a, L>: Debug {
     fn ack_received(
         &mut self,
         settings: &mut LossyWindowSettings,
-        sent_time: Time,
-        received_time: Time,
+        sent_time: TimePoint,
+        received_time: TimePoint,
         logger: &mut L,
     );
 }
@@ -31,33 +33,33 @@ pub trait LossyWindowBehavior<'a, L>: Debug {
 #[derive(Debug)]
 struct WaitingForEnable {
     packets_sent: u64,
-    average_throughput: DisabledRateMeter,
-    average_rtt: Mean<TimeSpan>,
+    average_throughput: DisabledInfoRateMeter,
+    average_rtt: Mean<Time>,
 }
 
 #[derive(Debug)]
 struct Enabled<B> {
-    last_send: Time,
+    last_send: TimePoint,
     greatest_ack: u64,
     settings: LossyWindowSettings,
     packets_sent: u64,
     behavior: B,
-    average_throughput: EnabledRateMeter,
-    average_rtt: Mean<TimeSpan>,
+    average_throughput: EnabledInfoRateMeter,
+    average_rtt: Mean<Time>,
 }
 
 impl<B> Enabled<B> {
     fn new<'a, L>(
         behavior: B,
         packets_sent: u64,
-        average_throughput: EnabledRateMeter,
-        average_rtt: Mean<TimeSpan>,
+        average_throughput: EnabledInfoRateMeter,
+        average_rtt: Mean<Time>,
     ) -> Self
     where
         B: LossyWindowBehavior<'a, L>,
     {
         Self {
-            last_send: Time::MIN,
+            last_send: TimePoint::min(),
             greatest_ack: 0,
             settings: behavior.initial_settings(),
             packets_sent,
@@ -67,7 +69,7 @@ impl<B> Enabled<B> {
         }
     }
 
-    fn next_send(&self, time: Time) -> Option<Time> {
+    fn next_send(&self, time: TimePoint) -> Option<TimePoint> {
         if self.packets_sent < self.greatest_ack + u64::from(self.settings.window) {
             Some(latest(&[
                 self.last_send + self.settings.intersend_delay,
@@ -142,7 +144,7 @@ where
             state: if wait_for_enable {
                 WaitingForEnable {
                     packets_sent: 0,
-                    average_throughput: DisabledRateMeter::new(),
+                    average_throughput: DisabledInfoRateMeter::new(),
                     average_rtt: Mean::new(),
                 }
                 .into()
@@ -150,7 +152,7 @@ where
                 Enabled::new(
                     new_behavior(),
                     0,
-                    EnabledRateMeter::new(Time::sim_start()),
+                    EnabledInfoRateMeter::new(TimePoint::sim_start()),
                     Mean::new(),
                 )
                 .into()
@@ -160,13 +162,13 @@ where
         }
     }
 
-    fn receive_packet(&mut self, packet: &Packet, EffectContext { time, .. }: EffectContext) {
+    fn receive_packet(&mut self, pkt: &Packet, EffectContext { time, .. }: EffectContext) {
         match &mut self.state {
             LossyWindowState::WaitingForEnable(_) => {
                 log!(
                     self.logger,
                     "Received packet {}, ignoring as disabled",
-                    packet.seq
+                    pkt.seq
                 );
             }
             LossyWindowState::Enabled(Enabled {
@@ -177,11 +179,11 @@ where
                 average_throughput,
                 ..
             }) => {
-                average_rtt.record(time - packet.sent_time);
-                average_throughput.record_event();
-                behavior.ack_received(settings, packet.sent_time, time, &mut self.logger);
-                log!(self.logger, "Received packet {}", packet.seq);
-                *greatest_ack = (*greatest_ack).max(packet.seq);
+                average_rtt.record(time - pkt.sent_time);
+                average_throughput.record_info(Packet::size());
+                behavior.ack_received(settings, pkt.sent_time, time, &mut self.logger);
+                log!(self.logger, "Received packet {}", pkt.seq);
+                *greatest_ack = (*greatest_ack).max(pkt.seq);
             }
         }
     }
@@ -246,7 +248,10 @@ where
         }
     }
 
-    fn average_throughput(&self, current_time: Time) -> Result<Rate, RateMeterNeverEnabled> {
+    fn average_throughput(
+        &self,
+        current_time: TimePoint,
+    ) -> Result<InformationRate, RateMeterNeverEnabled> {
         match &self.state {
             LossyWindowState::WaitingForEnable(WaitingForEnable {
                 average_throughput, ..
@@ -257,7 +262,7 @@ where
         }
     }
 
-    fn average_rtt(&self) -> Result<TimeSpan, NoPacketsAcked> {
+    fn average_rtt(&self) -> Result<Time, NoPacketsAcked> {
         match &self.state {
             LossyWindowState::WaitingForEnable(WaitingForEnable { average_rtt, .. })
             | LossyWindowState::Enabled(Enabled { average_rtt, .. }) => {
@@ -272,7 +277,7 @@ where
     B: LossyWindowBehavior<'a, L>,
     L: Logger,
 {
-    fn next_tick(&self, time: Time) -> Option<Time> {
+    fn next_tick(&self, time: TimePoint) -> Option<TimePoint> {
         match &self.state {
             LossyWindowState::WaitingForEnable(_) => None,
             LossyWindowState::Enabled(enabled) => enabled.next_send(time),
@@ -282,15 +287,15 @@ where
     fn tick(&mut self, context: EffectContext) -> Vec<NetworkMessage> {
         let time = context.time;
         assert_eq!(Some(time), Component::next_tick(self, time));
-        let packet = self.send(context);
+        let pkt = self.send(context);
         vec![Message {
             component_id: self.link,
-            effect: packet.into(),
+            effect: pkt.into(),
         }]
     }
 
     fn receive(&mut self, e: NetworkEffect, context: EffectContext) -> Vec<NetworkMessage> {
-        e.try_case(context, |packet, ctx| self.receive_packet(&packet, ctx))
+        e.try_case(context, |pkt, ctx| self.receive_packet(&pkt, ctx))
             .or_else(try_case(|toggle, ctx| self.receive_toggle(toggle, ctx)))
             .unwrap();
         vec![]
@@ -302,7 +307,7 @@ where
     B: LossyWindowBehavior<'a, L>,
     L: Logger,
 {
-    fn properties(&self, current_time: Time) -> Result<FlowProperties, FlowNeverActive> {
+    fn properties(&self, current_time: TimePoint) -> Result<FlowProperties, FlowNeverActive> {
         self.average_throughput(current_time)
             .map_err(|_| FlowNeverActive {})
             .map(|average_throughput| FlowProperties {
@@ -334,25 +339,25 @@ where
     }
 
     fn receive(&mut self, e: E, _: EffectContext) -> Vec<Message<E>> {
-        let packet = e.try_into().unwrap();
+        let pkt = e.try_into().unwrap();
         log!(
             self.logger,
             "Bounced packet {} back to {:?}",
-            packet.seq,
-            packet.source
+            pkt.seq,
+            pkt.source
         );
         vec![Message {
             component_id: self.link,
             effect: Packet {
-                source: packet.destination,
-                destination: packet.source,
-                ..packet
+                source: pkt.destination,
+                destination: pkt.source,
+                ..pkt
             }
             .into(),
         }]
     }
 
-    fn next_tick(&self, _time: Time) -> Option<Time> {
+    fn next_tick(&self, _time: TimePoint) -> Option<TimePoint> {
         None
     }
 }

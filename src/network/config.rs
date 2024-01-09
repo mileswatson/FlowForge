@@ -1,12 +1,18 @@
 use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
+use uom::si::{
+    f64::{InformationRate, Time},
+    information_rate::bit_per_second,
+    time::second,
+    u64::Information,
+};
 
 use crate::{
     rand::{
         ContinuousDistribution, DiscreteDistribution, PositiveContinuousDistribution,
         ProbabilityDistribution,
     },
-    time::{Float, Rate, TimeSpan},
+    time::{packet::packet, Float},
 };
 
 use super::Network;
@@ -52,10 +58,13 @@ impl Default for NetworkConfig {
 impl Distribution<Network> for NetworkConfig {
     fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Network {
         Network {
-            rtt: TimeSpan::new(rng.sample(&self.rtt)),
-            packet_rate: Rate::new(rng.sample(&self.packet_rate)),
+            rtt: Time::new::<second>(rng.sample(&self.rtt)),
+            packet_rate: InformationRate::new::<bit_per_second>(rng.sample(&self.packet_rate)),
             loss_rate: rng.sample(&self.loss_rate),
-            buffer_size: self.buffer_size.as_ref().map(|d| rng.sample(d) as usize),
+            buffer_size: self
+                .buffer_size
+                .as_ref()
+                .map(|d| Information::new::<packet>(u64::from(rng.sample(d)))),
             num_senders: rng.sample(&self.num_senders) as usize,
             off_time: self.off_time.clone(),
             on_time: self.on_time.clone(),

@@ -1,22 +1,24 @@
+use crate::time::Quantity;
+
 use super::point::Point;
 
-use std::fmt::Debug;
+use std::fmt::Display;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Cube<const TESTING: bool = false> {
     pub min: Point<TESTING>,
     pub max: Point<TESTING>,
 }
 
-impl<const TESTING: bool> Debug for Cube<TESTING> {
+impl<const TESTING: bool> Display for Cube<TESTING> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Cube {{ ack_ewma: {:.4}-{:.4}, send_ewma: {:.4}-{:.4}, rtt_ratio: {:.4}-{:.4} }}",
-            self.min.ack_ewma,
-            self.max.ack_ewma,
-            self.min.send_ewma,
-            self.max.send_ewma,
+            "Cube {{ ack_ewma: {}-{}, send_ewma: {}-{}, rtt_ratio: {:.4}-{:.4} }}",
+            self.min.ack_ewma.display(),
+            self.max.ack_ewma.display(),
+            self.min.send_ewma.display(),
+            self.max.send_ewma.display(),
             self.min.rtt_ratio,
             self.max.rtt_ratio
         )
@@ -26,8 +28,8 @@ impl<const TESTING: bool> Debug for Cube<TESTING> {
 impl Default for Cube {
     fn default() -> Self {
         Self {
-            min: Point::MIN,
-            max: Point::MAX,
+            min: Point::min(),
+            max: Point::max(),
         }
     }
 }

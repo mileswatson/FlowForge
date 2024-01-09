@@ -6,8 +6,8 @@
   },
   "packet_rate": {
     "type": "uniform",
-    "min": 800.0,
-    "max": 1700.0
+    "min": 10000000,
+    "max": 20000000
   },
   "loss_rate": {
     "type": "always",

@@ -1,5 +1,5 @@
 use std::{
-    fmt::Debug,
+    fmt::{Debug, Display},
     iter::successors,
     ops::{Add, Mul},
 };
@@ -8,8 +8,12 @@ use format_num::format_num;
 use itertools::Itertools;
 use protobuf::MessageField;
 use serde::{Deserialize, Serialize};
+use uom::si::{
+    f64::Time,
+    time::{millisecond, second},
+};
 
-use crate::time::{Float, TimeSpan};
+use crate::time::{Float, Quantity};
 
 use super::{
     autogen::remy_dna::{MemoryRange, Whisker},
@@ -17,21 +21,21 @@ use super::{
     RemyConfig,
 };
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Action<const TESTING: bool = false> {
     pub window_multiplier: Float,
     pub window_increment: i32,
-    pub intersend_delay: TimeSpan,
+    pub intersend_delay: Time,
 }
 
-impl<const TESTING: bool> Debug for Action<TESTING> {
+impl<const TESTING: bool> Display for Action<TESTING> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
             "Action {{ window_multiplier: {}, window_increment: {}, intersend_delay: {} }}",
             &format_num!(".3f", self.window_multiplier),
             &self.window_increment,
-            &self.intersend_delay,
+            self.intersend_delay.display(),
         )
     }
 }
@@ -75,7 +79,7 @@ impl<const TESTING: bool> Action<TESTING> {
             max_action_change.window_increment,
             *action_change_multiplier,
         ))
-        .cartesian_product(changes::<TimeSpan, Float>(
+        .cartesian_product(changes::<Time, Float>(
             initial_action_change.intersend_delay,
             max_action_change.intersend_delay,
             *action_change_multiplier,
@@ -105,7 +109,7 @@ impl<const TESTING: bool> Action<TESTING> {
         Action {
             window_multiplier: whisker.window_multiple(),
             window_increment: whisker.window_increment(),
-            intersend_delay: TimeSpan::new(if TESTING {
+            intersend_delay: Time::new::<second>(if TESTING {
                 whisker.intersend()
             } else {
                 whisker.intersend() / 1000.
@@ -125,9 +129,9 @@ impl Whisker {
         memory_range.upper = MessageField::some(max.to_memory());
         let mut whisker = Whisker::new();
         whisker.set_intersend(if TESTING {
-            value.intersend_delay.value()
+            value.intersend_delay.get::<second>()
         } else {
-            value.intersend_delay.value() * 1000.
+            value.intersend_delay.get::<millisecond>()
         });
         whisker.set_window_increment(value.window_increment);
         whisker.set_window_multiple(value.window_multiplier);

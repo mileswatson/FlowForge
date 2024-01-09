@@ -9,13 +9,14 @@ use std::{
     rc::Rc,
     sync::atomic::{AtomicU64, Ordering},
 };
+use uom::si::f64::Time;
 
 use priority_queue::PriorityQueue;
 
 use crate::{
     logging::Logger,
     rand::Rng,
-    time::{Time, TimeSpan},
+    time::{Quantity, TimePoint},
 };
 
 #[derive(Debug)]
@@ -178,34 +179,34 @@ impl<E> Message<E> {
 #[derive(Debug)]
 pub struct EffectContext<'a> {
     pub self_id: ComponentId,
-    pub time: Time,
+    pub time: TimePoint,
     pub rng: &'a mut Rng,
 }
 
 pub trait Component<E>: Debug {
-    fn next_tick(&self, time: Time) -> Option<Time>;
+    fn next_tick(&self, time: TimePoint) -> Option<TimePoint>;
     fn tick(&mut self, context: EffectContext) -> Vec<Message<E>>;
     fn receive(&mut self, e: E, context: EffectContext) -> Vec<Message<E>>;
 }
 
 #[derive(Debug)]
 pub struct EventQueue<I: Hash + Eq, E> {
-    current_time: Time,
+    current_time: TimePoint,
     waiting: FxHashMap<I, E>,
-    queue: PriorityQueue<I, Reverse<Time>, BuildHasherDefault<FxHasher>>,
+    queue: PriorityQueue<I, Reverse<TimePoint>, BuildHasherDefault<FxHasher>>,
 }
 
 impl<I: Hash + Eq + Copy, E> EventQueue<I, E> {
     #[must_use]
     pub fn new() -> EventQueue<I, E> {
         EventQueue {
-            current_time: Time::MIN,
+            current_time: TimePoint::min(),
             waiting: FxHashMap::default(),
             queue: PriorityQueue::<_, _, BuildHasherDefault<FxHasher>>::with_default_hasher(),
         }
     }
 
-    pub fn update(&mut self, id: I, time: Option<Time>) {
+    pub fn update(&mut self, id: I, time: Option<TimePoint>) {
         if let Some(time) = time {
             assert!(time >= self.current_time);
             self.queue.push(id, Reverse(time));
@@ -215,17 +216,17 @@ impl<I: Hash + Eq + Copy, E> EventQueue<I, E> {
         }
     }
 
-    pub fn insert_or_update(&mut self, id: I, event: E, time: Option<Time>) {
+    pub fn insert_or_update(&mut self, id: I, event: E, time: Option<TimePoint>) {
         self.waiting.insert(id, event);
         self.update(id, time);
     }
 
     #[must_use]
-    pub fn next_time(&self) -> Option<Time> {
+    pub fn next_time(&self) -> Option<TimePoint> {
         self.queue.peek().map(|(_, Reverse(x))| *x)
     }
 
-    pub fn pop_next(&mut self) -> Option<(Time, I, E)> {
+    pub fn pop_next(&mut self) -> Option<(TimePoint, I, E)> {
         if let Some((component_id, Reverse(time))) = self.queue.pop() {
             self.current_time = time;
             Some((
@@ -349,7 +350,7 @@ where
     E: Debug,
     L: Logger,
 {
-    fn handle_messages(&mut self, time: Time, effects: &mut EffectQueue<E>) {
+    fn handle_messages(&mut self, time: TimePoint, effects: &mut EffectQueue<E>) {
         while let Some(Message {
             component_id,
             effect,
@@ -375,7 +376,7 @@ where
     fn tick_without_messages(
         &mut self,
         component_id: ComponentId,
-        time: Time,
+        time: TimePoint,
         effects: &mut EffectQueue<E>,
     ) {
         assert_eq!(component_id.sim_id, self.id);
@@ -391,15 +392,15 @@ where
         effects.push_all(messages);
     }
 
-    fn tick(&mut self, component_id: ComponentId, time: Time) {
-        log!(self.logger, "time = {}", &time);
+    fn tick(&mut self, component_id: ComponentId, time: TimePoint) {
+        log!(self.logger, "time = {}", time.display());
         let mut effects = EffectQueue::new();
         self.tick_without_messages(component_id, time, &mut effects);
         self.handle_messages(time, &mut effects);
     }
 
-    pub fn run_for(mut self, timespan: TimeSpan) {
-        let end_time = Time::sim_start() + timespan;
+    pub fn run_for(mut self, timespan: Time) {
+        let end_time = TimePoint::sim_start() + timespan;
         self.components
             .iter()
             .enumerate()
@@ -407,7 +408,7 @@ where
                 self.tick_queue.insert_or_update(
                     ComponentId::new(idx, self.id),
                     (),
-                    component.borrow().next_tick(Time::sim_start()),
+                    component.borrow().next_tick(TimePoint::sim_start()),
                 );
             });
         while let Some((time, component_id, ())) = self.tick_queue.pop_next() {

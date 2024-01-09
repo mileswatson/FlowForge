@@ -4,6 +4,7 @@ use anyhow::Result;
 use ordered_float::NotNan;
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
+use uom::si::{f64::Time, time::millisecond};
 
 use crate::{
     evaluator::{EvaluationConfig, PopulateComponents},
@@ -56,28 +57,28 @@ impl Default for RemyConfig {
             min_action: Action {
                 window_multiplier: 0.,
                 window_increment: 0,
-                intersend_delay: 0.000_25.into(),
+                intersend_delay: Time::new::<millisecond>(0.25),
             },
             max_action: Action {
                 window_multiplier: 1.,
                 window_increment: 256,
-                intersend_delay: 0.003.into(),
+                intersend_delay: Time::new::<millisecond>(3.),
             },
             initial_action_change: Action {
                 window_multiplier: 0.01,
                 window_increment: 1,
-                intersend_delay: 0.000_05.into(),
+                intersend_delay: Time::new::<millisecond>(0.05),
             },
             max_action_change: Action {
                 window_multiplier: 0.5,
                 window_increment: 32,
-                intersend_delay: 0.001.into(),
+                intersend_delay: Time::new::<millisecond>(1.),
             },
             action_change_multiplier: 4,
             default_action: Action {
                 window_multiplier: 1.,
                 window_increment: 1,
-                intersend_delay: 0.003.into(),
+                intersend_delay: Time::new::<millisecond>(3.),
             },
             evaluation_config: EvaluationConfig::default(),
         }
@@ -238,7 +239,7 @@ impl Trainer for RemyTrainer {
             } else {
                 let (fraction_used, leaf) = counts.most_used_rule();
                 println!(
-                    "Split rule {:?} with usage {:.2}%",
+                    "Split rule {} with usage {:.2}%",
                     leaf.domain(),
                     fraction_used * 100.
                 );
@@ -257,11 +258,11 @@ impl Trainer for RemyTrainer {
                         break;
                     }
                     println!(
-                        "    Optimizing {:?} with usage {:.2}%",
+                        "    Optimizing {} with usage {:.2}%",
                         leaf.domain(),
                         fraction_used * 100.
                     );
-                    println!("      Currently {:?}", leaf.action());
+                    println!("      Currently {}", leaf.action());
                     while let Some((s, _, new_action)) = leaf
                         .action()
                         .possible_improvements(&self.config)
@@ -272,7 +273,7 @@ impl Trainer for RemyTrainer {
                         .filter(|(s, _, _)| s > &score)
                         .max_by_key(|(s, _, _)| NotNan::new(*s).unwrap())
                     {
-                        println!("      Changed to {new_action:?}");
+                        println!("      Changed to {new_action}");
                         score = s;
                         *leaf.action() = new_action;
                     }
@@ -291,7 +292,7 @@ impl Trainer for RemyTrainer {
                 dna.tree.mark_all_unoptimized();
                 (score, props, counts) = evaluate_and_count(&mut dna.tree, rng);
             }
-            println!("Achieved score {score:.2} with properties {props:?}");
+            println!("Achieved score {score:.2} with properties {props}");
         }
         progress_handler.update_progress(1., Some(&dna));
         dna
@@ -339,14 +340,14 @@ mod tests {
             let trainer = RemyTrainer::new(&remy_config);
             let dna = trainer.train(
                 &NetworkConfig::default(),
-                &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
+                &AlphaFairness::proportional_throughput_delay_fairness(),
                 &mut |_, _: Option<&RemyDna>| {},
                 &mut rng,
             );
             trainer.evaluate(
                 &dna,
                 &NetworkConfig::default(),
-                &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
+                &AlphaFairness::minimized_fixed_length_file_transfer(),
                 &mut rng,
             )
         };

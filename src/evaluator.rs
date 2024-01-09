@@ -3,13 +3,15 @@ use std::rc::Rc;
 use itertools::Itertools;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
+use uom::si::{f64::Time, time::second};
 
 use crate::{
     average::{AveragePair, IterAverage, SameEmptiness},
     flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
     network::{config::NetworkConfig, Network, NetworkSlots},
     rand::Rng,
-    time::{Float, Time, TimeSpan},
+    time::Float,
+    time::TimePoint,
 };
 
 pub trait PopulateComponents: Sync {
@@ -44,20 +46,20 @@ impl EvaluationConfig {
         utility_function: &(impl UtilityFunction + ?Sized),
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
-        let run_sim_for = TimeSpan::new(self.run_sim_for);
+        let run_sim_for = Time::new::<second>(self.run_sim_for);
         let score_network = |(n, mut rng): (Network, Rng)| {
             let (sim, flows) = n.to_sim(&mut rng, |slots, rng| {
                 components.populate_components(slots, rng)
             });
             sim.run_for(run_sim_for);
-            utility_function.total_utility(&flows, Time::sim_start() + run_sim_for)
+            utility_function.total_utility(&flows, TimePoint::sim_start() + run_sim_for)
         };
 
         let networks = (0..self.network_samples)
             .map(|_| (rng.sample(network_config), rng.create_child()))
             .collect_vec();
         networks
-            .into_par_iter()
+            .into_iter()
             .map(score_network)
             .filter_map(Result::ok)
             .map(AveragePair::new)

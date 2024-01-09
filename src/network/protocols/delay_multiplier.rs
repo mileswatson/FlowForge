@@ -1,10 +1,12 @@
+use uom::{si::f64::Time, ConstZero};
+
 use crate::{
-    meters::EWMA,
     flow::{Flow, FlowNeverActive, FlowProperties},
     logging::Logger,
+    meters::EWMA,
     network::{NetworkEffect, NetworkMessage},
     simulation::{Component, ComponentId, EffectContext},
-    time::{Float, Time, TimeSpan},
+    time::{Float, Quantity, TimePoint},
 };
 
 use super::window::lossy_window::{LossyWindowBehavior, LossyWindowSender, LossyWindowSettings};
@@ -12,7 +14,7 @@ use super::window::lossy_window::{LossyWindowBehavior, LossyWindowSender, LossyW
 #[derive(Debug)]
 struct Behavior {
     multiplier: Float,
-    rtt: EWMA<TimeSpan>,
+    rtt: EWMA<Time>,
 }
 
 impl<L> LossyWindowBehavior<'static, L> for Behavior
@@ -22,20 +24,24 @@ where
     fn initial_settings(&self) -> LossyWindowSettings {
         LossyWindowSettings {
             window: 1,
-            intersend_delay: TimeSpan::new(0.),
+            intersend_delay: Time::ZERO,
         }
     }
 
     fn ack_received(
         &mut self,
         current: &mut LossyWindowSettings,
-        sent_time: Time,
-        received_time: Time,
+        sent_time: TimePoint,
+        received_time: TimePoint,
         logger: &mut L,
     ) {
         let rtt = self.rtt.update(received_time - sent_time);
         let intersend_delay = self.multiplier * rtt;
-        log!(logger, "Updated intersend_delay to {}", intersend_delay);
+        log!(
+            logger,
+            "Updated intersend_delay to {}",
+            intersend_delay.display()
+        );
         *current = LossyWindowSettings {
             intersend_delay,
             ..*current
@@ -86,7 +92,7 @@ where
         self.0.receive(e, context)
     }
 
-    fn next_tick(&self, time: Time) -> Option<Time> {
+    fn next_tick(&self, time: TimePoint) -> Option<TimePoint> {
         Component::next_tick(&self.0, time)
     }
 }
@@ -95,7 +101,7 @@ impl<L> Flow for LossySender<L>
 where
     L: Logger,
 {
-    fn properties(&self, current_time: Time) -> Result<FlowProperties, FlowNeverActive> {
+    fn properties(&self, current_time: TimePoint) -> Result<FlowProperties, FlowNeverActive> {
         self.0.properties(current_time)
     }
 }

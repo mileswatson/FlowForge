@@ -66,10 +66,10 @@ struct Args {
 }
 
 fn main() -> Result<()> {
-    /* rayon::ThreadPoolBuilder::new()
-    .num_threads(1)
-    .build_global()
-    .unwrap();*/
+    rayon::ThreadPoolBuilder::new()
+        .num_threads(1)
+        .build_global()
+        .unwrap();
     let args = Args::parse();
     match args.command {
         Command::GenConfigs { output_folder } => create_all_configs(&output_folder),

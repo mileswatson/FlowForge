@@ -1,12 +1,14 @@
 use std::fmt::Debug;
 
+use uom::{si::f64::Time, ConstZero};
+
 use crate::{
     flow::{Flow, FlowNeverActive, FlowProperties},
     logging::Logger,
     meters::EWMA,
     network::{NetworkEffect, NetworkMessage},
     simulation::{Component, ComponentId, EffectContext},
-    time::{Time, TimeSpan},
+    time::TimePoint,
     trainers::remy::{action::Action, point::Point, rule_tree::RuleTree},
 };
 
@@ -14,17 +16,17 @@ use super::window::lossy_window::{LossyWindowBehavior, LossyWindowSender, LossyW
 
 #[derive(Debug, Clone)]
 struct Rtt {
-    min: TimeSpan,
-    current: TimeSpan,
+    min: Time,
+    current: Time,
 }
 
 #[derive(Debug)]
 struct Behavior<'a, T> {
     rule_tree: &'a T,
-    last_ack: Option<Time>,
-    last_send: Option<Time>,
-    ack_ewma: EWMA<TimeSpan>,
-    send_ewma: EWMA<TimeSpan>,
+    last_ack: Option<TimePoint>,
+    last_send: Option<TimePoint>,
+    ack_ewma: EWMA<Time>,
+    send_ewma: EWMA<Time>,
     rtt: Option<Rtt>,
 }
 
@@ -45,9 +47,12 @@ where
 
     fn point(&self) -> Point {
         Point {
-            ack_ewma: self.ack_ewma.value().unwrap_or(TimeSpan::new(0.)),
-            send_ewma: self.send_ewma.value().unwrap_or(TimeSpan::new(0.)),
-            rtt_ratio: self.rtt.as_ref().map_or(0., |rtt| rtt.current / rtt.min),
+            ack_ewma: self.ack_ewma.value().unwrap_or(Time::ZERO),
+            send_ewma: self.send_ewma.value().unwrap_or(Time::ZERO),
+            rtt_ratio: self
+                .rtt
+                .as_ref()
+                .map_or(0., |rtt| (rtt.current / rtt.min).into()),
         }
     }
 
@@ -66,15 +71,15 @@ where
     fn initial_settings(&self) -> LossyWindowSettings {
         LossyWindowSettings {
             window: 1,
-            intersend_delay: TimeSpan::new(0.),
+            intersend_delay: Time::ZERO,
         }
     }
 
     fn ack_received(
         &mut self,
         current: &mut LossyWindowSettings,
-        sent_time: Time,
-        received_time: Time,
+        sent_time: TimePoint,
+        received_time: TimePoint,
         logger: &mut L,
     ) {
         if let Some(last_ack) = self.last_ack {
@@ -157,7 +162,7 @@ where
         self.0.receive(e, context)
     }
 
-    fn next_tick(&self, time: Time) -> Option<Time> {
+    fn next_tick(&self, time: TimePoint) -> Option<TimePoint> {
         Component::next_tick(&self.0, time)
     }
 }
@@ -167,7 +172,7 @@ where
     L: Logger,
     T: RuleTree,
 {
-    fn properties(&self, current_time: Time) -> Result<FlowProperties, FlowNeverActive> {
+    fn properties(&self, current_time: TimePoint) -> Result<FlowProperties, FlowNeverActive> {
         self.0.properties(current_time)
     }
 }

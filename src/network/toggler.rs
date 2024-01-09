@@ -1,7 +1,9 @@
+use uom::si::{f64::Time, time::second};
+
 use crate::{
     rand::{PositiveContinuousDistribution, Rng},
     simulation::{Component, ComponentId, EffectContext, HasVariant, Message},
-    time::{Float, Time, TimeSpan},
+    time::{Float, TimePoint},
 };
 
 #[derive(PartialEq, Eq, Debug)]
@@ -16,7 +18,7 @@ pub struct Toggler {
     enabled: bool,
     on_distribution: PositiveContinuousDistribution<Float>,
     off_distribution: PositiveContinuousDistribution<Float>,
-    next_toggle: Time,
+    next_toggle: TimePoint,
 }
 
 impl Toggler {
@@ -29,7 +31,7 @@ impl Toggler {
         Toggler {
             target,
             enabled: false,
-            next_toggle: Time::from_sim_start(rng.sample(&off_distribution)),
+            next_toggle: TimePoint::from_sim_start(rng.sample(&off_distribution)),
             on_distribution,
             off_distribution,
         }
@@ -55,7 +57,7 @@ where
                 effects.push(Message::new(self.target, Toggle::Disable));
                 &self.off_distribution
             };
-            self.next_toggle = context.time + TimeSpan::new(context.rng.sample(&dist));
+            self.next_toggle = context.time + Time::new::<second>(context.rng.sample(&dist));
         }
         effects
     }
@@ -64,7 +66,7 @@ where
         panic!()
     }
 
-    fn next_tick(&self, _time: Time) -> Option<Time> {
+    fn next_tick(&self, _time: TimePoint) -> Option<TimePoint> {
         Some(self.next_toggle)
     }
 }

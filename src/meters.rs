@@ -1,11 +1,16 @@
 use std::ops::{Add, Mul};
 
 use rand_distr::num_traits::Zero;
-
-use crate::{
-    average::Average,
-    time::{Float, Rate, Time, TimeSpan},
+use uom::{
+    si::{
+        f64::{self, InformationRate, Time},
+        information::bit,
+        u64::Information,
+    },
+    ConstZero,
 };
+
+use crate::{average::Average, time::TimePoint, Float};
 
 #[derive(Clone, Debug)]
 pub struct Mean<T>
@@ -81,125 +86,144 @@ where
 
 #[derive(Clone, Debug)]
 pub struct DisabledTimer {
-    total_time: TimeSpan,
+    total_time: Time,
 }
 
 #[derive(Clone, Debug)]
 pub struct EnabledTimer {
-    total_time: TimeSpan,
-    current_start: Time,
+    total_time: Time,
+    current_start: TimePoint,
 }
 
 impl DisabledTimer {
     #[must_use]
     pub const fn new() -> DisabledTimer {
         DisabledTimer {
-            total_time: TimeSpan::new(0.),
+            total_time: Time::ZERO,
         }
     }
 
     #[must_use]
-    pub const fn enable(self, time: Time) -> EnabledTimer {
+    pub const fn enable(self, timepoint: TimePoint) -> EnabledTimer {
         EnabledTimer {
             total_time: self.total_time,
-            current_start: time,
+            current_start: timepoint,
         }
     }
 
     #[must_use]
-    pub const fn current_value(&self) -> TimeSpan {
+    pub const fn current_value(&self) -> Time {
         self.total_time
+    }
+}
+
+impl Default for DisabledTimer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl EnabledTimer {
     #[must_use]
-    pub const fn new(time: Time) -> EnabledTimer {
+    pub const fn new(timepoint: TimePoint) -> EnabledTimer {
         EnabledTimer {
-            total_time: TimeSpan::new(0.),
-            current_start: time,
+            total_time: Time::ZERO,
+            current_start: timepoint,
         }
     }
 
     #[must_use]
-    pub fn disable(self, time: Time) -> DisabledTimer {
+    pub fn disable(self, timepoint: TimePoint) -> DisabledTimer {
         DisabledTimer {
-            total_time: self.total_time + (time - self.current_start),
+            total_time: self.total_time + (timepoint - self.current_start),
         }
     }
 
     #[must_use]
-    pub fn current_value(&self, time: Time) -> TimeSpan {
-        self.total_time + (time - self.current_start)
+    pub fn current_value(&self, timepoint: TimePoint) -> Time {
+        self.total_time + (timepoint - self.current_start)
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct DisabledRateMeter {
+pub struct DisabledInfoRateMeter {
     timer: DisabledTimer,
-    count: u64,
+    total: Information,
 }
 
 #[derive(Clone, Debug)]
-pub struct EnabledRateMeter {
+pub struct EnabledInfoRateMeter {
     timer: EnabledTimer,
-    count: u64,
+    total: Information,
 }
 
-fn calculate_rate(count: u64, enabled_time: TimeSpan) -> Result<Rate, RateMeterNeverEnabled> {
-    assert!(!enabled_time.is_negative());
+fn calculate_rate(
+    total: Information,
+    enabled_time: Time,
+) -> Result<InformationRate, RateMeterNeverEnabled> {
+    assert!(!enabled_time.is_sign_negative());
     if enabled_time.is_zero() {
         return Err(RateMeterNeverEnabled);
     }
     #[allow(clippy::cast_precision_loss)]
-    return Ok(count as f64 / enabled_time);
+    Ok((f64::Information::new::<bit>(total.get::<bit>() as f64) / enabled_time).into())
 }
 
-impl DisabledRateMeter {
+impl DisabledInfoRateMeter {
     #[must_use]
-    pub const fn new() -> DisabledRateMeter {
-        DisabledRateMeter {
+    pub fn new() -> DisabledInfoRateMeter {
+        DisabledInfoRateMeter {
             timer: DisabledTimer::new(),
-            count: 0,
+            total: Information::zero(),
         }
     }
 
     #[must_use]
-    pub const fn enable(self, time: Time) -> EnabledRateMeter {
-        EnabledRateMeter {
-            timer: self.timer.enable(time),
-            count: self.count,
+    pub const fn enable(self, timepoint: TimePoint) -> EnabledInfoRateMeter {
+        EnabledInfoRateMeter {
+            timer: self.timer.enable(timepoint),
+            total: self.total,
         }
     }
 
-    pub fn current_value(&self) -> Result<Rate, RateMeterNeverEnabled> {
-        calculate_rate(self.count, self.timer.current_value())
+    pub fn current_value(&self) -> Result<InformationRate, RateMeterNeverEnabled> {
+        calculate_rate(self.total, self.timer.current_value())
+    }
+}
+
+impl Default for DisabledInfoRateMeter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 pub struct RateMeterNeverEnabled;
 
-impl EnabledRateMeter {
+impl EnabledInfoRateMeter {
     #[must_use]
-    pub const fn new(time: Time) -> EnabledRateMeter {
-        EnabledRateMeter {
-            timer: EnabledTimer::new(time),
-            count: 0,
+    pub fn new(timepoint: TimePoint) -> EnabledInfoRateMeter {
+        EnabledInfoRateMeter {
+            timer: EnabledTimer::new(timepoint),
+            total: Information::zero(),
         }
     }
-    pub fn record_event(&mut self) {
-        self.count += 1;
+    pub fn record_info(&mut self, info: Information) {
+        self.total.get::<bit>();
+        self.total += info;
     }
 
-    pub fn current_value(&self, time: Time) -> Result<Rate, RateMeterNeverEnabled> {
-        calculate_rate(self.count, self.timer.current_value(time))
+    pub fn current_value(
+        &self,
+        timepoint: TimePoint,
+    ) -> Result<InformationRate, RateMeterNeverEnabled> {
+        calculate_rate(self.total, self.timer.current_value(timepoint))
     }
 
     #[must_use]
-    pub fn disable(self, time: Time) -> DisabledRateMeter {
-        DisabledRateMeter {
-            timer: self.timer.disable(time),
-            count: self.count,
+    pub fn disable(self, timepoint: TimePoint) -> DisabledInfoRateMeter {
+        DisabledInfoRateMeter {
+            timer: self.timer.disable(timepoint),
+            total: self.total,
         }
     }
 }
