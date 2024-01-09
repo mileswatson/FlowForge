@@ -97,16 +97,16 @@ impl<B> From<Enabled<B>> for LossyWindowState<B> {
     }
 }
 
-pub struct LossyWindowSender<'a, B, L> {
+pub struct LossyWindowSender<'sim, 'a, B, L> {
     new_behavior: Box<dyn (Fn() -> B) + 'a>,
-    id: ComponentId,
-    link: ComponentId,
-    destination: ComponentId,
+    id: ComponentId<'sim>,
+    link: ComponentId<'sim>,
+    destination: ComponentId<'sim>,
     state: LossyWindowState<B>,
     logger: L,
 }
 
-impl<'a, B, L> Debug for LossyWindowSender<'a, B, L>
+impl<'sim, 'a, B, L> Debug for LossyWindowSender<'sim, 'a, B, L>
 where
     B: LossyWindowBehavior<'a, L>,
     L: Logger,
@@ -122,19 +122,19 @@ where
     }
 }
 
-impl<'a, B, L> LossyWindowSender<'a, B, L>
+impl<'sim, 'a, B, L> LossyWindowSender<'sim, 'a, B, L>
 where
     B: LossyWindowBehavior<'a, L>,
     L: Logger,
 {
     pub fn new(
-        id: ComponentId,
-        link: ComponentId,
-        destination: ComponentId,
+        id: ComponentId<'sim>,
+        link: ComponentId<'sim>,
+        destination: ComponentId<'sim>,
         new_behavior: Box<dyn (Fn() -> B) + 'a>,
         wait_for_enable: bool,
         logger: L,
-    ) -> LossyWindowSender<'a, B, L> {
+    ) -> LossyWindowSender<'sim, 'a, B, L> {
         LossyWindowSender {
             id,
             link,
@@ -226,7 +226,7 @@ where
         }
     }
 
-    fn send(&mut self, EffectContext { time, .. }: EffectContext) -> Packet {
+    fn send(&mut self, EffectContext { time, .. }: EffectContext<'sim, '_>) -> Packet<'sim> {
         match &mut self.state {
             LossyWindowState::Enabled(Enabled {
                 packets_sent,
@@ -270,7 +270,7 @@ where
     }
 }
 
-impl<'a, B, L> Component<NetworkEffect> for LossyWindowSender<'a, B, L>
+impl<'sim, 'a, B, L> Component<'sim, NetworkEffect<'sim>> for LossyWindowSender<'sim, 'a, B, L>
 where
     B: LossyWindowBehavior<'a, L>,
     L: Logger,
@@ -282,7 +282,7 @@ where
         }
     }
 
-    fn tick(&mut self, context: EffectContext) -> Vec<NetworkMessage> {
+    fn tick(&mut self, context: EffectContext<'sim, '_>) -> Vec<NetworkMessage<'sim>> {
         let time = context.time;
         assert_eq!(Some(time), Component::next_tick(self, time));
         let packet = self.send(context);
@@ -292,7 +292,11 @@ where
         }]
     }
 
-    fn receive(&mut self, e: NetworkEffect, context: EffectContext) -> Vec<NetworkMessage> {
+    fn receive(
+        &mut self,
+        e: NetworkEffect<'sim>,
+        context: EffectContext<'sim, '_>,
+    ) -> Vec<NetworkMessage<'sim>> {
         e.try_case(context, |packet, ctx| self.receive_packet(&packet, ctx))
             .or_else(try_case(|toggle, ctx| self.receive_toggle(toggle, ctx)))
             .unwrap();
@@ -300,7 +304,7 @@ where
     }
 }
 
-impl<'a, B, L> Flow for LossyWindowSender<'a, B, L>
+impl<'sim, 'a, B, L> Flow for LossyWindowSender<'sim, 'a, B, L>
 where
     B: LossyWindowBehavior<'a, L>,
     L: Logger,
@@ -316,27 +320,27 @@ where
 }
 
 #[derive(Debug)]
-pub struct LossyBouncer<L> {
-    link: ComponentId,
+pub struct LossyBouncer<'sim, L> {
+    link: ComponentId<'sim>,
     logger: L,
 }
 
-impl<L> LossyBouncer<L> {
+impl<'sim, L> LossyBouncer<'sim, L> {
     pub const fn new(link: ComponentId, logger: L) -> LossyBouncer<L> {
         LossyBouncer { link, logger }
     }
 }
 
-impl<E, L> Component<E> for LossyBouncer<L>
+impl<'sim, E, L> Component<'sim, E> for LossyBouncer<'sim, L>
 where
-    E: HasVariant<Packet>,
+    E: HasVariant<'sim, Packet<'sim>>,
     L: Logger,
 {
-    fn tick(&mut self, _: EffectContext) -> Vec<Message<E>> {
+    fn tick(&mut self, _: EffectContext) -> Vec<Message<'sim, E>> {
         vec![]
     }
 
-    fn receive(&mut self, e: E, _: EffectContext) -> Vec<Message<E>> {
+    fn receive(&mut self, e: E, _: EffectContext) -> Vec<Message<'sim, E>> {
         let packet = e.try_into().unwrap();
         log!(
             self.logger,

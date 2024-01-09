@@ -1,3 +1,4 @@
+use generativity::Id;
 use rustc_hash::{FxHashMap, FxHasher};
 use std::{
     cell::{Ref, RefCell, RefMut},
@@ -7,7 +8,6 @@ use std::{
     hash::{BuildHasherDefault, Hash},
     ops::{Deref, DerefMut},
     rc::Rc,
-    sync::atomic::{AtomicU64, Ordering},
 };
 
 use priority_queue::PriorityQueue;
@@ -19,47 +19,47 @@ use crate::{
 };
 
 #[derive(Debug)]
-pub enum DynComponent<'a, E> {
-    Owned(Box<dyn Component<E> + 'a>),
-    Shared(Rc<RefCell<dyn Component<E> + 'a>>),
-    Ref(&'a mut (dyn Component<E> + 'a)),
+pub enum DynComponent<'sim, 'a, E> {
+    Owned(Box<dyn Component<'sim, E> + 'a>),
+    Shared(Rc<RefCell<dyn Component<'sim, E> + 'a>>),
+    Ref(&'a mut (dyn Component<'sim, E> + 'a)),
 }
 
-impl<'a, E> DynComponent<'a, E> {
+impl<'sim, 'a, E> DynComponent<'sim, 'a, E> {
     #[must_use]
-    pub fn new<T: Component<E> + 'static>(value: T) -> DynComponent<'a, E> {
+    pub fn new<T: Component<'sim, E> + 'sim>(value: T) -> DynComponent<'sim, 'a, E> {
         DynComponent::Owned(Box::new(value))
     }
 
     #[must_use]
-    pub fn owned(value: Box<dyn Component<E>>) -> DynComponent<'a, E> {
+    pub fn owned(value: Box<dyn Component<'sim, E>>) -> DynComponent<'sim, 'a, E> {
         DynComponent::Owned(value)
     }
 
     #[must_use]
-    pub fn shared(value: Rc<RefCell<dyn Component<E>>>) -> DynComponent<'a, E> {
+    pub fn shared(value: Rc<RefCell<dyn Component<'sim, E> + 'sim>>) -> DynComponent<'sim, 'a, E> {
         DynComponent::Shared(value)
     }
 
     #[must_use]
-    pub fn reference(value: &'a mut dyn Component<E>) -> DynComponent<'a, E> {
+    pub fn reference(value: &'a mut dyn Component<'sim, E>) -> DynComponent<'sim, 'a, E> {
         DynComponent::Ref(value)
     }
 }
 
-pub enum DynComponentRef<'a, E> {
-    Ref(&'a dyn Component<E>),
-    ScopedRef(Ref<'a, dyn Component<E>>),
+pub enum DynComponentRef<'sim, 'a, E> {
+    Ref(&'a dyn Component<'sim, E>),
+    ScopedRef(Ref<'a, dyn Component<'sim, E>>),
 }
 
-pub enum DynComponentRefMut<'a, E> {
-    Ref(&'a mut (dyn Component<E>)),
-    ScopedRef(RefMut<'a, dyn Component<E>>),
+pub enum DynComponentRefMut<'sim, 'a, E> {
+    Ref(&'a mut (dyn Component<'sim, E>)),
+    ScopedRef(RefMut<'a, dyn Component<'sim, E>>),
 }
 
-impl<'a, E> DynComponent<'a, E> {
+impl<'sim, 'a, E> DynComponent<'sim, 'a, E> {
     #[must_use]
-    pub fn borrow(&self) -> DynComponentRef<E> {
+    pub fn borrow(&self) -> DynComponentRef<'sim, '_, E> {
         match self {
             DynComponent::Owned(x) => DynComponentRef::Ref(x.as_ref()),
             DynComponent::Shared(x) => DynComponentRef::ScopedRef(x.borrow()),
@@ -68,7 +68,7 @@ impl<'a, E> DynComponent<'a, E> {
     }
 
     #[must_use]
-    pub fn borrow_mut(&mut self) -> DynComponentRefMut<E> {
+    pub fn borrow_mut(&mut self) -> DynComponentRefMut<'sim, '_, E> {
         match self {
             DynComponent::Owned(x) => DynComponentRefMut::Ref(x.as_mut()),
             DynComponent::Shared(x) => DynComponentRefMut::ScopedRef(x.borrow_mut()),
@@ -77,10 +77,10 @@ impl<'a, E> DynComponent<'a, E> {
     }
 }
 
-impl<'a, E> Deref for DynComponentRef<'a, E> {
-    type Target = dyn Component<E> + 'a;
+impl<'sim, 'a, E> Deref for DynComponentRef<'sim, 'a, E> {
+    type Target = dyn Component<'sim, E> + 'a;
 
-    fn deref(&self) -> &(dyn Component<E> + 'a) {
+    fn deref(&self) -> &(dyn Component<'sim, E> + 'a) {
         match self {
             DynComponentRef::Ref(r) => *r,
             DynComponentRef::ScopedRef(s) => &**s,
@@ -88,10 +88,10 @@ impl<'a, E> Deref for DynComponentRef<'a, E> {
     }
 }
 
-impl<'a, E> Deref for DynComponentRefMut<'a, E> {
-    type Target = dyn Component<E> + 'a;
+impl<'sim, 'a, E> Deref for DynComponentRefMut<'sim, 'a, E> {
+    type Target = dyn Component<'sim, E> + 'a;
 
-    fn deref(&self) -> &(dyn Component<E> + 'a) {
+    fn deref(&self) -> &(dyn Component<'sim, E> + 'a) {
         match self {
             DynComponentRefMut::Ref(r) => *r,
             DynComponentRefMut::ScopedRef(s) => &**s,
@@ -99,8 +99,8 @@ impl<'a, E> Deref for DynComponentRefMut<'a, E> {
     }
 }
 
-impl<'a, E> DerefMut for DynComponentRefMut<'a, E> {
-    fn deref_mut(&mut self) -> &mut (dyn Component<E> + 'a) {
+impl<'sim, 'a, E> DerefMut for DynComponentRefMut<'sim, 'a, E> {
+    fn deref_mut(&mut self) -> &mut (dyn Component<'sim, E> + 'a) {
         match self {
             DynComponentRefMut::Ref(r) => *r,
             DynComponentRefMut::ScopedRef(s) => &mut **s,
@@ -109,19 +109,19 @@ impl<'a, E> DerefMut for DynComponentRefMut<'a, E> {
 }
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
-pub struct ComponentId {
+pub struct ComponentId<'sim> {
     index: usize,
-    sim_id: u64,
+    sim_id: Id<'sim>,
 }
 
-impl ComponentId {
+impl<'sim> ComponentId<'sim> {
     #[must_use]
-    const fn new(index: usize, sim_id: u64) -> ComponentId {
+    const fn new(index: usize, sim_id: Id<'sim>) -> ComponentId {
         ComponentId { index, sim_id }
     }
 }
 
-pub trait MaybeHasVariant<T>: Sized + Debug + Sync + 'static {
+pub trait MaybeHasVariant<'a, T>: Sized + Debug + Sync + 'a {
     fn try_into(self) -> Result<T, Self>;
     fn try_case<F, C, R>(self, ctx: C, f: F) -> Result<R, (Self, C)>
     where
@@ -134,9 +134,9 @@ pub trait MaybeHasVariant<T>: Sized + Debug + Sync + 'static {
     }
 }
 
-pub fn try_case<E, T, F, C, R>(f: F) -> impl FnOnce((E, C)) -> Result<R, (E, C)>
+pub fn try_case<'a, E, T, F, C, R>(f: F) -> impl FnOnce((E, C)) -> Result<R, (E, C)>
 where
-    E: MaybeHasVariant<T>,
+    E: MaybeHasVariant<'a, T>,
     F: FnOnce(T, C) -> R,
 {
     |(e, ctx): (E, C)| match e.try_into() {
@@ -145,7 +145,7 @@ where
     }
 }
 
-impl<T> MaybeHasVariant<T> for T
+impl<'a, T> MaybeHasVariant<'a, T> for T
 where
     T: Sized + Debug + Sync + 'static,
 {
@@ -154,16 +154,16 @@ where
     }
 }
 
-pub trait HasVariant<T>: From<T> + MaybeHasVariant<T> {}
+pub trait HasVariant<'a, T>: From<T> + MaybeHasVariant<'a, T> {}
 
-impl<E, T> HasVariant<T> for E where E: From<T> + MaybeHasVariant<T> {}
+impl<'a, E, T> HasVariant<'a, T> for E where E: From<T> + MaybeHasVariant<'a, T> {}
 
-pub struct Message<E> {
-    pub component_id: ComponentId,
+pub struct Message<'sim, E> {
+    pub component_id: ComponentId<'sim>,
     pub effect: E,
 }
 
-impl<E> Message<E> {
+impl<E> Message<'_, E> {
     pub fn new<V>(component_id: ComponentId, effect: V) -> Message<E>
     where
         E: From<V>,
@@ -176,16 +176,16 @@ impl<E> Message<E> {
 }
 
 #[derive(Debug)]
-pub struct EffectContext<'a> {
-    pub self_id: ComponentId,
+pub struct EffectContext<'sim, 'a> {
+    pub self_id: ComponentId<'sim>,
     pub time: Time,
     pub rng: &'a mut Rng,
 }
 
-pub trait Component<E>: Debug {
+pub trait Component<'sim, E>: Debug {
     fn next_tick(&self, time: Time) -> Option<Time>;
-    fn tick(&mut self, context: EffectContext) -> Vec<Message<E>>;
-    fn receive(&mut self, e: E, context: EffectContext) -> Vec<Message<E>>;
+    fn tick(&mut self, context: EffectContext<'sim, '_>) -> Vec<Message<'sim, E>>;
+    fn receive(&mut self, e: E, context: EffectContext<'sim, '_>) -> Vec<Message<'sim, E>>;
 }
 
 #[derive(Debug)]
@@ -245,41 +245,39 @@ impl<I: Hash + Eq + Copy, E> Default for EventQueue<I, E> {
     }
 }
 
-struct EffectQueue<E> {
-    queue: VecDeque<Message<E>>,
+struct EffectQueue<'sim, E> {
+    queue: VecDeque<Message<'sim, E>>,
 }
 
-impl<E> EffectQueue<E> {
-    const fn new() -> EffectQueue<E> {
+impl<'sim, E> EffectQueue<'sim, E> {
+    const fn new() -> EffectQueue<'sim, E> {
         EffectQueue {
             queue: VecDeque::new(),
         }
     }
 
-    fn push_all<T: IntoIterator<Item = Message<E>>>(&mut self, effects: T) {
+    fn push_all<T: IntoIterator<Item = Message<'sim, E>>>(&mut self, effects: T) {
         self.queue.extend(effects);
     }
 
-    fn pop_next(&mut self) -> Option<Message<E>> {
+    fn pop_next(&mut self) -> Option<Message<'sim, E>> {
         self.queue.pop_front()
     }
 }
 
-static NUM_SIMULATORS: AtomicU64 = AtomicU64::new(0);
-
-pub struct ComponentSlot<'a, 'b, E> {
+pub struct ComponentSlot<'sim, 'a, 'b, E> {
     index: usize,
-    builder: &'b SimulatorBuilder<'a, E>,
+    builder: &'b SimulatorBuilder<'sim, 'a, E>,
 }
 
-impl<'a, 'b, E> ComponentSlot<'a, 'b, E> {
+impl<'sim, 'a, 'b, E> ComponentSlot<'sim, 'a, 'b, E> {
     #[must_use]
-    pub const fn id(&self) -> ComponentId {
+    pub const fn id(&self) -> ComponentId<'sim> {
         ComponentId::new(self.index, self.builder.id)
     }
 
     #[allow(clippy::must_use_candidate)]
-    pub fn set(self, component: DynComponent<'a, E>) -> ComponentId {
+    pub fn set(self, component: DynComponent<'sim, 'a, E>) -> ComponentId<'sim> {
         let mut components = self.builder.components.borrow_mut();
         assert!(components[self.index].is_none());
         components[self.index] = Some(component);
@@ -287,29 +285,28 @@ impl<'a, 'b, E> ComponentSlot<'a, 'b, E> {
     }
 }
 
-#[derive(Default)]
-pub struct SimulatorBuilder<'a, E> {
-    id: u64,
-    components: RefCell<Vec<Option<DynComponent<'a, E>>>>,
+pub struct SimulatorBuilder<'sim, 'a, E> {
+    id: Id<'sim>,
+    components: RefCell<Vec<Option<DynComponent<'sim, 'a, E>>>>,
 }
 
-impl<'a, E> SimulatorBuilder<'a, E> {
+impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
     #[must_use]
-    pub fn new() -> SimulatorBuilder<'a, E> {
+    pub const fn new(id: Id<'sim>) -> SimulatorBuilder<'sim, 'a, E> {
         SimulatorBuilder {
-            id: NUM_SIMULATORS.fetch_add(1, Ordering::Relaxed),
+            id,
             components: RefCell::new(Vec::new()),
         }
     }
 
-    pub fn insert(&self, component: DynComponent<'a, E>) -> ComponentId {
+    pub fn insert(&self, component: DynComponent<'sim, 'a, E>) -> ComponentId<'sim> {
         let mut components = self.components.borrow_mut();
         let id = ComponentId::new(components.len(), self.id);
         components.push(Some(component));
         id
     }
 
-    pub fn reserve_slot<'b>(&'b self) -> ComponentSlot<'a, 'b, E> {
+    pub fn reserve_slot<'b>(&'b self) -> ComponentSlot<'sim, 'a, 'b, E> {
         let mut components = self.components.borrow_mut();
         let index = components.len();
         components.push(None);
@@ -319,7 +316,7 @@ impl<'a, E> SimulatorBuilder<'a, E> {
         }
     }
 
-    pub fn build<L>(self, rng: &'a mut Rng, logger: L) -> Simulator<'a, E, L> {
+    pub fn build<L>(self, rng: &'a mut Rng, logger: L) -> Simulator<'sim, 'a, E, L> {
         let components = self
             .components
             .into_inner()
@@ -336,20 +333,20 @@ impl<'a, E> SimulatorBuilder<'a, E> {
     }
 }
 
-pub struct Simulator<'a, E, L> {
-    id: u64,
-    components: Vec<DynComponent<'a, E>>,
+pub struct Simulator<'sim, 'a, E, L> {
+    id: Id<'sim>,
+    components: Vec<DynComponent<'sim, 'a, E>>,
     rng: &'a mut Rng,
-    tick_queue: EventQueue<ComponentId, ()>,
+    tick_queue: EventQueue<ComponentId<'sim>, ()>,
     logger: L,
 }
 
-impl<'a, E, L> Simulator<'a, E, L>
+impl<'sim, 'a, E, L> Simulator<'sim, 'a, E, L>
 where
     E: Debug,
     L: Logger,
 {
-    fn handle_messages(&mut self, time: Time, effects: &mut EffectQueue<E>) {
+    fn handle_messages(&mut self, time: Time, effects: &mut EffectQueue<'sim, E>) {
         while let Some(Message {
             component_id,
             effect,
@@ -374,9 +371,9 @@ where
 
     fn tick_without_messages(
         &mut self,
-        component_id: ComponentId,
+        component_id: ComponentId<'sim>,
         time: Time,
-        effects: &mut EffectQueue<E>,
+        effects: &mut EffectQueue<'sim, E>,
     ) {
         assert_eq!(component_id.sim_id, self.id);
         let mut component = self.components[component_id.index].borrow_mut();
@@ -391,7 +388,7 @@ where
         effects.push_all(messages);
     }
 
-    fn tick(&mut self, component_id: ComponentId, time: Time) {
+    fn tick(&mut self, component_id: ComponentId<'sim>, time: Time) {
         log!(self.logger, "time = {}", &time);
         let mut effects = EffectQueue::new();
         self.tick_without_messages(component_id, time, &mut effects);

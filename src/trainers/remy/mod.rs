@@ -122,8 +122,8 @@ pub struct RemyTrainer {
 }
 
 #[derive(Debug)]
-pub enum RemyMessage {
-    Packet(Packet),
+pub enum RemyMessage<'sim> {
+    Packet(Packet<'sim>),
     Toggle(Toggle),
 }
 
@@ -131,9 +131,9 @@ impl<T> PopulateComponents for T
 where
     T: RuleTree + Sync,
 {
-    fn populate_components<'a>(
+    fn populate_components<'sim, 'a>(
         &'a self,
-        network_slots: NetworkSlots<'a, '_>,
+        network_slots: NetworkSlots<'sim, 'a, '_>,
         _rng: &mut Rng,
     ) -> Vec<Rc<dyn Flow + 'a>> {
         network_slots
@@ -155,7 +155,7 @@ where
     }
 }
 
-impl MaybeHasVariant<Toggle> for RemyMessage {
+impl<'sim> MaybeHasVariant<'sim, Toggle> for RemyMessage<'sim> {
     fn try_into(self) -> Result<Toggle, Self> {
         match self {
             RemyMessage::Packet(_) => Err(self),
@@ -164,14 +164,14 @@ impl MaybeHasVariant<Toggle> for RemyMessage {
     }
 }
 
-impl From<Toggle> for RemyMessage {
+impl<'sim> From<Toggle> for RemyMessage<'sim> {
     fn from(value: Toggle) -> Self {
         RemyMessage::Toggle(value)
     }
 }
 
-impl MaybeHasVariant<Packet> for RemyMessage {
-    fn try_into(self) -> Result<Packet, Self> {
+impl<'sim> MaybeHasVariant<'sim, Packet<'sim>> for RemyMessage<'sim> {
+    fn try_into(self) -> Result<Packet<'sim>, Self> {
         match self {
             RemyMessage::Packet(p) => Ok(p),
             RemyMessage::Toggle(_) => Err(self),
@@ -179,8 +179,8 @@ impl MaybeHasVariant<Packet> for RemyMessage {
     }
 }
 
-impl From<Packet> for RemyMessage {
-    fn from(value: Packet) -> Self {
+impl<'sim> From<Packet<'sim>> for RemyMessage<'sim> {
+    fn from(value: Packet<'sim>) -> Self {
         RemyMessage::Packet(value)
     }
 }

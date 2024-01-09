@@ -209,6 +209,7 @@ dependencies = [
  "anyhow",
  "clap",
  "format_num",
+ "generativity",
  "itertools",
  "ordered-float",
  "pretty_assertions",
@@ -240,6 +241,12 @@ checksum = "14ac05eb8d2eb4ed1eeff847911deae077b0b53332465de9d6a26b0ea9961bc8"
 dependencies = [
  "regex",
 ]
+
+[[package]]
+name = "generativity"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5881e4c3c2433fe4905bb19cfd2b5d49d4248274862b68c27c33d9ba4e13f9ec"
 
 [[package]]
 name = "getrandom"

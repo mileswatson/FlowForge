@@ -3,8 +3,8 @@ use crate::{
     logging::Logger,
     meters::EWMA,
     network::{NetworkEffect, NetworkMessage},
-    simulation::{Component, ComponentId, EffectContext},
     quantities::{Float, Time, TimeSpan},
+    simulation::{Component, ComponentId, EffectContext},
 };
 
 use super::window::lossy_window::{LossyWindowBehavior, LossyWindowSender, LossyWindowSettings};
@@ -44,22 +44,22 @@ where
 }
 
 #[derive(Debug)]
-pub struct LossySender<L>(LossyWindowSender<'static, Behavior, L>)
+pub struct LossySender<'sim, L>(LossyWindowSender<'sim, 'static, Behavior, L>)
 where
     L: Logger;
 
-impl<L> LossySender<L>
+impl<'sim, L> LossySender<'sim, L>
 where
     L: Logger,
 {
     pub fn new(
-        id: ComponentId,
-        link: ComponentId,
-        destination: ComponentId,
+        id: ComponentId<'sim>,
+        link: ComponentId<'sim>,
+        destination: ComponentId<'sim>,
         multiplier: Float,
         wait_for_enable: bool,
         logger: L,
-    ) -> LossySender<L> {
+    ) -> LossySender<'sim, L> {
         LossySender(LossyWindowSender::new(
             id,
             link,
@@ -74,15 +74,19 @@ where
     }
 }
 
-impl<L> Component<NetworkEffect> for LossySender<L>
+impl<'sim, L> Component<'sim, NetworkEffect<'sim>> for LossySender<'sim, L>
 where
     L: Logger,
 {
-    fn tick(&mut self, context: EffectContext) -> Vec<NetworkMessage> {
+    fn tick(&mut self, context: EffectContext<'sim, '_>) -> Vec<NetworkMessage<'sim>> {
         self.0.tick(context)
     }
 
-    fn receive(&mut self, e: NetworkEffect, context: EffectContext) -> Vec<NetworkMessage> {
+    fn receive(
+        &mut self,
+        e: NetworkEffect<'sim>,
+        context: EffectContext<'sim, '_>,
+    ) -> Vec<NetworkMessage<'sim>> {
         self.0.receive(e, context)
     }
 
@@ -91,7 +95,7 @@ where
     }
 }
 
-impl<L> Flow for LossySender<L>
+impl<'sim, L> Flow for LossySender<'sim, L>
 where
     L: Logger,
 {

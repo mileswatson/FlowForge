@@ -115,25 +115,25 @@ where
 }
 
 #[derive(Debug)]
-pub struct LossySender<'a, L, T>(LossyWindowSender<'a, Behavior<'a, T>, L>)
+pub struct LossySender<'sim, 'a, L, T>(LossyWindowSender<'sim, 'a, Behavior<'a, T>, L>)
 where
     L: Logger,
     T: RuleTree;
 
-impl<'a, L, T> LossySender<'a, L, T>
+impl<'sim, 'a, L, T> LossySender<'sim, 'a, L, T>
 where
     L: Logger,
     T: RuleTree,
 {
     pub fn new(
-        id: ComponentId,
-        link: ComponentId,
-        destination: ComponentId,
+        id: ComponentId<'sim>,
+        link: ComponentId<'sim>,
+        destination: ComponentId<'sim>,
         rule_tree: &'a T,
         wait_for_enable: bool,
         logger: L,
-    ) -> LossySender<'a, L, T> {
-        LossySender(LossyWindowSender::<'a, _, _>::new(
+    ) -> LossySender<'sim, 'a, L, T> {
+        LossySender(LossyWindowSender::<'sim, 'a, _, _>::new(
             id,
             link,
             destination,
@@ -144,16 +144,20 @@ where
     }
 }
 
-impl<L, T> Component<NetworkEffect> for LossySender<'_, L, T>
+impl<'sim, L, T> Component<'sim, NetworkEffect<'sim>> for LossySender<'sim, '_, L, T>
 where
     L: Logger,
     T: RuleTree,
 {
-    fn tick(&mut self, context: EffectContext) -> Vec<NetworkMessage> {
+    fn tick(&mut self, context: EffectContext<'sim, '_>) -> Vec<NetworkMessage<'sim>> {
         self.0.tick(context)
     }
 
-    fn receive(&mut self, e: NetworkEffect, context: EffectContext) -> Vec<NetworkMessage> {
+    fn receive(
+        &mut self,
+        e: NetworkEffect<'sim>,
+        context: EffectContext<'sim, '_>,
+    ) -> Vec<NetworkMessage<'sim>> {
         self.0.receive(e, context)
     }
 
@@ -162,7 +166,7 @@ where
     }
 }
 
-impl<L, T> Flow for LossySender<'_, L, T>
+impl<L, T> Flow for LossySender<'_, '_, L, T>
 where
     L: Logger,
     T: RuleTree,

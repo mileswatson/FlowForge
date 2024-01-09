@@ -1,3 +1,5 @@
+use generativity::Id;
+
 use crate::{
     logging::NothingLogger,
     quantities::{packets, Float, Information, InformationRate, Time, TimeSpan},
@@ -19,15 +21,15 @@ pub mod protocols;
 pub mod toggler;
 
 #[derive(Debug)]
-pub struct Packet {
+pub struct Packet<'sim> {
     seq: u64,
-    source: ComponentId,
-    destination: ComponentId,
+    source: ComponentId<'sim>,
+    destination: ComponentId<'sim>,
     sent_time: Time,
 }
 
-impl Packet {
-    fn pop_next_hop(&mut self) -> ComponentId {
+impl<'sim> Packet<'sim> {
+    fn pop_next_hop(&mut self) -> ComponentId<'sim> {
         self.destination
     }
 
@@ -38,14 +40,14 @@ impl Packet {
 }
 
 #[derive(Debug)]
-pub enum NetworkEffect {
-    Packet(Packet),
+pub enum NetworkEffect<'sim> {
+    Packet(Packet<'sim>),
     Toggle(Toggle),
 }
 
-pub type NetworkMessage = Message<NetworkEffect>;
+pub type NetworkMessage<'sim> = Message<'sim, NetworkEffect<'sim>>;
 
-impl MaybeHasVariant<Toggle> for NetworkEffect {
+impl<'sim> MaybeHasVariant<'sim, Toggle> for NetworkEffect<'sim> {
     fn try_into(self) -> Result<Toggle, Self> {
         match self {
             NetworkEffect::Packet(_) => Err(self),
@@ -54,14 +56,14 @@ impl MaybeHasVariant<Toggle> for NetworkEffect {
     }
 }
 
-impl From<Toggle> for NetworkEffect {
+impl<'sim> From<Toggle> for NetworkEffect<'sim> {
     fn from(value: Toggle) -> Self {
         NetworkEffect::Toggle(value)
     }
 }
 
-impl MaybeHasVariant<Packet> for NetworkEffect {
-    fn try_into(self) -> Result<Packet, Self> {
+impl<'sim> MaybeHasVariant<'sim, Packet<'sim>> for NetworkEffect<'sim> {
+    fn try_into(self) -> Result<Packet<'sim>, Self> {
         match self {
             NetworkEffect::Packet(p) => Ok(p),
             NetworkEffect::Toggle(_) => Err(self),
@@ -69,8 +71,8 @@ impl MaybeHasVariant<Packet> for NetworkEffect {
     }
 }
 
-impl From<Packet> for NetworkEffect {
-    fn from(value: Packet) -> Self {
+impl<'sim> From<Packet<'sim>> for NetworkEffect<'sim> {
+    fn from(value: Packet<'sim>) -> Self {
         NetworkEffect::Packet(value)
     }
 }
@@ -86,19 +88,20 @@ pub struct Network {
     pub on_time: PositiveContinuousDistribution<TimeSpan>,
 }
 
-pub struct NetworkSlots<'a, 'b> {
-    pub sender_slots: Vec<ComponentSlot<'a, 'b, NetworkEffect>>,
-    pub sender_link_id: ComponentId,
+pub struct NetworkSlots<'sim, 'a, 'b> {
+    pub sender_slots: Vec<ComponentSlot<'sim, 'a, 'b, NetworkEffect<'sim>>>,
+    pub sender_link_id: ComponentId<'sim>,
 }
 
 impl Network {
     #[must_use]
-    pub fn to_sim<'a, R>(
+    pub fn to_sim<'sim, 'a, R>(
         &self,
+        id: Id<'sim>,
         rng: &'a mut Rng,
-        populate_components: impl FnOnce(NetworkSlots<'a, '_>, &mut Rng) -> R + 'a,
-    ) -> (Simulator<'a, NetworkEffect, NothingLogger>, R) {
-        let builder = SimulatorBuilder::new();
+        populate_components: impl FnOnce(NetworkSlots<'sim, 'a, '_>, &mut Rng) -> R + 'a,
+    ) -> (Simulator<'sim, 'a, NetworkEffect<'sim>, NothingLogger>, R) {
+        let builder = SimulatorBuilder::<'sim, '_>::new(id);
         let slots = NetworkSlots {
             sender_slots: (0..self.num_senders)
                 .map(|_| {

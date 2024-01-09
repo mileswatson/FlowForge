@@ -10,19 +10,19 @@ use crate::{
 use super::{NetworkEffect, NetworkMessage, Packet};
 
 #[derive(Debug)]
-pub struct Link<L> {
+pub struct Link<'sim, L> {
     delay: TimeSpan,
     packet_rate: InformationRate,
     loss: f64,
     buffer_size: Option<Information>,
     earliest_transmit: Time,
     buffer_contains: Information,
-    buffer: VecDeque<Packet>,
-    transmitting: VecDeque<(Packet, Time)>,
+    buffer: VecDeque<Packet<'sim>>,
+    transmitting: VecDeque<(Packet<'sim>, Time)>,
     logger: L,
 }
 
-impl<'a, L> Link<L>
+impl<'sim, 'a, L> Link<'sim, L>
 where
     L: Logger + 'a,
 {
@@ -48,7 +48,7 @@ where
     }
 }
 
-impl<L> Link<L>
+impl<'sim, L> Link<'sim, L>
 where
     L: Logger,
 {
@@ -67,7 +67,7 @@ where
     }
 
     #[must_use]
-    fn try_deliver(&mut self, time: Time, rng: &mut Rng) -> Option<NetworkMessage> {
+    fn try_deliver(&mut self, time: Time, rng: &mut Rng) -> Option<NetworkMessage<'sim>> {
         match self.transmitting.front() {
             Some((_, t)) if t == &time => {
                 let (mut packet, _) = self.transmitting.pop_front().unwrap();
@@ -85,11 +85,14 @@ where
     }
 }
 
-impl<L> Component<NetworkEffect> for Link<L>
+impl<'sim, L> Component<'sim, NetworkEffect<'sim>> for Link<'sim, L>
 where
     L: Logger,
 {
-    fn tick(&mut self, EffectContext { time, rng, .. }: EffectContext) -> Vec<NetworkMessage> {
+    fn tick(
+        &mut self,
+        EffectContext { time, rng, .. }: EffectContext<'sim, '_>,
+    ) -> Vec<NetworkMessage<'sim>> {
         assert_eq!(Some(time), Component::next_tick(self, time));
         let mut effects = Vec::new();
         if let Some(msg) = self.try_deliver(time, rng) {
@@ -99,7 +102,11 @@ where
         effects
     }
 
-    fn receive(&mut self, effect: NetworkEffect, _ctx: EffectContext) -> Vec<NetworkMessage> {
+    fn receive(
+        &mut self,
+        effect: NetworkEffect<'sim>,
+        _ctx: EffectContext<'sim, '_>,
+    ) -> Vec<NetworkMessage<'sim>> {
         let packet: Packet = MaybeHasVariant::try_into(effect).unwrap();
         if self
             .buffer_size

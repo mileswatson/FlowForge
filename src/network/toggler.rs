@@ -11,21 +11,21 @@ pub enum Toggle {
 }
 
 #[derive(Debug)]
-pub struct Toggler {
-    target: ComponentId,
+pub struct Toggler<'sim> {
+    target: ComponentId<'sim>,
     enabled: bool,
     on_distribution: PositiveContinuousDistribution<TimeSpan>,
     off_distribution: PositiveContinuousDistribution<TimeSpan>,
     next_toggle: Time,
 }
 
-impl Toggler {
+impl<'sim> Toggler<'sim> {
     pub fn new(
-        target: ComponentId,
+        target: ComponentId<'sim>,
         on_distribution: PositiveContinuousDistribution<TimeSpan>,
         off_distribution: PositiveContinuousDistribution<TimeSpan>,
         rng: &mut Rng,
-    ) -> Toggler {
+    ) -> Toggler<'sim> {
         Toggler {
             target,
             enabled: false,
@@ -36,11 +36,11 @@ impl Toggler {
     }
 }
 
-impl<E> Component<E> for Toggler
+impl<'sim, E> Component<'sim, E> for Toggler<'sim>
 where
-    E: HasVariant<Toggle>,
+    E: HasVariant<'sim, Toggle>,
 {
-    fn tick(&mut self, context: EffectContext) -> Vec<Message<E>> {
+    fn tick(&mut self, context: EffectContext<'sim, '_>) -> Vec<Message<'sim, E>> {
         assert_eq!(
             Some(context.time),
             Component::<E>::next_tick(self, context.time)
@@ -60,7 +60,7 @@ where
         effects
     }
 
-    fn receive(&mut self, _e: E, _context: EffectContext) -> Vec<Message<E>> {
+    fn receive(&mut self, _e: E, _context: EffectContext) -> Vec<Message<'sim, E>> {
         panic!()
     }
 

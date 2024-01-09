@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use generativity::make_guard;
 use itertools::Itertools;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
@@ -8,19 +9,20 @@ use crate::{
     average::{AveragePair, IterAverage, SameEmptiness},
     flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
     network::{config::NetworkConfig, Network, NetworkSlots},
+    quantities::{seconds, Float, Time, TimeSpan},
     rand::Rng,
-    quantities::{Float, Time, TimeSpan, seconds},
 };
 
 pub trait PopulateComponents: Sync {
     /// Populates senders and receiver slots
-    fn populate_components<'a>(
+    fn populate_components<'sim, 'a>(
         &'a self,
-        network_slots: NetworkSlots<'a, '_>,
+        network_slots: NetworkSlots<'sim, 'a, '_>,
         rng: &mut Rng,
     ) -> Vec<Rc<dyn Flow + 'a>>;
 }
 
+#[allow(clippy::unsafe_derive_deserialize)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct EvaluationConfig {
     pub network_samples: u32,
@@ -45,7 +47,8 @@ impl EvaluationConfig {
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
         let score_network = |(n, mut rng): (Network, Rng)| {
-            let (sim, flows) = n.to_sim(&mut rng, |slots, rng| {
+            make_guard!(guard);
+            let (sim, flows) = n.to_sim(guard.into(), &mut rng, |slots, rng| {
                 components.populate_components(slots, rng)
             });
             sim.run_for(self.run_sim_for);

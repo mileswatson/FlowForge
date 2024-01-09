@@ -11,12 +11,14 @@ use flowforge::{
     rand::Rng,
     simulation::{DynComponent, SimulatorBuilder},
 };
+use generativity::make_guard;
 
 fn main() {
     let table = LogTable::new(5);
     // ManuallyDrop is used to re-order drop(builder) to before drop(sender),
     // as it can contain a ref to sender
-    let builder = ManuallyDrop::new(SimulatorBuilder::<NetworkEffect>::new());
+    make_guard!(guard);
+    let builder = ManuallyDrop::new(SimulatorBuilder::<NetworkEffect>::new(guard.into()));
 
     let sender_slot = builder.reserve_slot();
     let link1_slot = builder.reserve_slot();

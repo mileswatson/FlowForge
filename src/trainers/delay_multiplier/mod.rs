@@ -7,9 +7,9 @@ use crate::{
     flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
     logging::NothingLogger,
     network::{config::NetworkConfig, protocols::delay_multiplier::LossySender, NetworkSlots},
+    quantities::Float,
     rand::{ContinuousDistribution, Rng},
     simulation::DynComponent,
-    quantities::Float,
     Dna, Trainer,
 };
 
@@ -42,16 +42,16 @@ impl Dna for DelayMultiplierDna {
 }
 
 impl PopulateComponents for DelayMultiplierDna {
-    fn populate_components(
+    fn populate_components<'sim>(
         &self,
-        network_slots: NetworkSlots,
+        network_slots: NetworkSlots<'sim, '_, '_>,
         _rng: &mut Rng,
-    ) -> Vec<Rc<dyn Flow>> {
+    ) -> Vec<Rc<dyn Flow + 'sim>> {
         network_slots
             .sender_slots
             .into_iter()
             .map(|slot| {
-                let sender = Rc::new(RefCell::new(LossySender::new(
+                let sender = Rc::new(RefCell::new(LossySender::<'sim>::new(
                     slot.id(),
                     network_slots.sender_link_id,
                     slot.id(),
