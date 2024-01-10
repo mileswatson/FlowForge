@@ -1,16 +1,13 @@
 use generativity::{Guard, Id};
-use rustc_hash::{FxHashMap, FxHasher};
+use itertools::Itertools;
 use std::{
     cell::{Ref, RefCell, RefMut},
-    cmp::Reverse,
     collections::VecDeque,
     fmt::Debug,
-    hash::{BuildHasherDefault, Hash},
     ops::{Deref, DerefMut},
     rc::Rc,
 };
-
-use priority_queue::PriorityQueue;
+use vec_map::VecMap;
 
 use crate::{
     logging::Logger,
@@ -187,59 +184,47 @@ pub trait Component<'sim, E>: Debug {
 }
 
 #[derive(Debug)]
-pub struct EventQueue<I: Hash + Eq, E> {
+pub struct TickQueue {
     current_time: Time,
-    waiting: FxHashMap<I, E>,
-    queue: PriorityQueue<I, Reverse<Time>, BuildHasherDefault<FxHasher>>,
+    waiting: VecMap<Time>,
 }
 
-impl<I: Hash + Eq + Copy, E> EventQueue<I, E> {
+impl TickQueue {
     #[must_use]
-    pub fn new() -> EventQueue<I, E> {
-        EventQueue {
+    pub fn with_capacity(capacity: usize) -> TickQueue {
+        TickQueue {
             current_time: Time::MIN,
-            waiting: FxHashMap::default(),
-            queue: PriorityQueue::<_, _, BuildHasherDefault<FxHasher>>::with_default_hasher(),
+            waiting: VecMap::with_capacity(capacity),
         }
     }
 
-    pub fn update(&mut self, id: I, time: Option<Time>) {
+    pub fn update(&mut self, id: usize, time: Option<Time>) {
         if let Some(time) = time {
             assert!(time >= self.current_time);
-            self.queue.push(id, Reverse(time));
+            self.waiting.insert(id, time);
         } else {
-            self.waiting.remove(&id);
-            self.queue.remove(&id);
+            self.waiting.remove(id);
         }
-    }
-
-    pub fn insert_or_update(&mut self, id: I, event: E, time: Option<Time>) {
-        self.waiting.insert(id, event);
-        self.update(id, time);
     }
 
     #[must_use]
     pub fn next_time(&self) -> Option<Time> {
-        self.queue.peek().map(|(_, Reverse(x))| *x)
+        self.waiting.values().min().copied()
     }
 
-    pub fn pop_next(&mut self) -> Option<(Time, I, E)> {
-        if let Some((component_id, Reverse(time))) = self.queue.pop() {
+    pub fn pop_next(&mut self) -> Option<(Time, usize)> {
+        if let Some((idx, time)) = self
+            .waiting
+            .iter()
+            .min_by_key(|&(_, time)| time)
+            .map(|(x, t)| (x, *t))
+        {
             self.current_time = time;
-            Some((
-                time,
-                component_id,
-                self.waiting.remove(&component_id).unwrap(),
-            ))
+            self.waiting.remove(idx);
+            Some((time, idx))
         } else {
             None
         }
-    }
-}
-
-impl<I: Hash + Eq + Copy, E> Default for EventQueue<I, E> {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -320,11 +305,11 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
             .into_inner()
             .into_iter()
             .map(Option::unwrap)
-            .collect();
+            .collect_vec();
         Simulator {
             id: self.id,
+            tick_queue: TickQueue::with_capacity(components.len()),
             components,
-            tick_queue: EventQueue::new(),
             logger,
         }
     }
@@ -333,7 +318,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
 pub struct Simulator<'sim, 'a, E, L> {
     id: Id<'sim>,
     components: Vec<DynComponent<'sim, 'a, E>>,
-    tick_queue: EventQueue<ComponentId<'sim>, ()>,
+    tick_queue: TickQueue,
     logger: L,
 }
 
@@ -358,8 +343,7 @@ where
                 },
             );
             let next_tick = component.next_tick(time);
-            self.tick_queue
-                .insert_or_update(component_id, (), next_tick);
+            self.tick_queue.update(component_id.index, next_tick);
             effects.push_all(messages);
         }
     }
@@ -370,15 +354,13 @@ where
         time: Time,
         effects: &mut EffectQueue<'sim, E>,
     ) {
-        assert_eq!(component_id.sim_id, self.id);
         let mut component = self.components[component_id.index].borrow_mut();
         let messages = component.tick(EffectContext {
             self_id: component_id,
             time,
         });
         let next_tick = component.next_tick(time);
-        self.tick_queue
-            .insert_or_update(component_id, (), next_tick);
+        self.tick_queue.update(component_id.index, next_tick);
         effects.push_all(messages);
     }
 
@@ -395,17 +377,14 @@ where
             .iter()
             .enumerate()
             .for_each(|(idx, component)| {
-                self.tick_queue.insert_or_update(
-                    ComponentId::new(idx, self.id),
-                    (),
-                    component.borrow().next_tick(Time::SIM_START),
-                );
+                self.tick_queue
+                    .update(idx, component.borrow().next_tick(Time::SIM_START));
             });
-        while let Some((time, component_id, ())) = self.tick_queue.pop_next() {
+        while let Some((time, idx)) = self.tick_queue.pop_next() {
             if time >= end_time {
                 break;
             }
-            self.tick(component_id, time);
+            self.tick(ComponentId::new(idx, self.id), time);
         }
     }
 }

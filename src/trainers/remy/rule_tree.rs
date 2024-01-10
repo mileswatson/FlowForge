@@ -3,6 +3,7 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
+use itertools::Itertools;
 use protobuf::MessageField;
 
 use crate::quantities::Float;
@@ -127,7 +128,7 @@ impl<'a> LeafHandle<'a> {
     }
 
     pub fn split(self) {
-        let children: Vec<_> = match &self.tree.nodes[self.rule] {
+        let children = match &self.tree.nodes[self.rule] {
             RuleTreeNode::Node { .. } => panic!(),
             RuleTreeNode::Leaf { domain, action, .. } => domain
                 .split()
@@ -137,7 +138,7 @@ impl<'a> LeafHandle<'a> {
                     action: action.clone(),
                     optimized: false,
                 })
-                .collect(),
+                .collect_vec(),
         };
         self.tree.nodes[self.rule] = RuleTreeNode::Node {
             domain: self.tree.nodes[self.rule].domain().clone(),
@@ -283,27 +284,29 @@ impl<const TESTING: bool> BaseRuleTree<TESTING> {
 
     fn _action<'a, F>(
         &'a self,
-        current_idx: usize,
+        mut current_idx: usize,
         point: &Point,
         leaf_override: &F,
     ) -> Option<&Action<TESTING>>
     where
         F: Fn(usize) -> Option<&'a Action<TESTING>>,
     {
-        let current = &self.nodes[current_idx];
-        if !current.domain().contains(point) {
+        if !self.nodes[current_idx].domain().contains(point) {
             return None;
         }
-        match current {
-            RuleTreeNode::Node { children, .. } => children
-                .iter()
-                .find_map(|x| self._action(*x, point, leaf_override)),
-            RuleTreeNode::Leaf { action, .. } => {
-                if let Some(a) = leaf_override(current_idx) {
-                    return Some(a);
+        loop {
+            current_idx = match &self.nodes[current_idx] {
+                RuleTreeNode::Node { children, .. } => *children
+                    .iter()
+                    .find(|idx| self.nodes[**idx].domain().contains(point))
+                    .unwrap(),
+                RuleTreeNode::Leaf { action, .. } => {
+                    if let Some(a) = leaf_override(current_idx) {
+                        return Some(a);
+                    }
+                    return Some(action);
                 }
-                Some(action)
-            }
+            };
         }
     }
 
@@ -408,6 +411,7 @@ impl<const TESTING: bool> PartialEq for BaseRuleTree<TESTING> {
 
 #[cfg(test)]
 mod tests {
+    use itertools::Itertools;
     use pretty_assertions::assert_eq;
     use std::{
         fs::{read_dir, File},
@@ -453,11 +457,11 @@ mod tests {
     fn original_remy_compatibility() -> Result<()> {
         let tmp_dir = tempdir()?;
         let test_data_dir = Path::new("./src/trainers/remy/test_dna");
-        let dna_files: Vec<_> = read_dir(test_data_dir)?
+        let dna_files = read_dir(test_data_dir)?
             .map(Result::unwrap)
             .map(|x| x.path())
             .filter(|x| x.to_str().unwrap().ends_with(".remy.dna"))
-            .collect();
+            .collect_vec();
         assert_eq!(dna_files.len(), 14);
 
         for original_file in dna_files {

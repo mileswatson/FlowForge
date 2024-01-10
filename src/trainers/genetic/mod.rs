@@ -1,6 +1,7 @@
 use std::{cmp::Reverse, iter::repeat, marker::PhantomData, sync::Mutex};
 
 use anyhow::Result;
+use itertools::Itertools;
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 
@@ -76,9 +77,9 @@ where
             starting_point.is_none(),
             "Starting point not supported for genetic trainer!"
         );
-        let mut population: Vec<_> = (0..self.population_size)
+        let mut population = (0..self.population_size)
             .map(|_| D::new_random(rng))
-            .collect();
+            .collect_vec();
         let progress = Mutex::new((0, progress_handler));
         let increment_progress = || {
             let mut handle = progress.lock().unwrap();
@@ -97,7 +98,7 @@ where
         };
         let update_progress = &increment_progress;
         for _ in 0..self.iters {
-            let mut scores: Vec<_> = population
+            let mut scores = population
                 .into_iter()
                 .map(|d| (d, rng.create_child()))
                 .filter_map(|(d, mut rng)| {
@@ -110,7 +111,7 @@ where
                     update_progress();
                     score.map(|(s, p)| (d, s, p)).ok()
                 })
-                .collect();
+                .collect_vec();
             scores.sort_by_key(|x| Reverse(NotNan::new(x.1).unwrap()));
 
             println!("Score: {}", scores.first().unwrap().1);
