@@ -184,6 +184,7 @@ pub trait Component<'sim, E>: Debug {
 }
 
 #[derive(Debug)]
+/// TODO: Heapify?
 pub struct TickQueue {
     current_time: Time,
     waiting: VecMap<Time>,
