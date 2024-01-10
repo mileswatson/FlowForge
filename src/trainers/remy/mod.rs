@@ -1,9 +1,11 @@
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
+use indicatif::{ParallelProgressIterator, ProgressBar};
+use itertools::Itertools;
 use ordered_float::NotNan;
 use protobuf::Message;
-use rayon::iter::{ParallelBridge, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -13,7 +15,7 @@ use crate::{
     network::{
         config::NetworkConfig, protocols::remy::LossySender, toggler::Toggle, NetworkSlots, Packet,
     },
-    quantities::{milliseconds, Float},
+    quantities::{milliseconds, seconds, Float},
     rand::Rng,
     simulation::{DynComponent, MaybeHasVariant},
     Dna, ProgressHandler, Trainer,
@@ -46,6 +48,7 @@ pub struct RemyConfig {
     pub max_action_change: Action,
     pub action_change_multiplier: i32,
     pub default_action: Action,
+    pub training_config: EvaluationConfig,
     pub evaluation_config: EvaluationConfig,
 }
 
@@ -80,7 +83,14 @@ impl Default for RemyConfig {
                 window_increment: 1,
                 intersend_delay: milliseconds(3.),
             },
-            evaluation_config: EvaluationConfig::default(),
+            training_config: EvaluationConfig {
+                network_samples: 100,
+                run_sim_for: seconds(120.),
+            },
+            evaluation_config: EvaluationConfig {
+                network_samples: 10000,
+                run_sim_for: seconds(120.),
+            },
         }
     }
 }
@@ -212,7 +222,7 @@ impl Trainer for RemyTrainer {
         progress_handler: &mut H,
         rng: &mut Rng,
     ) -> RemyDna {
-        let evaluate_and_count = coerce(|tree: &mut BaseRuleTree, rng: &mut Rng| {
+        let eval_and_count = coerce(|tree: &mut BaseRuleTree, rng: &mut Rng| {
             let counting_tree = CountingRuleTree::new(tree);
             let (score, props) = self
                 .config
@@ -222,12 +232,12 @@ impl Trainer for RemyTrainer {
             println!("    Achieved eval score {score:.2} with {props}");
             counting_tree
         });
-        let evaluate_action = |leaf: &LeafHandle, action: Action, mut rng: Rng| {
+        let training_eval = |leaf: &LeafHandle, new_action: Action, mut rng: Rng| {
             self.config
-                .evaluation_config
+                .training_config
                 .evaluate(
                     network_config,
-                    &leaf.augmented_tree(action),
+                    &leaf.augmented_tree(new_action),
                     utility_function,
                     &mut rng,
                 )
@@ -238,7 +248,7 @@ impl Trainer for RemyTrainer {
             if i == 0 {
                 println!("Starting optimization");
             } else {
-                let (fraction_used, leaf) = evaluate_and_count(&mut dna.tree, rng).most_used_rule();
+                let (fraction_used, leaf) = eval_and_count(&mut dna.tree, rng).most_used_rule();
                 println!(
                     "Split rule {} with usage {:.2}%",
                     leaf.domain(),
@@ -253,7 +263,7 @@ impl Trainer for RemyTrainer {
                     self.config.optimization_rounds_per_split
                 );
                 while let Some((fraction_used, mut leaf)) =
-                    evaluate_and_count(&mut dna.tree, rng).most_used_unoptimized_rule()
+                    eval_and_count(&mut dna.tree, rng).most_used_unoptimized_rule()
                 {
                     if fraction_used == 0. {
                         println!("    Skipped remaining rules with 0% usage");
@@ -268,25 +278,29 @@ impl Trainer for RemyTrainer {
                     let new_identical_rng = rng.identical_child_factory();
                     let (mut score, _) = {
                         let original_action = leaf.action().clone();
-                        evaluate_action(&leaf, original_action, new_identical_rng())
+                        training_eval(&leaf, original_action, new_identical_rng())
                     };
                     println!(
                         "      Currently {} with training score {score:.2}",
                         leaf.action()
                     );
-                    while let Some((s, _, new_action)) = leaf
-                        .action()
-                        .possible_improvements(&self.config)
-                        .par_bridge()
-                        .map(|action| {
-                            let (s, props) =
-                                evaluate_action(&leaf, action.clone(), new_identical_rng());
-                            println!("Evaluated {s}");
-                            (s, props, action)
-                        })
-                        .filter(|(s, _, _)| s > &score)
-                        .max_by_key(|(s, _, _)| NotNan::new(*s).unwrap())
-                    {
+                    while let Some((s, _, new_action)) = {
+                        let possible_improvements = leaf
+                            .action()
+                            .possible_improvements(&self.config)
+                            .collect_vec();
+                        let progress = ProgressBar::new(possible_improvements.len() as u64);
+                        possible_improvements
+                            .into_par_iter()
+                            .map(|action| {
+                                let (s, props) =
+                                    training_eval(&leaf, action.clone(), new_identical_rng());
+                                (s, props, action)
+                            })
+                            .progress_with(progress)
+                            .filter(|(s, _, _)| s > &score)
+                            .max_by_key(|(s, _, _)| NotNan::new(*s).unwrap())
+                    } {
                         println!("      Changed to {new_action} with training score {score:.2}");
                         score = s;
                         *leaf.action() = new_action;
@@ -305,7 +319,7 @@ impl Trainer for RemyTrainer {
                 );
             }
         }
-        evaluate_and_count(&mut dna.tree, rng);
+        eval_and_count(&mut dna.tree, rng);
         progress_handler.update_progress(1., Some(&dna));
         dna
     }

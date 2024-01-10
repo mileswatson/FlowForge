@@ -28,8 +28,12 @@
     "window_increment": 1,
     "intersend_delay": "3ms"
   },
+  "training_config": {
+    "network_samples": 100,
+    "run_sim_for": "120s"
+  },
   "evaluation_config": {
-    "network_samples": 1000,
+    "network_samples": 10000,
     "run_sim_for": "120s"
   }
 }
