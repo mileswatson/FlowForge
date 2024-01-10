@@ -60,17 +60,22 @@ enum Command {
 #[derive(Parser, Debug)]
 #[command(author, version, about, about = "Use the FlowForge CLI to tailor congestion control algorithms to a provided network configuration.", long_about = None)]
 struct Args {
-    /// Name of the person to greet
+    /// The maximum number of threads to use
+    #[arg(short, long)]
+    threads: Option<usize>,
     #[command(subcommand)]
     pub command: Command,
 }
 
 fn main() -> Result<()> {
-    /* rayon::ThreadPoolBuilder::new()
-    .num_threads(1)
-    .build_global()
-    .unwrap();*/
     let args = Args::parse();
+    if let Some(threads) = args.threads {
+        println!("Set number of threads to {}", threads);
+        rayon::ThreadPoolBuilder::new()
+            .num_threads(threads)
+            .build_global()
+            .unwrap();
+    }
     match args.command {
         Command::GenConfigs { output_folder } => create_all_configs(&output_folder),
         Command::Train {
