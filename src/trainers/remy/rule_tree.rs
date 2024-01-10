@@ -375,6 +375,17 @@ impl BaseRuleTree {
             }
         });
     }
+
+    #[must_use]
+    pub fn num_parents(&self) -> usize {
+        self.nodes
+            .iter()
+            .filter(|x| match x {
+                RuleTreeNode::Node { .. } => true,
+                RuleTreeNode::Leaf { .. } => false,
+            })
+            .count()
+    }
 }
 
 impl RuleTree for BaseRuleTree {
