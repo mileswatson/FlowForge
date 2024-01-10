@@ -16,9 +16,9 @@ use std::{
 use anyhow::{anyhow, Result};
 use flow::{FlowProperties, NoActiveFlows, UtilityFunction};
 use network::config::NetworkConfig;
+use quantities::Float;
 use rand::Rng;
 use serde::{de::DeserializeOwned, Serialize};
-use quantities::Float;
 
 #[macro_use]
 pub mod logging;
@@ -27,9 +27,9 @@ pub mod evaluator;
 pub mod flow;
 pub mod meters;
 pub mod network;
+pub mod quantities;
 pub mod rand;
 pub mod simulation;
-pub mod quantities;
 pub mod trainers;
 
 pub struct Json;
@@ -122,6 +122,7 @@ pub trait Trainer {
 
     fn train<H>(
         &self,
+        starting_point: Option<Self::Dna>,
         network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,

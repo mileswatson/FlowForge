@@ -19,13 +19,25 @@ pub fn _train<T>(
     T: Trainer,
 {
     assert!(T::Dna::valid_path(output_path));
+    let starting_point = T::Dna::load(output_path).ok().and_then(|d| loop {
+        let mut buf = String::new();
+        println!("There is already valid DNA in the output path. Would you like to use it as a starting point? Y/N");
+        std::io::stdin().read_line(&mut buf).unwrap();
+        if buf.to_lowercase() == "y\n" {
+            return Some(d)
+        } else if buf.to_lowercase() == "n\n" { 
+            return None
+        }
+    });
     T::new(trainer_config)
         .train(
+            starting_point,
             network_config,
             utility_config.inner(),
-            &mut |_progress, d: Option<&T::Dna>| {
+            &mut |progress, d: Option<&T::Dna>| {
                 if let Some(x) = d {
-                    x.save(output_path).unwrap()
+                    x.save(output_path).unwrap();
+                    println!("Progress {:.2}, saved current version.", progress * 100.);
                 }
             },
             rng,

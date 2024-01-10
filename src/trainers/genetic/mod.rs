@@ -8,8 +8,8 @@ use crate::{
     evaluator::{EvaluationConfig, PopulateComponents},
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
     network::config::NetworkConfig,
-    rand::Rng,
     quantities::Float,
+    rand::Rng,
     Dna, ProgressHandler, Trainer,
 };
 
@@ -62,6 +62,7 @@ where
 
     fn train<H>(
         &self,
+        starting_point: Option<D>,
         network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
@@ -71,6 +72,10 @@ where
         H: ProgressHandler<D>,
         D: GeneticDna,
     {
+        assert!(
+            starting_point.is_none(),
+            "Starting point not supported for genetic trainer!"
+        );
         let mut population: Vec<_> = (0..self.population_size)
             .map(|_| D::new_random(rng))
             .collect();

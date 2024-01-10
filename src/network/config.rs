@@ -2,9 +2,7 @@ use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    quantities::{
-        bits_per_second, milliseconds, seconds, Information, InformationRate, TimeSpan,
-    },
+    quantities::{bits_per_second, milliseconds, seconds, Information, InformationRate, TimeSpan},
     rand::{
         ContinuousDistribution, DiscreteDistribution, PositiveContinuousDistribution,
         ProbabilityDistribution,

@@ -206,6 +206,7 @@ impl Trainer for RemyTrainer {
 
     fn train<H: ProgressHandler<RemyDna>>(
         &self,
+        starting_point: Option<RemyDna>,
         network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
@@ -232,7 +233,7 @@ impl Trainer for RemyTrainer {
                 )
                 .expect("Simulation to have active flows")
         };
-        let mut dna = RemyDna::default(&self.config);
+        let mut dna = starting_point.unwrap_or_else(|| RemyDna::default(&self.config));
         for i in 0..=self.config.rule_splits {
             if i == 0 {
                 println!("Starting optimization");
@@ -280,6 +281,7 @@ impl Trainer for RemyTrainer {
                         .map(|action| {
                             let (s, props) =
                                 evaluate_action(&leaf, action.clone(), new_identical_rng());
+                            println!("Evaluated {s}");
                             (s, props, action)
                         })
                         .filter(|(s, _, _)| s > &score)
@@ -290,17 +292,17 @@ impl Trainer for RemyTrainer {
                         *leaf.action() = new_action;
                     }
                     leaf.mark_optimized();
-                    progress_handler.update_progress(
-                        f64::from(
-                            i * self.config.optimization_rounds_per_split + optimization_round,
-                        ) / f64::from(
-                            self.config.optimization_rounds_per_split
-                                * self.config.optimization_rounds_per_split,
-                        ), 
-                        Some(&dna),
-                    );
                 }
                 dna.tree.mark_all_unoptimized();
+                progress_handler.update_progress(
+                    f64::from(
+                        i * self.config.optimization_rounds_per_split + optimization_round + 1,
+                    ) / f64::from(
+                        self.config.optimization_rounds_per_split
+                            * self.config.optimization_rounds_per_split,
+                    ),
+                    Some(&dna),
+                );
             }
         }
         evaluate_and_count(&mut dna.tree, rng);
@@ -350,6 +352,7 @@ mod tests {
             let mut rng = new_identical_rng();
             let trainer = RemyTrainer::new(&remy_config);
             let dna = trainer.train(
+                None,
                 &NetworkConfig::default(),
                 &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
                 &mut |_, _: Option<&RemyDna>| {},

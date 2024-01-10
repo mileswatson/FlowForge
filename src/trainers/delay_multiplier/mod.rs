@@ -93,6 +93,7 @@ impl Trainer for DelayMultiplierTrainer {
 
     fn train<H>(
         &self,
+        starting_point: Option<DelayMultiplierDna>,
         network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
@@ -101,8 +102,13 @@ impl Trainer for DelayMultiplierTrainer {
     where
         H: crate::ProgressHandler<DelayMultiplierDna>,
     {
-        self.genetic_trainer
-            .train(network_config, utility_function, progress_handler, rng)
+        self.genetic_trainer.train(
+            starting_point,
+            network_config,
+            utility_function,
+            progress_handler,
+            rng,
+        )
     }
 
     fn evaluate(
