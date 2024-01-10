@@ -331,7 +331,7 @@ impl Trainer for RemyTrainer {
         utility_function: &dyn UtilityFunction,
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
-        println!("Number of rule splits: {}", d.tree.num_parents() - 1);
+        println!("Number of rule splits: {}", d.tree.num_parents());
         self.config
             .evaluation_config
             .evaluate(network_config, d, utility_function, rng)
