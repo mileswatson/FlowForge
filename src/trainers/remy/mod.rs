@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use anyhow::Result;
 use ordered_float::NotNan;
 use protobuf::Message;
+use rayon::iter::{ParallelBridge, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -188,7 +189,7 @@ impl<'sim> From<Packet<'sim>> for RemyMessage<'sim> {
 /// Hack until <https://github.com/rust-lang/rust/issues/97362> is stabilised
 const fn coerce<F>(f: F) -> F
 where
-    F: for<'a> Fn(&'a mut BaseRuleTree, &mut Rng) -> (Float, FlowProperties, CountingRuleTree<'a>),
+    F: for<'a> Fn(&'a mut BaseRuleTree, &mut Rng) -> CountingRuleTree<'a>,
 {
     f
 }
@@ -212,38 +213,37 @@ impl Trainer for RemyTrainer {
     ) -> RemyDna {
         let evaluate_and_count = coerce(|tree: &mut BaseRuleTree, rng: &mut Rng| {
             let counting_tree = CountingRuleTree::new(tree);
-            let (s, props) = self
+            let (score, props) = self
                 .config
                 .evaluation_config
                 .evaluate(network_config, &counting_tree, utility_function, rng)
                 .expect("Simulation to have active flows");
-            (s, props, counting_tree)
+            println!("    Achieved eval score {score:.2} with {props}");
+            counting_tree
         });
-        let evaluate_action = |leaf: &LeafHandle, action: Action, rng: &mut Rng| {
+        let evaluate_action = |leaf: &LeafHandle, action: Action, mut rng: Rng| {
             self.config
                 .evaluation_config
                 .evaluate(
                     network_config,
                     &leaf.augmented_tree(action),
                     utility_function,
-                    rng,
+                    &mut rng,
                 )
                 .expect("Simulation to have active flows")
         };
         let mut dna = RemyDna::default(&self.config);
-        let (mut score, mut props, mut counts) = evaluate_and_count(&mut dna.tree, rng);
         for i in 0..=self.config.rule_splits {
             if i == 0 {
-                println!("Starting optimization.");
+                println!("Starting optimization");
             } else {
-                let (fraction_used, leaf) = counts.most_used_rule();
+                let (fraction_used, leaf) = evaluate_and_count(&mut dna.tree, rng).most_used_rule();
                 println!(
                     "Split rule {} with usage {:.2}%",
                     leaf.domain(),
                     fraction_used * 100.
                 );
                 leaf.split();
-                (score, props, counts) = evaluate_and_count(&mut dna.tree, rng);
             }
             for optimization_round in 0..self.config.optimization_rounds_per_split {
                 println!(
@@ -251,7 +251,9 @@ impl Trainer for RemyTrainer {
                     optimization_round + 1,
                     self.config.optimization_rounds_per_split
                 );
-                while let Some((fraction_used, mut leaf)) = counts.most_used_unoptimized_rule() {
+                while let Some((fraction_used, mut leaf)) =
+                    evaluate_and_count(&mut dna.tree, rng).most_used_unoptimized_rule()
+                {
                     if fraction_used == 0. {
                         println!("    Skipped remaining rules with 0% usage");
                         break;
@@ -261,18 +263,29 @@ impl Trainer for RemyTrainer {
                         leaf.domain(),
                         fraction_used * 100.
                     );
-                    println!("      Currently {}", leaf.action());
+                    println!("      Created new training set");
+                    let new_identical_rng = rng.identical_child_factory();
+                    let (mut score, _) = {
+                        let original_action = leaf.action().clone();
+                        evaluate_action(&leaf, original_action, new_identical_rng())
+                    };
+                    println!(
+                        "      Currently {} with training score {score:.2}",
+                        leaf.action()
+                    );
                     while let Some((s, _, new_action)) = leaf
                         .action()
                         .possible_improvements(&self.config)
+                        .par_bridge()
                         .map(|action| {
-                            let (s, props) = evaluate_action(&leaf, action.clone(), rng);
+                            let (s, props) =
+                                evaluate_action(&leaf, action.clone(), new_identical_rng());
                             (s, props, action)
                         })
                         .filter(|(s, _, _)| s > &score)
                         .max_by_key(|(s, _, _)| NotNan::new(*s).unwrap())
                     {
-                        println!("      Changed to {new_action}");
+                        println!("      Changed to {new_action} with training score {score:.2}");
                         score = s;
                         *leaf.action() = new_action;
                     }
@@ -283,16 +296,14 @@ impl Trainer for RemyTrainer {
                         ) / f64::from(
                             self.config.optimization_rounds_per_split
                                 * self.config.optimization_rounds_per_split,
-                        ),
+                        ), 
                         Some(&dna),
                     );
-                    (score, _, counts) = evaluate_and_count(&mut dna.tree, rng);
                 }
                 dna.tree.mark_all_unoptimized();
-                (score, props, counts) = evaluate_and_count(&mut dna.tree, rng);
             }
-            println!("Achieved score {score:.2} with properties {props}");
         }
+        evaluate_and_count(&mut dna.tree, rng);
         progress_handler.update_progress(1., Some(&dna));
         dna
     }
