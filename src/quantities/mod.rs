@@ -6,22 +6,23 @@ use std::{
     str::FromStr,
 };
 
-pub type Float = f64;
-
-pub mod information;
-pub mod information_rate;
-pub mod time;
-pub mod time_span;
-
 use format_num::format_num;
-pub use information::*;
-pub use information_rate::*;
 use itertools::Itertools;
 use serde::de::{self, Visitor};
+
+use crate::rand::Wrapper;
+
+mod information;
+mod information_rate;
+mod time;
+mod time_span;
+
+pub use information::*;
+pub use information_rate::*;
 pub use time::*;
 pub use time_span::*;
 
-use crate::rand::Wrapper;
+pub type Float = f64;
 
 impl Div<InformationRate> for Information {
     type Output = TimeSpan;
