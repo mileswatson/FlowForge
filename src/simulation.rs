@@ -15,7 +15,6 @@ use priority_queue::PriorityQueue;
 use crate::{
     logging::Logger,
     quantities::{Time, TimeSpan},
-    rand::Rng,
 };
 
 #[derive(Debug)]
@@ -176,16 +175,15 @@ impl<E> Message<'_, E> {
 }
 
 #[derive(Debug)]
-pub struct EffectContext<'sim, 'a> {
+pub struct EffectContext<'sim> {
     pub self_id: ComponentId<'sim>,
     pub time: Time,
-    pub rng: &'a mut Rng,
 }
 
 pub trait Component<'sim, E>: Debug {
     fn next_tick(&self, time: Time) -> Option<Time>;
-    fn tick(&mut self, context: EffectContext<'sim, '_>) -> Vec<Message<'sim, E>>;
-    fn receive(&mut self, e: E, context: EffectContext<'sim, '_>) -> Vec<Message<'sim, E>>;
+    fn tick(&mut self, context: EffectContext<'sim>) -> Vec<Message<'sim, E>>;
+    fn receive(&mut self, e: E, context: EffectContext<'sim>) -> Vec<Message<'sim, E>>;
 }
 
 #[derive(Debug)]
@@ -316,7 +314,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         }
     }
 
-    pub fn build<L>(self, rng: &'a mut Rng, logger: L) -> Simulator<'sim, 'a, E, L> {
+    pub fn build<L>(self, logger: L) -> Simulator<'sim, 'a, E, L> {
         let components = self
             .components
             .into_inner()
@@ -326,7 +324,6 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         Simulator {
             id: self.id,
             components,
-            rng,
             tick_queue: EventQueue::new(),
             logger,
         }
@@ -336,7 +333,6 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
 pub struct Simulator<'sim, 'a, E, L> {
     id: Id<'sim>,
     components: Vec<DynComponent<'sim, 'a, E>>,
-    rng: &'a mut Rng,
     tick_queue: EventQueue<ComponentId<'sim>, ()>,
     logger: L,
 }
@@ -359,7 +355,6 @@ where
                 EffectContext {
                     self_id: component_id,
                     time,
-                    rng: self.rng,
                 },
             );
             let next_tick = component.next_tick(time);
@@ -380,7 +375,6 @@ where
         let messages = component.tick(EffectContext {
             self_id: component_id,
             time,
-            rng: self.rng,
         });
         let next_tick = component.next_tick(time);
         self.tick_queue

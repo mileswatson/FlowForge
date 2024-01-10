@@ -226,7 +226,7 @@ where
         }
     }
 
-    fn send(&mut self, EffectContext { time, .. }: EffectContext<'sim, '_>) -> Packet<'sim> {
+    fn send(&mut self, EffectContext { time, .. }: EffectContext<'sim>) -> Packet<'sim> {
         match &mut self.state {
             LossyWindowState::Enabled(Enabled {
                 packets_sent,
@@ -282,7 +282,7 @@ where
         }
     }
 
-    fn tick(&mut self, context: EffectContext<'sim, '_>) -> Vec<NetworkMessage<'sim>> {
+    fn tick(&mut self, context: EffectContext<'sim>) -> Vec<NetworkMessage<'sim>> {
         let time = context.time;
         assert_eq!(Some(time), Component::next_tick(self, time));
         let packet = self.send(context);
@@ -295,7 +295,7 @@ where
     fn receive(
         &mut self,
         e: NetworkEffect<'sim>,
-        context: EffectContext<'sim, '_>,
+        context: EffectContext<'sim>,
     ) -> Vec<NetworkMessage<'sim>> {
         e.try_case(context, |packet, ctx| self.receive_packet(&packet, ctx))
             .or_else(try_case(|toggle, ctx| self.receive_toggle(toggle, ctx)))

@@ -14,6 +14,7 @@ use flowforge::{
 use generativity::make_guard;
 
 fn main() {
+    let mut rng = Rng::from_seed(1_234_987_348);
     let table = LogTable::new(5);
     // ManuallyDrop is used to re-order drop(builder) to before drop(sender),
     // as it can contain a ref to sender
@@ -38,6 +39,7 @@ fn main() {
         packets_per_second(0.2),
         0.1,
         Some(packets(1)),
+        rng.create_child(),
         table.logger(2),
     );
     let mut receiver = LossyBouncer::new(link2_slot.id(), table.logger(3));
@@ -46,6 +48,7 @@ fn main() {
         packets_per_second(0.2),
         0.1,
         Some(packets(1)),
+        rng.create_child(),
         table.logger(4),
     );
 
@@ -54,8 +57,7 @@ fn main() {
     receiver_slot.set(DynComponent::Ref(&mut receiver));
     link2_slot.set(DynComponent::Ref(&mut link2));
 
-    let mut rng = Rng::from_seed(1_234_987_348);
-    let sim = ManuallyDrop::into_inner(builder).build(&mut rng, table.logger(0));
+    let sim = ManuallyDrop::into_inner(builder).build(table.logger(0));
     sim.run_for(seconds(100.));
 
     println!("{}", table.build());

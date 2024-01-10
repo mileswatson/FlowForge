@@ -19,6 +19,7 @@ pub struct Link<'sim, L> {
     buffer_contains: Information,
     buffer: VecDeque<Packet<'sim>>,
     transmitting: VecDeque<(Packet<'sim>, Time)>,
+    rng: Rng,
     logger: L,
 }
 
@@ -32,6 +33,7 @@ where
         packet_rate: InformationRate,
         loss: f64,
         buffer_size: Option<Information>,
+        rng: Rng,
         logger: L,
     ) -> Self {
         Link {
@@ -43,6 +45,7 @@ where
             buffer_contains: Information::ZERO,
             buffer: VecDeque::new(),
             transmitting: VecDeque::new(),
+            rng,
             logger,
         }
     }
@@ -67,12 +70,16 @@ where
     }
 
     #[must_use]
-    fn try_deliver(&mut self, time: Time, rng: &mut Rng) -> Option<NetworkMessage<'sim>> {
+    fn try_deliver(&mut self, time: Time) -> Option<NetworkMessage<'sim>> {
         match self.transmitting.front() {
             Some((_, t)) if t == &time => {
                 let (mut packet, _) = self.transmitting.pop_front().unwrap();
                 // Randomly drop packets to simulate loss
-                if rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. }) < self.loss {
+                if self
+                    .rng
+                    .sample(&ContinuousDistribution::Uniform { min: 0., max: 1. })
+                    < self.loss
+                {
                     log!(self.logger, "Dropped packet (loss)");
                     None
                 } else {
@@ -91,11 +98,11 @@ where
 {
     fn tick(
         &mut self,
-        EffectContext { time, rng, .. }: EffectContext<'sim, '_>,
+        EffectContext { time, .. }: EffectContext<'sim>,
     ) -> Vec<NetworkMessage<'sim>> {
         assert_eq!(Some(time), Component::next_tick(self, time));
         let mut effects = Vec::new();
-        if let Some(msg) = self.try_deliver(time, rng) {
+        if let Some(msg) = self.try_deliver(time) {
             effects.push(msg);
         }
         self.try_transmit(time);
@@ -105,7 +112,7 @@ where
     fn receive(
         &mut self,
         effect: NetworkEffect<'sim>,
-        _ctx: EffectContext<'sim, '_>,
+        _ctx: EffectContext<'sim>,
     ) -> Vec<NetworkMessage<'sim>> {
         let packet: Packet = MaybeHasVariant::try_into(effect).unwrap();
         if self

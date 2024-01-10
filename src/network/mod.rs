@@ -110,7 +110,7 @@ impl Network {
                         slot.id(),
                         self.on_time.clone(),
                         self.off_time.clone(),
-                        rng,
+                        rng.create_child(),
                     )));
                     slot
                 })
@@ -120,12 +120,13 @@ impl Network {
                 self.packet_rate,
                 self.loss_rate,
                 self.buffer_size,
+                rng.create_child(),
                 NothingLogger,
             ))),
         };
 
         let r = populate_components(slots, rng);
 
-        (builder.build(rng, NothingLogger), r)
+        (builder.build(NothingLogger), r)
     }
 }

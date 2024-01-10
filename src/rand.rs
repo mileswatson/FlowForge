@@ -134,7 +134,7 @@ where
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Rng {
     rng: Xoshiro256PlusPlus,
 }
@@ -148,12 +148,20 @@ impl Rng {
     }
 
     #[must_use]
-    // Xoshiro256PlusPlus::from_rng is infallible when called with Xoshiro256PlusPlus
     #[allow(clippy::missing_panics_doc)]
     pub fn create_child(&mut self) -> Rng {
         Rng {
+            // Xoshiro256PlusPlus::from_rng is infallible when called with Xoshiro256PlusPlus
             rng: Xoshiro256PlusPlus::from_rng(&mut self.rng).unwrap(),
         }
+    }
+
+    #[allow(clippy::missing_panics_doc)]
+    /// Returns a function that spawns ``Rng``s identical to each other but different to self.
+    pub fn identical_child_factory(&mut self) -> impl Fn() -> Rng {
+        // Xoshiro256PlusPlus::from_rng is infallible when called with Xoshiro256PlusPlus
+        let rng = Xoshiro256PlusPlus::from_rng(&mut self.rng).unwrap();
+        move || Rng { rng: rng.clone() }
     }
 
     pub fn sample<R>(&mut self, dist: &impl Distribution<R>) -> R {

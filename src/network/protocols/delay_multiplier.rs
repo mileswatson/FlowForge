@@ -78,14 +78,14 @@ impl<'sim, L> Component<'sim, NetworkEffect<'sim>> for LossySender<'sim, L>
 where
     L: Logger,
 {
-    fn tick(&mut self, context: EffectContext<'sim, '_>) -> Vec<NetworkMessage<'sim>> {
+    fn tick(&mut self, context: EffectContext<'sim>) -> Vec<NetworkMessage<'sim>> {
         self.0.tick(context)
     }
 
     fn receive(
         &mut self,
         e: NetworkEffect<'sim>,
-        context: EffectContext<'sim, '_>,
+        context: EffectContext<'sim>,
     ) -> Vec<NetworkMessage<'sim>> {
         self.0.receive(e, context)
     }

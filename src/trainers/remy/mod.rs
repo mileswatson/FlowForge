@@ -324,7 +324,8 @@ mod tests {
     #[test]
     #[ignore = "long runtime"]
     fn determinism() {
-        let rng = Rng::from_seed(123_456);
+        let mut rng = Rng::from_seed(123_456);
+        let new_identical_rng = rng.identical_child_factory();
         let remy_config = RemyConfig {
             rule_splits: 1,
             optimization_rounds_per_split: 1,
@@ -335,7 +336,7 @@ mod tests {
             ..RemyConfig::default()
         };
         let evaluate = || {
-            let mut rng = rng.clone();
+            let mut rng = new_identical_rng();
             let trainer = RemyTrainer::new(&remy_config);
             let dna = trainer.train(
                 &NetworkConfig::default(),
