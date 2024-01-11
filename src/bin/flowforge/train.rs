@@ -23,9 +23,9 @@ pub fn _train<T>(
         let mut buf = String::new();
         println!("There is already valid DNA in the output path. Would you like to use it as a starting point? Y/N");
         std::io::stdin().read_line(&mut buf).unwrap();
-        if buf.to_lowercase() == "y\n" {
+        if buf.to_lowercase().trim() == "y" {
             return Some(d)
-        } else if buf.to_lowercase() == "n\n" { 
+        } else if buf.to_lowercase().trim() == "n" { 
             return None
         }
     });
