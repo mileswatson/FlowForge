@@ -11,13 +11,12 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
+    defaults:
+      run:
+        working-directory: ./flowforge
     steps:
     - uses: actions/checkout@v3
-    - name: Change Directory
-      run: cd flowforge
     - name: Build
       run: cargo build --locked --verbose
     - name: Run tests
