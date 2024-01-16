@@ -1,0 +1,15 @@
+[package]
+name = "flowforge_ns2"
+version = "0.1.0"
+authors = ["Miles Watson"]
+description = "Use FlowForge to tailor congestion control algorithms to a provided network configuration."
+license = "MIT"
+edition = "2021"
+
+
+[lib]
+name = "flowforge_ns2"
+crate-type = ["staticlib"]
+
+[dependencies.flowforge]
+path = "../flowforge"
