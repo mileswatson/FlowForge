@@ -3,6 +3,8 @@
 
 flamegraph.svg
 
+/dna/*
+
 /configs/*
 
 !/configs/network
