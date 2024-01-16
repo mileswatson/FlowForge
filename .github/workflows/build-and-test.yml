@@ -17,7 +17,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build --locked --verbose
+      run: 
+        cd flowforge
+        cargo build --locked --verbose
     - name: Run tests
       run: cargo test --locked --verbose
     - name: Check for outdated configs
