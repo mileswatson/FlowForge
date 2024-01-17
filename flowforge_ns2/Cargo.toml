@@ -9,7 +9,7 @@ edition = "2021"
 
 [lib]
 name = "flowforge_ns2"
-crate-type = ["staticlib"]
+crate-type = ["cdylib"]
 
 [dependencies.flowforge]
 path = "../flowforge"
