@@ -11,5 +11,8 @@ edition = "2021"
 name = "flowforge_ns2"
 crate-type = ["cdylib"]
 
+[dependencies]
+dfdx = { git = "https://github.com/coreylowman/dfdx.git", features = ["cpu"] }
+
 [dependencies.flowforge]
 path = "../flowforge"
