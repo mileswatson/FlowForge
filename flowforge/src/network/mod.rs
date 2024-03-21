@@ -1,13 +1,15 @@
+use std::{fmt::Debug, rc::Rc};
+
+use derive_where::derive_where;
 use generativity::Guard;
 
 use crate::{
+    flow::Flow,
     logging::NothingLogger,
+    never::Never,
     quantities::{packets, Float, Information, InformationRate, Time, TimeSpan},
     rand::{PositiveContinuousDistribution, Rng},
-    simulation::{
-        ComponentId, ComponentSlot, DynComponent, MaybeHasVariant, Message, Simulator,
-        SimulatorBuilder,
-    },
+    simulation::{DynComponent, HasSubEffect, MessageDestination, Simulator, SimulatorBuilder},
 };
 
 use self::{
@@ -20,17 +22,17 @@ pub mod link;
 pub mod protocols;
 pub mod toggler;
 
-#[derive(Debug)]
-pub struct Packet<'sim> {
+#[derive_where(Debug)]
+pub struct Packet<'sim, E> {
     seq: u64,
-    source: ComponentId<'sim>,
-    destination: ComponentId<'sim>,
+    source: MessageDestination<'sim, Packet<'sim, E>, E>,
+    destination: MessageDestination<'sim, Packet<'sim, E>, E>,
     sent_time: Time,
 }
 
-impl<'sim> Packet<'sim> {
-    fn pop_next_hop(&mut self) -> ComponentId<'sim> {
-        self.destination
+impl<'sim, E> Packet<'sim, E> {
+    fn pop_next_hop(&mut self) -> MessageDestination<'sim, Packet<'sim, E>, E> {
+        self.destination.clone()
     }
 
     #[allow(clippy::unused_self)]
@@ -39,43 +41,7 @@ impl<'sim> Packet<'sim> {
     }
 }
 
-#[derive(Debug)]
-pub enum NetworkEffect<'sim> {
-    Packet(Packet<'sim>),
-    Toggle(Toggle),
-}
-
-pub type NetworkMessage<'sim> = Message<'sim, NetworkEffect<'sim>>;
-
-impl<'sim> MaybeHasVariant<'sim, Toggle> for NetworkEffect<'sim> {
-    fn try_into(self) -> Result<Toggle, Self> {
-        match self {
-            NetworkEffect::Packet(_) => Err(self),
-            NetworkEffect::Toggle(t) => Ok(t),
-        }
-    }
-}
-
-impl<'sim> From<Toggle> for NetworkEffect<'sim> {
-    fn from(value: Toggle) -> Self {
-        NetworkEffect::Toggle(value)
-    }
-}
-
-impl<'sim> MaybeHasVariant<'sim, Packet<'sim>> for NetworkEffect<'sim> {
-    fn try_into(self) -> Result<Packet<'sim>, Self> {
-        match self {
-            NetworkEffect::Packet(p) => Ok(p),
-            NetworkEffect::Toggle(_) => Err(self),
-        }
-    }
-}
-
-impl<'sim> From<Packet<'sim>> for NetworkEffect<'sim> {
-    fn from(value: Packet<'sim>) -> Self {
-        NetworkEffect::Packet(value)
-    }
-}
+pub type PacketDestination<'sim, E> = MessageDestination<'sim, Packet<'sim, E>, E>;
 
 #[derive(Debug)]
 pub struct Network {
@@ -83,50 +49,78 @@ pub struct Network {
     pub packet_rate: InformationRate,
     pub loss_rate: Float,
     pub buffer_size: Option<Information>,
-    pub num_senders: usize,
+    pub num_senders: u32,
     pub off_time: PositiveContinuousDistribution<TimeSpan>,
     pub on_time: PositiveContinuousDistribution<TimeSpan>,
 }
 
-pub struct NetworkSlots<'sim, 'a, 'b> {
-    pub sender_slots: Vec<ComponentSlot<'sim, 'a, 'b, NetworkEffect<'sim>>>,
-    pub sender_link_id: ComponentId<'sim>,
+pub struct PopulateComponentsResult<'sim, 'a, E> {
+    pub senders: Vec<MessageDestination<'sim, Toggle, E>>,
+    pub flows: Vec<Rc<dyn Flow + 'a>>,
+}
+
+pub trait EffectTypeGenerator {
+    type Type<'a>;
+}
+
+pub trait PopulateComponents<G>: Sync
+where
+    G: EffectTypeGenerator,
+{
+    /// Populates senders and receiver slots
+    fn populate_components<'sim>(
+        &'sim self,
+        num_senders: u32,
+        simulator_builder: &mut SimulatorBuilder<'sim, 'sim, G::Type<'sim>>,
+        sender_link_id: MessageDestination<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
+        rng: &mut Rng,
+    ) -> PopulateComponentsResult<'sim, 'sim, G::Type<'sim>>
+    where
+        G::Type<'sim>: 'sim;
 }
 
 impl Network {
     #[must_use]
-    pub fn to_sim<'sim, 'a, R>(
+    pub fn to_sim<'sim, G>(
         &self,
         guard: Guard<'sim>,
-        rng: &'a mut Rng,
-        populate_components: impl FnOnce(NetworkSlots<'sim, 'a, '_>, &mut Rng) -> R + 'a,
-    ) -> (Simulator<'sim, 'a, NetworkEffect<'sim>, NothingLogger>, R) {
-        let builder = SimulatorBuilder::<'sim, '_>::new(guard);
-        let slots = NetworkSlots {
-            sender_slots: (0..self.num_senders)
-                .map(|_| {
-                    let slot = builder.reserve_slot();
-                    builder.insert(DynComponent::new(Toggler::new(
-                        slot.id(),
-                        self.on_time.clone(),
-                        self.off_time.clone(),
-                        rng.create_child(),
-                    )));
-                    slot
-                })
-                .collect(),
-            sender_link_id: builder.insert(DynComponent::new(Link::create(
-                self.rtt,
-                self.packet_rate,
-                self.loss_rate,
-                self.buffer_size,
+        rng: &'sim mut Rng,
+        populate_components: &'sim impl PopulateComponents<G>,
+    ) -> (
+        Simulator<'sim, 'sim, G::Type<'sim>, NothingLogger>,
+        Vec<Rc<dyn Flow + 'sim>>,
+    )
+    where
+        G: EffectTypeGenerator,
+        G::Type<'sim>: HasSubEffect<Packet<'sim, G::Type<'sim>>>
+            + HasSubEffect<Toggle>
+            + HasSubEffect<Never>
+            + 'sim,
+    {
+        let mut builder = SimulatorBuilder::<'sim, '_>::new(guard);
+        let sender_link_id = builder.insert(DynComponent::new(Link::create(
+            self.rtt,
+            self.packet_rate,
+            self.loss_rate,
+            self.buffer_size,
+            rng.create_child(),
+            NothingLogger,
+        )));
+        let PopulateComponentsResult { senders, flows } = populate_components.populate_components(
+            self.num_senders,
+            &mut builder,
+            sender_link_id,
+            rng,
+        );
+        for sender in senders {
+            builder.insert(DynComponent::new(Toggler::new(
+                sender,
+                self.on_time.clone(),
+                self.off_time.clone(),
                 rng.create_child(),
-                NothingLogger,
-            ))),
-        };
+            )));
+        }
 
-        let r = populate_components(slots, rng);
-
-        (builder.build(NothingLogger), r)
+        (builder.build(NothingLogger), flows)
     }
 }

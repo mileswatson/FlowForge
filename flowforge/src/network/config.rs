@@ -53,7 +53,7 @@ impl Distribution<Network> for NetworkConfig {
             packet_rate: rng.sample(&self.bandwidth),
             loss_rate: rng.sample(&self.loss_rate),
             buffer_size: self.buffer_size.as_ref().map(|d| rng.sample(d)),
-            num_senders: rng.sample(&self.num_senders) as usize,
+            num_senders: rng.sample(&self.num_senders),
             off_time: self.off_time.clone(),
             on_time: self.on_time.clone(),
         }

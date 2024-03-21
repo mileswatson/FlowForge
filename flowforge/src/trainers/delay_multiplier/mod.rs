@@ -3,17 +3,23 @@ use std::{cell::RefCell, rc::Rc};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    evaluator::PopulateComponents,
     flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
     logging::NothingLogger,
-    network::{config::NetworkConfig, protocols::delay_multiplier::LossySender, NetworkSlots},
+    network::{
+        config::NetworkConfig,
+        protocols::{delay_multiplier::LossySender, window::lossy_window::LossySenderEffect},
+        EffectTypeGenerator, Packet, PopulateComponents, PopulateComponentsResult,
+    },
     quantities::Float,
     rand::{ContinuousDistribution, Rng},
-    simulation::DynComponent,
+    simulation::{DynComponent, HasSubEffect, MessageDestination, SimulatorBuilder},
     Dna, Trainer,
 };
 
-use super::genetic::{GeneticConfig, GeneticDna, GeneticTrainer};
+use super::{
+    genetic::{GeneticConfig, GeneticDna, GeneticTrainer},
+    DefaultEffect,
+};
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct DelayMultiplierConfig {
@@ -21,7 +27,7 @@ pub struct DelayMultiplierConfig {
 }
 
 pub struct DelayMultiplierTrainer {
-    genetic_trainer: GeneticTrainer<DelayMultiplierDna>,
+    genetic_trainer: GeneticTrainer<DefaultEffect<'static>, DelayMultiplierDna>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -41,32 +47,46 @@ impl Dna for DelayMultiplierDna {
     }
 }
 
-impl PopulateComponents for DelayMultiplierDna {
+impl<G> PopulateComponents<G> for DelayMultiplierDna
+where
+    G: EffectTypeGenerator,
+    for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>,
+{
     fn populate_components<'sim>(
-        &self,
-        network_slots: NetworkSlots<'sim, '_, '_>,
+        &'sim self,
+        num_senders: u32,
+        simulator_builder: &mut SimulatorBuilder<'sim, 'sim, G::Type<'sim>>,
+        sender_link_id: MessageDestination<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
         _rng: &mut Rng,
-    ) -> Vec<Rc<dyn Flow + 'sim>> {
-        network_slots
-            .sender_slots
-            .into_iter()
-            .map(|slot| {
+    ) -> PopulateComponentsResult<'sim, 'sim, G::Type<'sim>>
+    where
+        G::Type<'sim>: 'sim,
+    {
+        let (senders, flows) = (0..num_senders)
+            .map(|_| {
+                let slot = simulator_builder.reserve_slot();
+                let self_id = slot.destination().cast();
                 let sender = Rc::new(RefCell::new(LossySender::<'sim>::new(
-                    slot.id(),
-                    network_slots.sender_link_id,
-                    slot.id(),
+                    self_id.clone(),
+                    sender_link_id.clone(),
+                    self_id,
                     self.multiplier,
                     true,
                     NothingLogger,
                 )));
-                slot.set(DynComponent::shared(sender.clone()));
-                sender as Rc<dyn Flow>
+                let id = slot.set(DynComponent::shared(sender.clone())).cast();
+                (id, sender as Rc<dyn Flow>)
             })
-            .collect()
+            .unzip();
+        PopulateComponentsResult { senders, flows }
     }
 }
 
-impl GeneticDna for DelayMultiplierDna {
+impl<G> GeneticDna<G> for DelayMultiplierDna
+where
+    G: EffectTypeGenerator,
+    for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>,
+{
     fn new_random(rng: &mut Rng) -> Self {
         DelayMultiplierDna {
             multiplier: rng.sample(&ContinuousDistribution::Uniform { min: 0.0, max: 5.0 }),

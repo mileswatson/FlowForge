@@ -1,29 +1,31 @@
-use std::{collections::VecDeque, fmt::Debug};
+use std::collections::VecDeque;
+
+use derive_where::derive_where;
 
 use crate::{
     logging::Logger,
     quantities::{earliest_opt, latest, Information, InformationRate, Time, TimeSpan},
     rand::{ContinuousDistribution, Rng},
-    simulation::{Component, EffectContext, MaybeHasVariant, Message},
+    simulation::{Component, EffectContext, Message},
 };
 
-use super::{NetworkEffect, NetworkMessage, Packet};
+use super::Packet;
 
-#[derive(Debug)]
-pub struct Link<'sim, L> {
+#[derive_where(Debug; L)]
+pub struct Link<'sim, E, L> {
     delay: TimeSpan,
     packet_rate: InformationRate,
     loss: f64,
     buffer_size: Option<Information>,
     earliest_transmit: Time,
     buffer_contains: Information,
-    buffer: VecDeque<Packet<'sim>>,
-    transmitting: VecDeque<(Packet<'sim>, Time)>,
+    buffer: VecDeque<Packet<'sim, E>>,
+    transmitting: VecDeque<(Packet<'sim, E>, Time)>,
     rng: Rng,
     logger: L,
 }
 
-impl<'sim, 'a, L> Link<'sim, L>
+impl<'sim, 'a, E, L> Link<'sim, E, L>
 where
     L: Logger + 'a,
 {
@@ -51,7 +53,7 @@ where
     }
 }
 
-impl<'sim, L> Link<'sim, L>
+impl<'sim, E, L> Link<'sim, E, L>
 where
     L: Logger,
 {
@@ -70,7 +72,7 @@ where
     }
 
     #[must_use]
-    fn try_deliver(&mut self, time: Time) -> Option<NetworkMessage<'sim>> {
+    fn try_deliver(&mut self, time: Time) -> Option<Message<'sim, E>> {
         match self.transmitting.front() {
             Some((_, t)) if t == &time => {
                 let (mut packet, _) = self.transmitting.pop_front().unwrap();
@@ -84,7 +86,7 @@ where
                     None
                 } else {
                     let next_hop = packet.pop_next_hop();
-                    Some(Message::new(next_hop, packet))
+                    Some(next_hop.create_message(packet))
                 }
             }
             _ => None,
@@ -92,14 +94,13 @@ where
     }
 }
 
-impl<'sim, L> Component<'sim, NetworkEffect<'sim>> for Link<'sim, L>
+impl<'sim, E, L> Component<'sim, E> for Link<'sim, E, L>
 where
     L: Logger,
 {
-    fn tick(
-        &mut self,
-        EffectContext { time, .. }: EffectContext<'sim>,
-    ) -> Vec<NetworkMessage<'sim>> {
+    type Receive = Packet<'sim, E>;
+
+    fn tick(&mut self, EffectContext { time, .. }: EffectContext) -> Vec<Message<'sim, E>> {
         assert_eq!(Some(time), Component::next_tick(self, time));
         let mut effects = Vec::new();
         if let Some(msg) = self.try_deliver(time) {
@@ -109,12 +110,7 @@ where
         effects
     }
 
-    fn receive(
-        &mut self,
-        effect: NetworkEffect<'sim>,
-        _ctx: EffectContext<'sim>,
-    ) -> Vec<NetworkMessage<'sim>> {
-        let packet: Packet = MaybeHasVariant::try_into(effect).unwrap();
+    fn receive(&mut self, packet: Self::Receive, _ctx: EffectContext) -> Vec<Message<'sim, E>> {
         if self
             .buffer_size
             .is_some_and(|limit| self.buffer_contains + packet.size() > limit)

@@ -1,4 +1,10 @@
+use derive_more::{From, TryInto};
 use serde::{Deserialize, Serialize};
+
+use crate::{
+    network::{protocols::window::lossy_window::LossySenderEffect, toggler::Toggle, EffectTypeGenerator, Packet},
+    never::Never,
+};
 
 use self::{delay_multiplier::DelayMultiplierConfig, remy::RemyConfig};
 
@@ -11,4 +17,16 @@ pub mod remy;
 pub enum TrainerConfig {
     Remy(RemyConfig),
     DelayMultiplier(DelayMultiplierConfig),
+}
+
+#[derive(From, TryInto)]
+pub enum DefaultEffect<'sim> {
+    Packet(Packet<'sim, DefaultEffect<'sim>>),
+    LossySenderEffect(LossySenderEffect<'sim, DefaultEffect<'sim>>),
+    Toggle(Toggle),
+    Never(Never),
+}
+
+impl<'sim> EffectTypeGenerator for DefaultEffect<'sim> {
+    type Type<'a> = DefaultEffect<'a>;
 }

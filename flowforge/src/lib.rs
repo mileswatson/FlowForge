@@ -27,6 +27,7 @@ pub mod evaluator;
 pub mod flow;
 pub mod meters;
 pub mod network;
+pub mod never;
 pub mod quantities;
 pub mod rand;
 pub mod simulation;

@@ -1,7 +1,10 @@
+use derive_where::derive_where;
+
 use crate::{
+    never::Never,
     quantities::{Time, TimeSpan},
     rand::{PositiveContinuousDistribution, Rng},
-    simulation::{Component, ComponentId, EffectContext, HasVariant, Message},
+    simulation::{Component, EffectContext, Message, MessageDestination},
 };
 
 #[derive(PartialEq, Eq, Debug)]
@@ -10,9 +13,9 @@ pub enum Toggle {
     Disable,
 }
 
-#[derive(Debug)]
-pub struct Toggler<'sim> {
-    target: ComponentId<'sim>,
+#[derive_where(Debug)]
+pub struct Toggler<'sim, E> {
+    target: MessageDestination<'sim, Toggle, E>,
     enabled: bool,
     on_distribution: PositiveContinuousDistribution<TimeSpan>,
     off_distribution: PositiveContinuousDistribution<TimeSpan>,
@@ -20,14 +23,14 @@ pub struct Toggler<'sim> {
     rng: Rng,
 }
 
-impl<'sim> Toggler<'sim> {
+impl<'sim, E> Toggler<'sim, E> {
     #[must_use]
     pub fn new(
-        target: ComponentId<'sim>,
+        target: MessageDestination<'sim, Toggle, E>,
         on_distribution: PositiveContinuousDistribution<TimeSpan>,
         off_distribution: PositiveContinuousDistribution<TimeSpan>,
         mut rng: Rng,
-    ) -> Toggler<'sim> {
+    ) -> Toggler<'sim, E> {
         Toggler {
             target,
             enabled: false,
@@ -39,11 +42,10 @@ impl<'sim> Toggler<'sim> {
     }
 }
 
-impl<'sim, E> Component<'sim, E> for Toggler<'sim>
-where
-    E: HasVariant<'sim, Toggle>,
-{
-    fn tick(&mut self, context: EffectContext<'sim>) -> Vec<Message<'sim, E>> {
+impl<'sim, E> Component<'sim, E> for Toggler<'sim, E> {
+    type Receive = Never;
+
+    fn tick(&mut self, context: EffectContext) -> Vec<Message<'sim, E>> {
         assert_eq!(
             Some(context.time),
             Component::<E>::next_tick(self, context.time)
@@ -52,10 +54,10 @@ where
         if context.time == self.next_toggle {
             self.enabled = !self.enabled;
             let dist = if self.enabled {
-                effects.push(Message::new(self.target, Toggle::Enable));
+                effects.push(self.target.create_message(Toggle::Enable));
                 &self.on_distribution
             } else {
-                effects.push(Message::new(self.target, Toggle::Disable));
+                effects.push(self.target.create_message(Toggle::Disable));
                 &self.off_distribution
             };
             self.next_toggle = context.time + self.rng.sample(dist);
@@ -63,7 +65,7 @@ where
         effects
     }
 
-    fn receive(&mut self, _e: E, _context: EffectContext) -> Vec<Message<'sim, E>> {
+    fn receive(&mut self, _e: Never, _context: EffectContext) -> Vec<Message<'sim, E>> {
         panic!()
     }
 

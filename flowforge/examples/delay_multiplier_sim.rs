@@ -5,11 +5,11 @@ use flowforge::{
     network::{
         link::Link,
         protocols::{delay_multiplier::LossySender, window::lossy_window::LossyBouncer},
-        NetworkEffect,
     },
     quantities::{packets, packets_per_second, seconds},
     rand::Rng,
     simulation::{DynComponent, SimulatorBuilder},
+    trainers::DefaultEffect,
 };
 use generativity::make_guard;
 
@@ -19,7 +19,7 @@ fn main() {
     // ManuallyDrop is used to re-order drop(builder) to before drop(sender),
     // as it can contain a ref to sender
     make_guard!(guard);
-    let builder = ManuallyDrop::new(SimulatorBuilder::<NetworkEffect>::new(guard));
+    let builder = ManuallyDrop::new(SimulatorBuilder::<DefaultEffect>::new(guard));
 
     let sender_slot = builder.reserve_slot();
     let link1_slot = builder.reserve_slot();
@@ -27,9 +27,9 @@ fn main() {
     let link2_slot = builder.reserve_slot();
 
     let mut sender = LossySender::new(
-        sender_slot.id(),
-        link1_slot.id(),
-        receiver_slot.id(),
+        sender_slot.destination().cast(),
+        link1_slot.destination().cast(),
+        receiver_slot.destination().cast(),
         2.0,
         false,
         table.logger(1),
@@ -42,7 +42,7 @@ fn main() {
         rng.create_child(),
         table.logger(2),
     );
-    let mut receiver = LossyBouncer::new(link2_slot.id(), table.logger(3));
+    let mut receiver = LossyBouncer::new(link2_slot.destination().cast(), table.logger(3));
     let mut link2 = Link::create(
         seconds(1.5),
         packets_per_second(0.2),

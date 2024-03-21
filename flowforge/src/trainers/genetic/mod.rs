@@ -6,11 +6,15 @@ use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    evaluator::{EvaluationConfig, PopulateComponents},
+    evaluator::EvaluationConfig,
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
-    network::config::NetworkConfig,
+    network::{
+        config::NetworkConfig, toggler::Toggle, EffectTypeGenerator, Packet, PopulateComponents,
+    },
+    never::Never,
     quantities::Float,
     rand::Rng,
+    simulation::HasSubEffect,
     Dna, ProgressHandler, Trainer,
 };
 
@@ -31,23 +35,32 @@ impl Default for GeneticConfig {
     }
 }
 
-pub struct GeneticTrainer<D> {
+pub struct GeneticTrainer<G, D> {
     iters: u32,
     population_size: u32,
     evaluation_config: EvaluationConfig,
+    effect: PhantomData<G>,
     dna: PhantomData<D>,
 }
 
-pub trait GeneticDna: Dna + PopulateComponents {
+pub trait GeneticDna<G>: Dna + PopulateComponents<G>
+where
+    G: EffectTypeGenerator,
+{
     fn new_random(rng: &mut Rng) -> Self;
 
     #[must_use]
     fn spawn_child(&self, rng: &mut Rng) -> Self;
 }
 
-impl<D> Trainer for GeneticTrainer<D>
+impl<G, D> Trainer for GeneticTrainer<G, D>
 where
-    D: GeneticDna,
+    D: GeneticDna<G>,
+    G: EffectTypeGenerator,
+    for<'sim> G::Type<'sim>: HasSubEffect<Packet<'sim, G::Type<'sim>>>
+        + HasSubEffect<Toggle>
+        + HasSubEffect<Never>
+        + 'sim,
 {
     type Config = GeneticConfig;
     type Dna = D;
@@ -58,6 +71,7 @@ where
             population_size: config.population_size,
             evaluation_config: config.evaluation_config.clone(),
             dna: PhantomData,
+            effect: PhantomData,
         }
     }
 
@@ -71,7 +85,6 @@ where
     ) -> D
     where
         H: ProgressHandler<D>,
-        D: GeneticDna,
     {
         assert!(
             starting_point.is_none(),
@@ -102,7 +115,7 @@ where
                 .into_iter()
                 .map(|d| (d, rng.create_child()))
                 .filter_map(|(d, mut rng)| {
-                    let score = self.evaluation_config.evaluate(
+                    let score = self.evaluation_config.evaluate::<G>(
                         network_config,
                         &d,
                         utility_function,
@@ -134,6 +147,6 @@ where
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
         self.evaluation_config
-            .evaluate(network_config, d, utility_function, rng)
+            .evaluate::<G>(network_config, d, utility_function, rng)
     }
 }

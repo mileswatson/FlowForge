@@ -1,6 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use anyhow::Result;
+use derive_where::derive_where;
 use indicatif::{ParallelProgressIterator, ProgressBar};
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -9,15 +10,19 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    evaluator::{EvaluationConfig, PopulateComponents},
+    evaluator::EvaluationConfig,
     flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
     logging::NothingLogger,
     network::{
-        config::NetworkConfig, protocols::remy::LossySender, toggler::Toggle, NetworkSlots, Packet,
+        config::NetworkConfig,
+        protocols::{remy::LossySender, window::lossy_window::LossySenderEffect},
+        toggler::Toggle,
+        EffectTypeGenerator, Packet, PopulateComponents, PopulateComponentsResult,
     },
     quantities::{milliseconds, seconds, Float},
     rand::Rng,
-    simulation::{DynComponent, MaybeHasVariant},
+    simulation::{DynComponent, HasSubEffect, MessageDestination, SimulatorBuilder},
+    trainers::DefaultEffect,
     Dna, ProgressHandler, Trainer,
 };
 
@@ -132,67 +137,51 @@ pub struct RemyTrainer {
     config: RemyConfig,
 }
 
-#[derive(Debug)]
-pub enum RemyMessage<'sim> {
-    Packet(Packet<'sim>),
+#[derive_where(Debug)]
+pub enum RemyMessage<'sim, E> {
+    Packet(Packet<'sim, E>),
     Toggle(Toggle),
 }
 
-impl<T> PopulateComponents for T
+impl<G, T> PopulateComponents<G> for T
 where
     T: RuleTree + Sync,
+    G: EffectTypeGenerator,
+    for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>,
 {
-    fn populate_components<'sim, 'a>(
-        &'a self,
-        network_slots: NetworkSlots<'sim, 'a, '_>,
+    fn populate_components<'sim>(
+        &'sim self,
+        num_senders: u32,
+        simulator_builder: &mut SimulatorBuilder<'sim, 'sim, G::Type<'sim>>,
+        sender_link_id: MessageDestination<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
         _rng: &mut Rng,
-    ) -> Vec<Rc<dyn Flow + 'a>> {
-        network_slots
-            .sender_slots
-            .into_iter()
-            .map(|slot| {
-                let sender = Rc::new(RefCell::new(LossySender::new(
-                    slot.id(),
-                    network_slots.sender_link_id,
-                    slot.id(),
+    ) -> PopulateComponentsResult<'sim, 'sim, G::Type<'sim>>
+    where
+        G::Type<'sim>: 'sim,
+    {
+        let (senders, flows) = (0..num_senders)
+            .map(|_| {
+                let slot = simulator_builder.reserve_slot();
+                let self_destination = slot.destination().cast();
+                let sender = Rc::new(RefCell::new(LossySender::<'sim, 'sim>::new(
+                    self_destination.clone(),
+                    sender_link_id.clone(),
+                    self_destination,
                     self,
                     true,
                     NothingLogger,
                 )));
-                slot.set(DynComponent::Shared(sender.clone()));
-                sender as Rc<dyn Flow>
+                let id = slot.set(DynComponent::shared(sender.clone())).cast();
+                (id, sender as Rc<dyn Flow>)
             })
-            .collect()
+            .unzip();
+        PopulateComponentsResult { senders, flows }
     }
 }
 
-impl<'sim> MaybeHasVariant<'sim, Toggle> for RemyMessage<'sim> {
-    fn try_into(self) -> Result<Toggle, Self> {
-        match self {
-            RemyMessage::Packet(_) => Err(self),
-            RemyMessage::Toggle(t) => Ok(t),
-        }
-    }
-}
-
-impl<'sim> From<Toggle> for RemyMessage<'sim> {
+impl<'sim, E> From<Toggle> for RemyMessage<'sim, E> {
     fn from(value: Toggle) -> Self {
         RemyMessage::Toggle(value)
-    }
-}
-
-impl<'sim> MaybeHasVariant<'sim, Packet<'sim>> for RemyMessage<'sim> {
-    fn try_into(self) -> Result<Packet<'sim>, Self> {
-        match self {
-            RemyMessage::Packet(p) => Ok(p),
-            RemyMessage::Toggle(_) => Err(self),
-        }
-    }
-}
-
-impl<'sim> From<Packet<'sim>> for RemyMessage<'sim> {
-    fn from(value: Packet<'sim>) -> Self {
-        RemyMessage::Packet(value)
     }
 }
 
@@ -229,7 +218,7 @@ impl Trainer for RemyTrainer {
             let (score, props) = self
                 .config
                 .evaluation_config
-                .evaluate(
+                .evaluate::<DefaultEffect>(
                     network_config,
                     &counting_tree,
                     utility_function,
@@ -242,7 +231,7 @@ impl Trainer for RemyTrainer {
         let test_new_action = |leaf: &LeafHandle, new_action: Action, mut rng: Rng| {
             self.config
                 .training_config
-                .evaluate(
+                .evaluate::<DefaultEffect>(
                     network_config,
                     &leaf.augmented_tree(new_action),
                     utility_function,
@@ -308,7 +297,9 @@ impl Trainer for RemyTrainer {
                             .filter(|(s, _)| s > &best_score)
                             .max_by_key(|(s, _)| NotNan::new(*s).unwrap())
                     } {
-                        println!("      Changed to {new_action} with training score {best_score:.2}");
+                        println!(
+                            "      Changed to {new_action} with training score {best_score:.2}"
+                        );
                         best_score = s;
                         *leaf.action() = new_action;
                     }
@@ -339,9 +330,12 @@ impl Trainer for RemyTrainer {
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
         println!("Number of rule splits: {}", d.tree.num_parents());
-        self.config
-            .evaluation_config
-            .evaluate(network_config, d, utility_function, rng)
+        self.config.evaluation_config.evaluate::<DefaultEffect>(
+            network_config,
+            d,
+            utility_function,
+            rng,
+        )
     }
 }
 

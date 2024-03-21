@@ -1,16 +1,20 @@
 use std::fmt::Debug;
 
+use derive_where::derive_where;
+
 use crate::{
     flow::{Flow, FlowNeverActive, FlowProperties},
     logging::Logger,
     meters::EWMA,
-    network::{NetworkEffect, NetworkMessage},
+    network::PacketDestination,
     quantities::{Time, TimeSpan},
-    simulation::{Component, ComponentId, EffectContext},
+    simulation::{Component, EffectContext, Message},
     trainers::remy::{action::Action, point::Point, rule_tree::RuleTree},
 };
 
-use super::window::lossy_window::{LossyWindowBehavior, LossyWindowSender, LossyWindowSettings};
+use super::window::lossy_window::{
+    LossySenderEffect, LossyWindowBehavior, LossyWindowSender, LossyWindowSettings,
+};
 
 #[derive(Debug, Clone)]
 struct Rtt {
@@ -114,26 +118,26 @@ where
     }
 }
 
-#[derive(Debug)]
-pub struct LossySender<'sim, 'a, L, T>(LossyWindowSender<'sim, 'a, Behavior<'a, T>, L>)
+#[derive_where(Debug)]
+pub struct LossySender<'sim, 'a, E, L, T>(LossyWindowSender<'sim, 'a, Behavior<'a, T>, E, L>)
 where
     L: Logger,
     T: RuleTree;
 
-impl<'sim, 'a, L, T> LossySender<'sim, 'a, L, T>
+impl<'sim, 'a, E, L, T> LossySender<'sim, 'a, E, L, T>
 where
     L: Logger,
     T: RuleTree,
 {
     pub fn new(
-        id: ComponentId<'sim>,
-        link: ComponentId<'sim>,
-        destination: ComponentId<'sim>,
+        id: PacketDestination<'sim, E>,
+        link: PacketDestination<'sim, E>,
+        destination: PacketDestination<'sim, E>,
         rule_tree: &'a T,
         wait_for_enable: bool,
         logger: L,
-    ) -> LossySender<'sim, 'a, L, T> {
-        LossySender(LossyWindowSender::<'sim, 'a, _, _>::new(
+    ) -> LossySender<'sim, 'a, E, L, T> {
+        LossySender(LossyWindowSender::<'sim, 'a, _, _, _>::new(
             id,
             link,
             destination,
@@ -144,20 +148,18 @@ where
     }
 }
 
-impl<'sim, L, T> Component<'sim, NetworkEffect<'sim>> for LossySender<'sim, '_, L, T>
+impl<'sim, 'a, E, L, T> Component<'sim, E> for LossySender<'sim, 'a, E, L, T>
 where
     L: Logger,
     T: RuleTree,
 {
-    fn tick(&mut self, context: EffectContext<'sim>) -> Vec<NetworkMessage<'sim>> {
+    type Receive = LossySenderEffect<'sim, E>;
+
+    fn tick(&mut self, context: EffectContext) -> Vec<Message<'sim, E>> {
         self.0.tick(context)
     }
 
-    fn receive(
-        &mut self,
-        e: NetworkEffect<'sim>,
-        context: EffectContext<'sim>,
-    ) -> Vec<NetworkMessage<'sim>> {
+    fn receive(&mut self, e: Self::Receive, context: EffectContext) -> Vec<Message<'sim, E>> {
         self.0.receive(e, context)
     }
 
@@ -166,7 +168,7 @@ where
     }
 }
 
-impl<L, T> Flow for LossySender<'_, '_, L, T>
+impl<E, L, T> Flow for LossySender<'_, '_, E, L, T>
 where
     L: Logger,
     T: RuleTree,

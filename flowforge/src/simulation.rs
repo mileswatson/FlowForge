@@ -1,9 +1,11 @@
+use derive_where::derive_where;
 use generativity::{Guard, Id};
 use itertools::Itertools;
 use std::{
     cell::{Ref, RefCell, RefMut},
     collections::VecDeque,
     fmt::Debug,
+    marker::PhantomData,
     ops::{Deref, DerefMut},
     rc::Rc,
 };
@@ -14,48 +16,58 @@ use crate::{
     quantities::{Time, TimeSpan},
 };
 
-#[derive(Debug)]
-pub enum DynComponent<'sim, 'a, E> {
-    Owned(Box<dyn Component<'sim, E> + 'a>),
-    Shared(Rc<RefCell<dyn Component<'sim, E> + 'a>>),
-    Ref(&'a mut (dyn Component<'sim, E> + 'a)),
+pub trait HasSubEffect<P>: From<P> + TryInto<P> {}
+
+impl<E, P> HasSubEffect<P> for E where E: From<P> + TryInto<P> {}
+
+#[derive_where(Debug)]
+pub enum DynComponent<'sim, 'a, P, E> {
+    Owned(Box<dyn Component<'sim, E, Receive = P> + 'a>),
+    Shared(Rc<RefCell<dyn Component<'sim, E, Receive = P> + 'a>>),
+    Ref(&'a mut (dyn Component<'sim, E, Receive = P> + 'a)),
 }
 
-impl<'sim, 'a, E> DynComponent<'sim, 'a, E> {
+impl<'sim, 'a, P, E> DynComponent<'sim, 'a, P, E> {
     #[must_use]
-    pub fn new<T: Component<'sim, E> + 'sim>(value: T) -> DynComponent<'sim, 'a, E> {
+    pub fn new<T: Component<'sim, E, Receive = P> + 'sim>(
+        value: T,
+    ) -> DynComponent<'sim, 'a, P, E> {
         DynComponent::Owned(Box::new(value))
     }
 
     #[must_use]
-    pub fn owned(value: Box<dyn Component<'sim, E>>) -> DynComponent<'sim, 'a, E> {
+    pub fn owned(value: Box<dyn Component<'sim, E, Receive = P>>) -> DynComponent<'sim, 'a, P, E> {
         DynComponent::Owned(value)
     }
 
     #[must_use]
-    pub fn shared(value: Rc<RefCell<dyn Component<'sim, E> + 'sim>>) -> DynComponent<'sim, 'a, E> {
+    pub fn shared(
+        value: Rc<RefCell<dyn Component<'sim, E, Receive = P> + 'sim>>,
+    ) -> DynComponent<'sim, 'a, P, E> {
         DynComponent::Shared(value)
     }
 
     #[must_use]
-    pub fn reference(value: &'a mut dyn Component<'sim, E>) -> DynComponent<'sim, 'a, E> {
+    pub fn reference(
+        value: &'a mut dyn Component<'sim, E, Receive = P>,
+    ) -> DynComponent<'sim, 'a, P, E> {
         DynComponent::Ref(value)
     }
 }
 
-pub enum DynComponentRef<'sim, 'a, E> {
-    Ref(&'a dyn Component<'sim, E>),
-    ScopedRef(Ref<'a, dyn Component<'sim, E>>),
+pub enum DynComponentRef<'sim, 'a, P, E> {
+    Ref(&'a dyn Component<'sim, E, Receive = P>),
+    ScopedRef(Ref<'a, dyn Component<'sim, E, Receive = P>>),
 }
 
-pub enum DynComponentRefMut<'sim, 'a, E> {
-    Ref(&'a mut (dyn Component<'sim, E>)),
-    ScopedRef(RefMut<'a, dyn Component<'sim, E>>),
+pub enum DynComponentRefMut<'sim, 'a, P, E> {
+    Ref(&'a mut (dyn Component<'sim, E, Receive = P>)),
+    ScopedRef(RefMut<'a, dyn Component<'sim, E, Receive = P>>),
 }
 
-impl<'sim, 'a, E> DynComponent<'sim, 'a, E> {
+impl<'sim, 'a, P, E> DynComponent<'sim, 'a, P, E> {
     #[must_use]
-    pub fn borrow(&self) -> DynComponentRef<'sim, '_, E> {
+    pub fn borrow(&self) -> DynComponentRef<'sim, '_, P, E> {
         match self {
             DynComponent::Owned(x) => DynComponentRef::Ref(x.as_ref()),
             DynComponent::Shared(x) => DynComponentRef::ScopedRef(x.borrow()),
@@ -64,7 +76,7 @@ impl<'sim, 'a, E> DynComponent<'sim, 'a, E> {
     }
 
     #[must_use]
-    pub fn borrow_mut(&mut self) -> DynComponentRefMut<'sim, '_, E> {
+    pub fn borrow_mut(&mut self) -> DynComponentRefMut<'sim, '_, P, E> {
         match self {
             DynComponent::Owned(x) => DynComponentRefMut::Ref(x.as_mut()),
             DynComponent::Shared(x) => DynComponentRefMut::ScopedRef(x.borrow_mut()),
@@ -73,10 +85,10 @@ impl<'sim, 'a, E> DynComponent<'sim, 'a, E> {
     }
 }
 
-impl<'sim, 'a, E> Deref for DynComponentRef<'sim, 'a, E> {
-    type Target = dyn Component<'sim, E> + 'a;
+impl<'sim, 'a, P, E> Deref for DynComponentRef<'sim, 'a, P, E> {
+    type Target = dyn Component<'sim, E, Receive = P> + 'a;
 
-    fn deref(&self) -> &(dyn Component<'sim, E> + 'a) {
+    fn deref(&self) -> &(dyn Component<'sim, E, Receive = P> + 'a) {
         match self {
             DynComponentRef::Ref(r) => *r,
             DynComponentRef::ScopedRef(s) => &**s,
@@ -84,10 +96,10 @@ impl<'sim, 'a, E> Deref for DynComponentRef<'sim, 'a, E> {
     }
 }
 
-impl<'sim, 'a, E> Deref for DynComponentRefMut<'sim, 'a, E> {
-    type Target = dyn Component<'sim, E> + 'a;
+impl<'sim, 'a, P, E> Deref for DynComponentRefMut<'sim, 'a, P, E> {
+    type Target = dyn Component<'sim, E, Receive = P> + 'a;
 
-    fn deref(&self) -> &(dyn Component<'sim, E> + 'a) {
+    fn deref(&self) -> &(dyn Component<'sim, E, Receive = P> + 'a) {
         match self {
             DynComponentRefMut::Ref(r) => *r,
             DynComponentRefMut::ScopedRef(s) => &**s,
@@ -95,8 +107,8 @@ impl<'sim, 'a, E> Deref for DynComponentRefMut<'sim, 'a, E> {
     }
 }
 
-impl<'sim, 'a, E> DerefMut for DynComponentRefMut<'sim, 'a, E> {
-    fn deref_mut(&mut self) -> &mut (dyn Component<'sim, E> + 'a) {
+impl<'sim, 'a, P, E> DerefMut for DynComponentRefMut<'sim, 'a, P, E> {
+    fn deref_mut(&mut self) -> &mut (dyn Component<'sim, E, Receive = P> + 'a) {
         match self {
             DynComponentRefMut::Ref(r) => *r,
             DynComponentRefMut::ScopedRef(s) => &mut **s,
@@ -105,7 +117,7 @@ impl<'sim, 'a, E> DerefMut for DynComponentRefMut<'sim, 'a, E> {
 }
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
-pub struct ComponentId<'sim> {
+struct ComponentId<'sim> {
     index: usize,
     sim_id: Id<'sim>,
 }
@@ -117,70 +129,60 @@ impl<'sim> ComponentId<'sim> {
     }
 }
 
-pub trait MaybeHasVariant<'a, T>: Sized + Debug + Sync + 'a {
-    fn try_into(self) -> Result<T, Self>;
-    fn try_case<F, C, R>(self, ctx: C, f: F) -> Result<R, (Self, C)>
-    where
-        F: FnOnce(T, C) -> R,
-    {
-        match self.try_into() {
-            Ok(t) => Ok(f(t, ctx)),
-            Err(s) => Err((s, ctx)),
+#[derive_where(Clone)]
+pub struct MessageDestination<'sim, I, E> {
+    create_message: Rc<dyn Fn(I) -> Message<'sim, E> + 'sim>,
+}
+
+impl<'sim, I, E> Debug for MessageDestination<'sim, I, E> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("MessageDestination").finish()
+    }
+}
+
+impl<'sim, T> MessageDestination<'sim, T, T> {
+    fn new(component_id: ComponentId<'sim>) -> MessageDestination<'sim, T, T> {
+        MessageDestination {
+            create_message: Rc::new(move |effect| Message {
+                component_id,
+                effect,
+            }),
         }
     }
 }
 
-pub fn try_case<'a, E, T, F, C, R>(f: F) -> impl FnOnce((E, C)) -> Result<R, (E, C)>
-where
-    E: MaybeHasVariant<'a, T>,
-    F: FnOnce(T, C) -> R,
-{
-    |(e, ctx): (E, C)| match e.try_into() {
-        Ok(t) => Ok(f(t, ctx)),
-        Err(e) => Err((e, ctx)),
+impl<'sim, I, E> MessageDestination<'sim, I, E> {
+    #[must_use]
+    pub fn cast<J>(self) -> MessageDestination<'sim, J, E>
+    where
+        I: From<J> + 'sim,
+        E: 'sim,
+    {
+        MessageDestination {
+            create_message: Rc::new(move |effect| (self.create_message)(effect.into())),
+        }
+    }
+
+    pub fn create_message(&self, effect: I) -> Message<'sim, E> {
+        (self.create_message)(effect)
     }
 }
-
-impl<'a, T> MaybeHasVariant<'a, T> for T
-where
-    T: Sized + Debug + Sync + 'static,
-{
-    fn try_into(self) -> Result<T, Self> {
-        Ok(self)
-    }
-}
-
-pub trait HasVariant<'a, T>: From<T> + MaybeHasVariant<'a, T> {}
-
-impl<'a, E, T> HasVariant<'a, T> for E where E: From<T> + MaybeHasVariant<'a, T> {}
 
 pub struct Message<'sim, E> {
-    pub component_id: ComponentId<'sim>,
-    pub effect: E,
-}
-
-impl<E> Message<'_, E> {
-    pub fn new<V>(component_id: ComponentId, effect: V) -> Message<E>
-    where
-        E: From<V>,
-    {
-        Message {
-            component_id,
-            effect: E::from(effect),
-        }
-    }
+    component_id: ComponentId<'sim>,
+    effect: E,
 }
 
 #[derive(Debug)]
-pub struct EffectContext<'sim> {
-    pub self_id: ComponentId<'sim>,
+pub struct EffectContext {
     pub time: Time,
 }
 
 pub trait Component<'sim, E>: Debug {
+    type Receive;
     fn next_tick(&self, time: Time) -> Option<Time>;
-    fn tick(&mut self, context: EffectContext<'sim>) -> Vec<Message<'sim, E>>;
-    fn receive(&mut self, e: E, context: EffectContext<'sim>) -> Vec<Message<'sim, E>>;
+    fn tick(&mut self, context: EffectContext) -> Vec<Message<'sim, E>>;
+    fn receive(&mut self, e: Self::Receive, context: EffectContext) -> Vec<Message<'sim, E>>;
 }
 
 #[derive(Debug)]
@@ -249,29 +251,37 @@ impl<'sim, E> EffectQueue<'sim, E> {
     }
 }
 
-pub struct ComponentSlot<'sim, 'a, 'b, E> {
+pub struct ComponentSlot<'sim, 'a, 'b, P, E> {
     index: usize,
     builder: &'b SimulatorBuilder<'sim, 'a, E>,
+    receive: PhantomData<P>,
+    destination: MessageDestination<'sim, P, E>,
 }
 
-impl<'sim, 'a, 'b, E> ComponentSlot<'sim, 'a, 'b, E> {
+impl<'sim, 'a, 'b, P, E> ComponentSlot<'sim, 'a, 'b, P, E>
+where
+    E: HasSubEffect<P>,
+{
     #[must_use]
-    pub const fn id(&self) -> ComponentId<'sim> {
-        ComponentId::new(self.index, self.builder.id)
+    pub fn destination(&self) -> MessageDestination<'sim, P, E>
+    where
+        E: HasSubEffect<P>,
+    {
+        self.destination.clone()
     }
 
     #[allow(clippy::must_use_candidate)]
-    pub fn set(self, component: DynComponent<'sim, 'a, E>) -> ComponentId<'sim> {
+    pub fn set(self, component: DynComponent<'sim, 'a, P, E>) -> MessageDestination<'sim, P, E> {
         let mut components = self.builder.components.borrow_mut();
         assert!(components[self.index].is_none());
-        components[self.index] = Some(component);
-        self.id()
+        components[self.index] = Some(Box::new(ComponentWrapper::new(component)));
+        self.destination
     }
 }
 
 pub struct SimulatorBuilder<'sim, 'a, E> {
     id: Id<'sim>,
-    components: RefCell<Vec<Option<DynComponent<'sim, 'a, E>>>>,
+    components: RefCell<Vec<Option<Box<dyn Component<'sim, E, Receive = E> + 'a>>>>,
 }
 
 impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
@@ -283,20 +293,31 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         }
     }
 
-    pub fn insert(&self, component: DynComponent<'sim, 'a, E>) -> ComponentId<'sim> {
+    pub fn insert<P>(
+        &self,
+        component: DynComponent<'sim, 'a, P, E>,
+    ) -> MessageDestination<'sim, P, E>
+    where
+        E: HasSubEffect<P> + 'sim,
+    {
         let mut components = self.components.borrow_mut();
         let id = ComponentId::new(components.len(), self.id);
-        components.push(Some(component));
-        id
+        components.push(Some(Box::new(ComponentWrapper::new(component))));
+        MessageDestination::new(id).cast()
     }
 
-    pub fn reserve_slot<'b>(&'b self) -> ComponentSlot<'sim, 'a, 'b, E> {
+    pub fn reserve_slot<'b, P>(&'b self) -> ComponentSlot<'sim, 'a, 'b, P, E>
+    where
+        E: From<P> + 'sim,
+    {
         let mut components = self.components.borrow_mut();
         let index = components.len();
         components.push(None);
         ComponentSlot {
             index,
             builder: self,
+            receive: PhantomData,
+            destination: MessageDestination::new(ComponentId::new(index, self.id)).cast(),
         }
     }
 
@@ -316,16 +337,55 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
     }
 }
 
+pub trait GenericComponent<'sim, 'a, E> {
+    fn next_tick(&self, time: Time) -> Option<Time>;
+    fn tick(&mut self, context: EffectContext) -> Vec<Message<'sim, E>>;
+    fn receive(&mut self, e: E, context: EffectContext) -> Vec<Message<'sim, E>>;
+}
+
+#[derive_where(Debug)]
+struct ComponentWrapper<'sim, 'a, P, E> {
+    inner: DynComponent<'sim, 'a, P, E>,
+}
+
+impl<'sim, 'a, P, E> ComponentWrapper<'sim, 'a, P, E> {
+    pub const fn new(inner: DynComponent<'sim, 'a, P, E>) -> ComponentWrapper<'sim, 'a, P, E> {
+        ComponentWrapper { inner }
+    }
+}
+
+impl<'sim, 'a, P, E> Component<'sim, E> for ComponentWrapper<'sim, 'a, P, E>
+where
+    E: HasSubEffect<P>,
+{
+    type Receive = E;
+
+    fn next_tick(&self, time: Time) -> Option<Time> {
+        self.inner.borrow().next_tick(time)
+    }
+
+    fn tick(&mut self, context: EffectContext) -> Vec<Message<'sim, E>> {
+        self.inner.borrow_mut().tick(context)
+    }
+
+    fn receive(&mut self, e: E, context: EffectContext) -> Vec<Message<'sim, E>> {
+        self.inner.borrow_mut().receive(
+            e.try_into()
+                .map_or_else(|_| panic!("Incorrect message type!"), |x| x),
+            context,
+        )
+    }
+}
+
 pub struct Simulator<'sim, 'a, E, L> {
     id: Id<'sim>,
-    components: Vec<DynComponent<'sim, 'a, E>>,
+    components: Vec<Box<dyn Component<'sim, E, Receive = E> + 'a>>,
     tick_queue: TickQueue,
     logger: L,
 }
 
 impl<'sim, 'a, E, L> Simulator<'sim, 'a, E, L>
 where
-    E: Debug,
     L: Logger,
 {
     fn handle_messages(&mut self, time: Time, effects: &mut EffectQueue<'sim, E>) {
@@ -335,14 +395,8 @@ where
         }) = effects.pop_next()
         {
             assert_eq!(component_id.sim_id, self.id);
-            let mut component = self.components[component_id.index].borrow_mut();
-            let messages = component.receive(
-                effect,
-                EffectContext {
-                    self_id: component_id,
-                    time,
-                },
-            );
+            let component = &mut self.components[component_id.index];
+            let messages = component.receive(effect, EffectContext { time });
             let next_tick = component.next_tick(time);
             self.tick_queue.update(component_id.index, next_tick);
             effects.push_all(messages);
@@ -355,11 +409,8 @@ where
         time: Time,
         effects: &mut EffectQueue<'sim, E>,
     ) {
-        let mut component = self.components[component_id.index].borrow_mut();
-        let messages = component.tick(EffectContext {
-            self_id: component_id,
-            time,
-        });
+        let component = &mut self.components[component_id.index];
+        let messages = component.tick(EffectContext { time });
         let next_tick = component.next_tick(time);
         self.tick_queue.update(component_id.index, next_tick);
         effects.push_all(messages);
@@ -379,7 +430,7 @@ where
             .enumerate()
             .for_each(|(idx, component)| {
                 self.tick_queue
-                    .update(idx, component.borrow().next_tick(Time::SIM_START));
+                    .update(idx, component.next_tick(Time::SIM_START));
             });
         while let Some((time, idx)) = self.tick_queue.pop_next() {
             if time >= end_time {

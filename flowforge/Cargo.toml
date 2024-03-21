@@ -16,6 +16,8 @@ debug = true
 [dependencies]
 anyhow = "1.0.75"
 clap = { version = "4.4.6", features = ["derive"] }
+derive_more = "0.99.17"
+derive-where = "1.2.7"
 format_num = "0.1.0"
 generativity = "1.1.0"
 indicatif = { version = "0.17.7", features = ["rayon"] }

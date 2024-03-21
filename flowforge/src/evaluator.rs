@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use generativity::make_guard;
 use itertools::Itertools;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -7,20 +5,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     average::{AveragePair, IterAverage, SameEmptiness},
-    flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
-    network::{config::NetworkConfig, Network, NetworkSlots},
+    flow::{FlowProperties, NoActiveFlows, UtilityFunction},
+    network::{
+        config::NetworkConfig, toggler::Toggle, EffectTypeGenerator, Network, Packet,
+        PopulateComponents,
+    },
+    never::Never,
     quantities::{seconds, Float, Time, TimeSpan},
     rand::Rng,
+    simulation::HasSubEffect,
 };
-
-pub trait PopulateComponents: Sync {
-    /// Populates senders and receiver slots
-    fn populate_components<'sim, 'a>(
-        &'a self,
-        network_slots: NetworkSlots<'sim, 'a, '_>,
-        rng: &mut Rng,
-    ) -> Vec<Rc<dyn Flow + 'a>>;
-}
 
 #[allow(clippy::unsafe_derive_deserialize)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -39,18 +33,21 @@ impl Default for EvaluationConfig {
 }
 
 impl EvaluationConfig {
-    pub fn evaluate(
+    pub fn evaluate<G>(
         &self,
         network_config: &NetworkConfig,
-        components: &impl PopulateComponents,
+        components: &impl PopulateComponents<G>,
         utility_function: &(impl UtilityFunction + ?Sized),
         rng: &mut Rng,
-    ) -> Result<(Float, FlowProperties), NoActiveFlows> {
+    ) -> Result<(Float, FlowProperties), NoActiveFlows>
+    where
+        G: EffectTypeGenerator,
+        for<'sim> G::Type<'sim>:
+            HasSubEffect<Packet<'sim, G::Type<'sim>>> + HasSubEffect<Toggle> + HasSubEffect<Never>,
+    {
         let score_network = |(n, mut rng): (Network, Rng)| {
             make_guard!(guard);
-            let (sim, flows) = n.to_sim(guard, &mut rng, |slots, rng| {
-                components.populate_components(slots, rng)
-            });
+            let (sim, flows) = n.to_sim(guard, &mut rng, components);
             sim.run_for(self.run_sim_for);
             utility_function.total_utility(&flows, Time::SIM_START + self.run_sim_for)
         };
