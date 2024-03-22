@@ -2,11 +2,11 @@ use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    quantities::{bits_per_second, milliseconds, seconds, Information, InformationRate, TimeSpan},
-    rand::{
+    core::rand::{
         ContinuousDistribution, DiscreteDistribution, PositiveContinuousDistribution,
         ProbabilityDistribution,
     },
+    quantities::{bits_per_second, milliseconds, seconds, Information, InformationRate, TimeSpan},
 };
 
 use super::Network;

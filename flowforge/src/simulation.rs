@@ -12,7 +12,7 @@ use std::{
 use vec_map::VecMap;
 
 use crate::{
-    logging::Logger,
+    core::logging::Logger,
     quantities::{Time, TimeSpan},
 };
 

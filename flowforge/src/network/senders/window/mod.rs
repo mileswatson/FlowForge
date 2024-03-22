@@ -3,8 +3,8 @@ use std::{cell::RefCell, fmt::Debug, rc::Rc};
 use derive_more::{From, TryInto};
 
 use crate::{
+    core::logging::Logger,
     flow::Flow,
-    logging::Logger,
     network::{toggler::Toggle, Packet, PacketAddress},
     quantities::{Time, TimeSpan},
     simulation::{Address, Component, ComponentSlot, DynComponent, HasSubEffect, SimulatorBuilder},

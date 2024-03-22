@@ -10,7 +10,7 @@ use format_num::format_num;
 use itertools::Itertools;
 use serde::de::{self, Visitor};
 
-use crate::rand::Wrapper;
+use crate::core::rand::Wrapper;
 
 mod information;
 mod information_rate;

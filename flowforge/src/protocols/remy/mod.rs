@@ -1,8 +1,8 @@
 pub mod action;
 pub mod cube;
+pub mod dna;
 pub mod point;
 pub mod rule_tree;
-pub mod dna;
 
 #[allow(clippy::all, clippy::pedantic, clippy::nursery)]
 mod autogen {

@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 
 use crate::{
-    logging::Logger,
+    core::logging::Logger,
     quantities::Time,
     simulation::{Component, EffectContext, Message},
 };

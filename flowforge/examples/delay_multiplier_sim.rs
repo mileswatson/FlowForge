@@ -1,12 +1,12 @@
 use std::{mem::ManuallyDrop, ops::Deref};
 
 use flowforge::{
-    logging::{LogTable, NothingLogger},
+    core::logging::{LogTable, NothingLogger},
+    core::rand::Rng,
     network::{
         bouncer::LossyBouncer, link::Link, senders::delay_multiplier::LossyDelayMultiplierSender,
     },
     quantities::{packets, packets_per_second, seconds},
-    rand::Rng,
     simulation::{DynComponent, SimulatorBuilder},
     trainers::DefaultEffect,
 };

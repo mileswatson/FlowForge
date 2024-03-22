@@ -5,7 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::rand::Wrapper;
+use crate::core::rand::Wrapper;
 
 use super::{
     deserialize, display, packets, serialize, Float, Giga, Kilo, Mega, Milli, Quantity, UnitPrefix,

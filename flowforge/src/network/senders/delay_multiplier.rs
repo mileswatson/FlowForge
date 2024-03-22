@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use crate::{
+    core::logging::Logger,
+    core::meters::EWMA,
     flow::Flow,
-    logging::Logger,
-    meters::EWMA,
     network::PacketAddress,
     quantities::{Float, TimeSpan},
     simulation::{HasSubEffect, SimulatorBuilder},

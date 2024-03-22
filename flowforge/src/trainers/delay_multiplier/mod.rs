@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    core::logging::NothingLogger,
+    core::rand::{ContinuousDistribution, Rng},
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
-    logging::NothingLogger,
     network::{
         config::NetworkConfig,
         senders::{
@@ -12,7 +13,6 @@ use crate::{
         EffectTypeGenerator, Packet, PopulateComponents, PopulateComponentsResult,
     },
     quantities::Float,
-    rand::{ContinuousDistribution, Rng},
     simulation::{Address, HasSubEffect, SimulatorBuilder},
     Dna, Trainer,
 };

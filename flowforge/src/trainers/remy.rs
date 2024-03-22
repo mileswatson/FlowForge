@@ -2,14 +2,14 @@ use anyhow::Result;
 use indicatif::{ParallelProgressIterator, ProgressBar};
 use itertools::Itertools;
 use ordered_float::NotNan;
-use protobuf::Message;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    core::logging::NothingLogger,
+    core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
-    logging::NothingLogger,
     network::{
         config::NetworkConfig,
         senders::{
@@ -21,14 +21,12 @@ use crate::{
     protocols::remy::{
         action::Action,
         dna::RemyDna,
-        point::Point,
         rule_tree::{BaseRuleTree, CountingRuleTree, LeafHandle, RuleTree},
     },
     quantities::{milliseconds, seconds, Float},
-    rand::Rng,
     simulation::{Address, HasSubEffect, SimulatorBuilder},
     trainers::DefaultEffect,
-    Dna, ProgressHandler, Trainer,
+    ProgressHandler, Trainer,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -290,8 +288,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use crate::{
-        evaluator::EvaluationConfig, flow::AlphaFairness, network::config::NetworkConfig,
-        quantities::seconds, rand::Rng, trainers::remy::RemyDna, Trainer,
+        core::rand::Rng, evaluator::EvaluationConfig, flow::AlphaFairness,
+        network::config::NetworkConfig, quantities::seconds, trainers::remy::RemyDna, Trainer,
     };
 
     use super::{RemyConfig, RemyTrainer};

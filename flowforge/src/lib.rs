@@ -14,23 +14,19 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use core::rand::Rng;
 use flow::{FlowProperties, NoActiveFlows, UtilityFunction};
 use network::config::NetworkConfig;
 use quantities::Float;
-use rand::Rng;
 use serde::{de::DeserializeOwned, Serialize};
 
 #[macro_use]
-pub mod logging;
-pub mod average;
+pub mod core;
 pub mod evaluator;
 pub mod flow;
-pub mod meters;
 pub mod network;
-pub mod never;
 pub mod protocols;
 pub mod quantities;
-pub mod rand;
 pub mod simulation;
 pub mod trainers;
 

@@ -4,9 +4,9 @@ use derive_more::From;
 use derive_where::derive_where;
 
 use crate::{
+    core::logging::Logger,
+    core::meters::{DisabledInfoRateMeter, EnabledInfoRateMeter, InfoRateMeterNeverEnabled, Mean},
     flow::{Flow, FlowNeverActive, FlowProperties, NoPacketsAcked},
-    logging::Logger,
-    meters::{DisabledInfoRateMeter, EnabledInfoRateMeter, InfoRateMeterNeverEnabled, Mean},
     network::{Packet, PacketAddress},
     quantities::{latest, InformationRate, Time, TimeSpan},
     simulation::{Address, Component, EffectContext, Message},

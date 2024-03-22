@@ -2,6 +2,7 @@ use derive_more::{From, TryInto};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    core::never::Never,
     network::{
         senders::window::{
             LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
@@ -9,7 +10,6 @@ use crate::{
         toggler::Toggle,
         EffectTypeGenerator, Packet,
     },
-    never::Never,
 };
 
 use self::{delay_multiplier::DelayMultiplierConfig, remy::RemyConfig};

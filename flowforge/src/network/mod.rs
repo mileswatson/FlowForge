@@ -4,11 +4,11 @@ use derive_where::derive_where;
 use generativity::Guard;
 
 use crate::{
+    core::logging::NothingLogger,
+    core::never::Never,
+    core::rand::{PositiveContinuousDistribution, Rng},
     flow::Flow,
-    logging::NothingLogger,
-    never::Never,
     quantities::{packets, Float, Information, InformationRate, Time, TimeSpan},
-    rand::{PositiveContinuousDistribution, Rng},
     simulation::{Address, DynComponent, HasSubEffect, Simulator, SimulatorBuilder},
 };
 

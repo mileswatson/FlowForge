@@ -1,9 +1,8 @@
 use std::ops::{Add, Mul};
 
-use crate::{
-    average::Average,
-    quantities::{Float, Information, InformationRate, Time, TimeSpan},
-};
+use crate::quantities::{Float, Information, InformationRate, Time, TimeSpan};
+
+use super::average::Average;
 
 #[derive(Clone, Debug)]
 pub struct Mean<T>

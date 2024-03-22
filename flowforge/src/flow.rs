@@ -4,7 +4,7 @@ use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    average::{Average, AverageIfSome, AveragePair, IterAverage, NoItems, SameEmptiness},
+    core::average::{Average, AverageIfSome, AveragePair, IterAverage, NoItems, SameEmptiness},
     quantities::{seconds, Float, InformationRate, Time, TimeSpan},
 };
 
@@ -228,7 +228,7 @@ mod tests {
     use itertools::Itertools;
 
     use crate::{
-        average::{IterAverage, NoItems},
+        core::average::{IterAverage, NoItems},
         quantities::{bits_per_second, seconds, Float, Time},
     };
 

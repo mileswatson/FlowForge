@@ -6,14 +6,14 @@ use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    core::never::Never,
+    core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
     network::{
         config::NetworkConfig, toggler::Toggle, EffectTypeGenerator, Packet, PopulateComponents,
     },
-    never::Never,
     quantities::Float,
-    rand::Rng,
     simulation::HasSubEffect,
     Dna, ProgressHandler, Trainer,
 };

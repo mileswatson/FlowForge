@@ -2,9 +2,9 @@ use std::path::Path;
 
 use anyhow::Result;
 use flowforge::{
+    core::rand::Rng,
     flow::UtilityConfig,
     network::config::NetworkConfig,
-    rand::Rng,
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, TrainerConfig},
     Config, Trainer,
 };

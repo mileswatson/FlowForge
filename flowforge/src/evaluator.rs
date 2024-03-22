@@ -4,15 +4,15 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    average::{AveragePair, IterAverage, SameEmptiness},
+    core::average::{AveragePair, IterAverage, SameEmptiness},
+    core::never::Never,
+    core::rand::Rng,
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
     network::{
         config::NetworkConfig, toggler::Toggle, EffectTypeGenerator, Network, Packet,
         PopulateComponents,
     },
-    never::Never,
     quantities::{seconds, Float, Time, TimeSpan},
-    rand::Rng,
     simulation::HasSubEffect,
 };
 
