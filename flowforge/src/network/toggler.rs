@@ -4,7 +4,7 @@ use crate::{
     never::Never,
     quantities::{Time, TimeSpan},
     rand::{PositiveContinuousDistribution, Rng},
-    simulation::{Component, EffectContext, Message, MessageDestination},
+    simulation::{Address, Component, EffectContext, Message},
 };
 
 #[derive(PartialEq, Eq, Debug)]
@@ -15,7 +15,7 @@ pub enum Toggle {
 
 #[derive_where(Debug)]
 pub struct Toggler<'sim, E> {
-    target: MessageDestination<'sim, Toggle, E>,
+    target: Address<'sim, Toggle, E>,
     enabled: bool,
     on_distribution: PositiveContinuousDistribution<TimeSpan>,
     off_distribution: PositiveContinuousDistribution<TimeSpan>,
@@ -26,7 +26,7 @@ pub struct Toggler<'sim, E> {
 impl<'sim, E> Toggler<'sim, E> {
     #[must_use]
     pub fn new(
-        target: MessageDestination<'sim, Toggle, E>,
+        target: Address<'sim, Toggle, E>,
         on_distribution: PositiveContinuousDistribution<TimeSpan>,
         off_distribution: PositiveContinuousDistribution<TimeSpan>,
         mut rng: Rng,

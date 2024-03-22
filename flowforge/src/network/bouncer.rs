@@ -6,16 +6,16 @@ use crate::{
     simulation::{Component, EffectContext, Message},
 };
 
-use super::{Packet, PacketDestination};
+use super::{Packet, PacketAddress};
 
 #[derive_where(Debug; L)]
 pub struct LossyBouncer<'sim, E, L> {
-    link: PacketDestination<'sim, E>,
+    link: PacketAddress<'sim, E>,
     logger: L,
 }
 
 impl<'sim, E, L> LossyBouncer<'sim, E, L> {
-    pub const fn new(link: PacketDestination<'sim, E>, logger: L) -> LossyBouncer<E, L> {
+    pub const fn new(link: PacketAddress<'sim, E>, logger: L) -> LossyBouncer<E, L> {
         LossyBouncer { link, logger }
     }
 }

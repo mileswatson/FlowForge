@@ -15,13 +15,13 @@ use crate::{
         config::NetworkConfig,
         protocols::{
             remy::LossyRemySender,
-            window::{ControllerEffect, LossySenderEffect, SenderEffect},
+            window::{LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect},
         },
         EffectTypeGenerator, Packet, PopulateComponents, PopulateComponentsResult,
     },
     quantities::{milliseconds, seconds, Float},
     rand::Rng,
-    simulation::{HasSubEffect, MessageDestination, SimulatorBuilder},
+    simulation::{Address, HasSubEffect, SimulatorBuilder},
     trainers::DefaultEffect,
     Dna, ProgressHandler, Trainer,
 };
@@ -142,14 +142,14 @@ where
     T: RuleTree + Sync,
     G: EffectTypeGenerator,
     for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>
-        + HasSubEffect<SenderEffect<'sim, G::Type<'sim>>>
-        + HasSubEffect<ControllerEffect>,
+        + HasSubEffect<LossyInternalSenderEffect<'sim, G::Type<'sim>>>
+        + HasSubEffect<LossyInternalControllerEffect>,
 {
     fn populate_components<'sim>(
         &'sim self,
         num_senders: u32,
         simulator_builder: &mut SimulatorBuilder<'sim, 'sim, G::Type<'sim>>,
-        sender_link_id: MessageDestination<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
+        sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
         _rng: &mut Rng,
     ) -> PopulateComponentsResult<'sim, 'sim, G::Type<'sim>>
     where
@@ -158,17 +158,17 @@ where
         let (senders, flows) = (0..num_senders)
             .map(|_| {
                 let slot = LossyRemySender::reserve_slot::<_, NothingLogger>(simulator_builder);
-                let destination = slot.destination();
-                let packet_destination = destination.clone().cast();
+                let address = slot.address();
+                let packet_address = address.clone().cast();
                 let (_, flow) = slot.set(
-                    packet_destination.clone(),
+                    packet_address.clone(),
                     sender_link_id.clone(),
-                    packet_destination,
+                    packet_address,
                     self,
                     true,
                     NothingLogger,
                 );
-                (destination.cast(), flow)
+                (address.cast(), flow)
             })
             .unzip();
         PopulateComponentsResult { senders, flows }

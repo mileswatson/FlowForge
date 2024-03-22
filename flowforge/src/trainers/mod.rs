@@ -3,7 +3,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     network::{
-        protocols::window::{ControllerEffect, LossySenderEffect, SenderEffect},
+        protocols::window::{
+            LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
+        },
         toggler::Toggle,
         EffectTypeGenerator, Packet,
     },
@@ -27,8 +29,8 @@ pub enum TrainerConfig {
 pub enum DefaultEffect<'sim> {
     Packet(Packet<'sim, DefaultEffect<'sim>>),
     LossySenderEffect(LossySenderEffect<'sim, DefaultEffect<'sim>>),
-    LossyWindowControllerEffect(ControllerEffect),
-    LossyWindowSenderEffect(SenderEffect<'sim, DefaultEffect<'sim>>),
+    LossyInternalControllerEffect(LossyInternalControllerEffect),
+    LossyInternalSenderEffect(LossyInternalSenderEffect<'sim, DefaultEffect<'sim>>),
     Toggle(Toggle),
     Never(Never),
 }

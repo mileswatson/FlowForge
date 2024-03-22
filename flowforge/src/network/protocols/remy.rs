@@ -4,15 +4,15 @@ use crate::{
     flow::Flow,
     logging::Logger,
     meters::EWMA,
-    network::PacketDestination,
+    network::PacketAddress,
     quantities::{Time, TimeSpan},
     simulation::{HasSubEffect, SimulatorBuilder},
     trainers::remy::{action::Action, point::Point, rule_tree::RuleTree},
 };
 
 use super::window::{
-    AckReceived, ControllerEffect, LossySenderMessageDestination, LossySenderSlot,
-    LossyWindowBehavior, LossyWindowSender, LossyWindowSettings, SenderEffect,
+    AckReceived, LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderAddress,
+    LossySenderSlot, LossyWindowBehavior, LossyWindowSender, LossyWindowSettings,
 };
 
 #[derive(Debug, Clone)]
@@ -128,23 +128,25 @@ pub struct LossyRemySenderSlot<'sim, 'a, 'b, E>(LossySenderSlot<'sim, 'a, 'b, E>
 
 impl<'sim, 'a, 'b, E> LossyRemySenderSlot<'sim, 'a, 'b, E>
 where
-    E: HasSubEffect<SenderEffect<'sim, E>> + HasSubEffect<ControllerEffect> + 'sim,
+    E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
+        + HasSubEffect<LossyInternalControllerEffect>
+        + 'sim,
     'sim: 'a,
 {
     #[must_use]
-    pub fn destination(&self) -> LossySenderMessageDestination<'sim, E> {
-        self.0.destination()
+    pub fn address(&self) -> LossySenderAddress<'sim, E> {
+        self.0.address()
     }
 
     pub fn set<T>(
         self,
-        id: PacketDestination<'sim, E>,
-        link: PacketDestination<'sim, E>,
-        destination: PacketDestination<'sim, E>,
+        id: PacketAddress<'sim, E>,
+        link: PacketAddress<'sim, E>,
+        destination: PacketAddress<'sim, E>,
         rule_tree: &'a T,
         wait_for_enable: bool,
         logger: impl Logger + Clone + 'a,
-    ) -> (LossySenderMessageDestination<'sim, E>, Rc<dyn Flow + 'a>)
+    ) -> (LossySenderAddress<'sim, E>, Rc<dyn Flow + 'a>)
     where
         T: RuleTree,
     {
@@ -165,7 +167,9 @@ impl LossyRemySender {
     ) -> LossyRemySenderSlot<'sim, 'a, 'b, E>
     where
         L: Logger + Clone + 'a,
-        E: HasSubEffect<SenderEffect<'sim, E>> + HasSubEffect<ControllerEffect> + 'sim,
+        E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
+            + HasSubEffect<LossyInternalControllerEffect>
+            + 'sim,
         'sim: 'a,
     {
         LossyRemySenderSlot(LossyWindowSender::reserve_slot(builder))
@@ -173,17 +177,19 @@ impl LossyRemySender {
 
     pub fn insert<'sim, 'a, 'b, T, E, L>(
         builder: &SimulatorBuilder<'sim, 'a, E>,
-        id: PacketDestination<'sim, E>,
-        link: PacketDestination<'sim, E>,
-        destination: PacketDestination<'sim, E>,
+        id: PacketAddress<'sim, E>,
+        link: PacketAddress<'sim, E>,
+        destination: PacketAddress<'sim, E>,
         rule_tree: &'a T,
         wait_for_enable: bool,
         logger: L,
-    ) -> (LossySenderMessageDestination<'sim, E>, Rc<dyn Flow + 'a>)
+    ) -> (LossySenderAddress<'sim, E>, Rc<dyn Flow + 'a>)
     where
         T: RuleTree,
         L: Logger + Clone + 'a,
-        E: HasSubEffect<SenderEffect<'sim, E>> + HasSubEffect<ControllerEffect> + 'sim,
+        E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
+            + HasSubEffect<LossyInternalControllerEffect>
+            + 'sim,
         'sim: 'a,
     {
         let slot = Self::reserve_slot::<E, L>(builder);

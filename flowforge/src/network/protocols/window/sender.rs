@@ -7,12 +7,15 @@ use crate::{
     flow::{Flow, FlowNeverActive, FlowProperties, NoPacketsAcked},
     logging::Logger,
     meters::{DisabledInfoRateMeter, EnabledInfoRateMeter, InfoRateMeterNeverEnabled, Mean},
-    network::{Packet, PacketDestination},
+    network::{Packet, PacketAddress},
     quantities::{latest, InformationRate, Time, TimeSpan},
-    simulation::{Component, EffectContext, Message, MessageDestination},
+    simulation::{Address, Component, EffectContext, Message},
 };
 
-use super::{AckReceived, ControllerEffect, LossyWindowSettings, SenderEffect, SettingsUpdate};
+use super::{
+    AckReceived, LossyInternalControllerEffect, LossyInternalSenderEffect, LossyWindowSettings,
+    SettingsUpdate,
+};
 
 #[derive(Debug)]
 struct WaitingForEnable {
@@ -68,10 +71,10 @@ enum State {
 
 #[derive_where(Debug; L)]
 pub struct Sender<'sim, 'a, E, L> {
-    controller: MessageDestination<'sim, ControllerEffect, E>,
-    id: PacketDestination<'sim, E>,
-    link: PacketDestination<'sim, E>,
-    destination: PacketDestination<'sim, E>,
+    controller: Address<'sim, LossyInternalControllerEffect, E>,
+    id: PacketAddress<'sim, E>,
+    link: PacketAddress<'sim, E>,
+    destination: PacketAddress<'sim, E>,
     state: State,
     logger: L,
     phantom: PhantomData<&'a ()>,
@@ -82,10 +85,10 @@ where
     L: Logger,
 {
     pub fn new(
-        controller: MessageDestination<'sim, ControllerEffect, E>,
-        id: PacketDestination<'sim, E>,
-        link: PacketDestination<'sim, E>,
-        destination: PacketDestination<'sim, E>,
+        controller: Address<'sim, LossyInternalControllerEffect, E>,
+        id: PacketAddress<'sim, E>,
+        link: PacketAddress<'sim, E>,
+        destination: PacketAddress<'sim, E>,
         logger: L,
     ) -> Sender<'sim, 'a, E, L> {
         Sender {
@@ -131,7 +134,7 @@ where
                 *greatest_ack = (*greatest_ack).max(packet.seq);
                 vec![self
                     .controller
-                    .create_message(ControllerEffect::AckReceived(AckReceived {
+                    .create_message(LossyInternalControllerEffect::AckReceived(AckReceived {
                         current_settings: settings.clone(),
                         sent_time: packet.sent_time,
                         received_time: time,
@@ -236,7 +239,7 @@ impl<'sim, 'a, E, L> Component<'sim, E> for Sender<'sim, 'a, E, L>
 where
     L: Logger,
 {
-    type Receive = SenderEffect<'sim, E>;
+    type Receive = LossyInternalSenderEffect<'sim, E>;
 
     fn next_tick(&self, time: Time) -> Option<Time> {
         match &self.state {
@@ -254,8 +257,8 @@ where
 
     fn receive(&mut self, e: Self::Receive, context: EffectContext) -> Vec<Message<'sim, E>> {
         match e {
-            SenderEffect::Packet(packet) => self.receive_packet(&packet, context),
-            SenderEffect::SettingsUpdate(update) => {
+            LossyInternalSenderEffect::Packet(packet) => self.receive_packet(&packet, context),
+            LossyInternalSenderEffect::SettingsUpdate(update) => {
                 self.receive_settings_update(update, context);
                 vec![]
             }

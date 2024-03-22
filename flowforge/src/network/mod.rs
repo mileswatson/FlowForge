@@ -9,7 +9,7 @@ use crate::{
     never::Never,
     quantities::{packets, Float, Information, InformationRate, Time, TimeSpan},
     rand::{PositiveContinuousDistribution, Rng},
-    simulation::{DynComponent, HasSubEffect, MessageDestination, Simulator, SimulatorBuilder},
+    simulation::{Address, DynComponent, HasSubEffect, Simulator, SimulatorBuilder},
 };
 
 use self::{
@@ -26,13 +26,13 @@ pub mod toggler;
 #[derive_where(Debug)]
 pub struct Packet<'sim, E> {
     seq: u64,
-    source: MessageDestination<'sim, Packet<'sim, E>, E>,
-    destination: MessageDestination<'sim, Packet<'sim, E>, E>,
+    source: Address<'sim, Packet<'sim, E>, E>,
+    destination: Address<'sim, Packet<'sim, E>, E>,
     sent_time: Time,
 }
 
 impl<'sim, E> Packet<'sim, E> {
-    fn pop_next_hop(&mut self) -> MessageDestination<'sim, Packet<'sim, E>, E> {
+    fn pop_next_hop(&mut self) -> Address<'sim, Packet<'sim, E>, E> {
         self.destination.clone()
     }
 
@@ -42,7 +42,7 @@ impl<'sim, E> Packet<'sim, E> {
     }
 }
 
-pub type PacketDestination<'sim, E> = MessageDestination<'sim, Packet<'sim, E>, E>;
+pub type PacketAddress<'sim, E> = Address<'sim, Packet<'sim, E>, E>;
 
 #[derive(Debug)]
 pub struct Network {
@@ -56,7 +56,7 @@ pub struct Network {
 }
 
 pub struct PopulateComponentsResult<'sim, 'a, E> {
-    pub senders: Vec<MessageDestination<'sim, Toggle, E>>,
+    pub senders: Vec<Address<'sim, Toggle, E>>,
     pub flows: Vec<Rc<dyn Flow + 'a>>,
 }
 
@@ -73,7 +73,7 @@ where
         &'sim self,
         num_senders: u32,
         simulator_builder: &mut SimulatorBuilder<'sim, 'sim, G::Type<'sim>>,
-        sender_link_id: MessageDestination<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
+        sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
         rng: &mut Rng,
     ) -> PopulateComponentsResult<'sim, 'sim, G::Type<'sim>>
     where

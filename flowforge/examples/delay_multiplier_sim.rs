@@ -25,12 +25,12 @@ fn main() {
     let receiver_slot = builder.reserve_slot();
     let link2_slot = builder.reserve_slot();
 
-    let sender_destination = sender_slot.destination().cast();
+    let sender_address = sender_slot.address().cast();
 
     sender_slot.set(
-        sender_destination,
-        link1_slot.destination().cast(),
-        receiver_slot.destination().cast(),
+        sender_address,
+        link1_slot.address().cast(),
+        receiver_slot.address().cast(),
         2.0,
         false,
         table.logger(1),
@@ -43,7 +43,7 @@ fn main() {
         rng.create_child(),
         table.logger(2),
     );
-    let mut receiver = LossyBouncer::new(link2_slot.destination().cast(), table.logger(3));
+    let mut receiver = LossyBouncer::new(link2_slot.address().cast(), table.logger(3));
     let mut link2 = Link::create(
         seconds(1.5),
         packets_per_second(0.2),

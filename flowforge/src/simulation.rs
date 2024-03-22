@@ -136,19 +136,19 @@ impl<'sim> ComponentId<'sim> {
 }
 
 #[derive_where(Clone)]
-pub struct MessageDestination<'sim, I, E> {
+pub struct Address<'sim, I, E> {
     create_message: Rc<dyn Fn(I) -> Message<'sim, E> + 'sim>,
 }
 
-impl<'sim, I, E> Debug for MessageDestination<'sim, I, E> {
+impl<'sim, I, E> Debug for Address<'sim, I, E> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("MessageDestination").finish()
+        f.debug_struct("Address").finish()
     }
 }
 
-impl<'sim, T> MessageDestination<'sim, T, T> {
-    fn new(component_id: ComponentId<'sim>) -> MessageDestination<'sim, T, T> {
-        MessageDestination {
+impl<'sim, T> Address<'sim, T, T> {
+    fn new(component_id: ComponentId<'sim>) -> Address<'sim, T, T> {
+        Address {
             create_message: Rc::new(move |effect| Message {
                 component_id,
                 effect,
@@ -157,18 +157,18 @@ impl<'sim, T> MessageDestination<'sim, T, T> {
     }
 }
 
-impl<'sim, I, E> MessageDestination<'sim, I, E> {
-    pub fn custom<F>(create_message: F) -> MessageDestination<'sim, I, E>
+impl<'sim, I, E> Address<'sim, I, E> {
+    pub fn custom<F>(create_message: F) -> Address<'sim, I, E>
     where
         F: Fn(I) -> Message<'sim, E> + 'sim,
     {
-        MessageDestination {
+        Address {
             create_message: Rc::new(create_message),
         }
     }
 
     #[must_use]
-    pub fn cast<J>(self) -> MessageDestination<'sim, J, E>
+    pub fn cast<J>(self) -> Address<'sim, J, E>
     where
         J: 'sim,
         I: From<J> + 'sim,
@@ -177,12 +177,12 @@ impl<'sim, I, E> MessageDestination<'sim, I, E> {
         self.manual_cast(I::from)
     }
 
-    pub fn manual_cast<J>(self, f: impl (Fn(J) -> I) + 'sim) -> MessageDestination<'sim, J, E>
+    pub fn manual_cast<J>(self, f: impl (Fn(J) -> I) + 'sim) -> Address<'sim, J, E>
     where
         I: From<J> + 'sim,
         E: 'sim,
     {
-        MessageDestination {
+        Address {
             create_message: Rc::new(move |effect| (self.create_message)(f(effect))),
         }
     }
@@ -285,7 +285,7 @@ pub struct ComponentSlot<'sim, 'a, 'b, P, E> {
     index: usize,
     builder: &'b SimulatorBuilder<'sim, 'a, E>,
     receive: PhantomData<P>,
-    destination: MessageDestination<'sim, P, E>,
+    address: Address<'sim, P, E>,
 }
 
 impl<'sim, 'a, 'b, P, E> ComponentSlot<'sim, 'a, 'b, P, E>
@@ -293,19 +293,19 @@ where
     E: HasSubEffect<P>,
 {
     #[must_use]
-    pub fn destination(&self) -> MessageDestination<'sim, P, E>
+    pub fn address(&self) -> Address<'sim, P, E>
     where
         E: HasSubEffect<P>,
     {
-        self.destination.clone()
+        self.address.clone()
     }
 
     #[allow(clippy::must_use_candidate)]
-    pub fn set(self, component: DynComponent<'sim, 'a, P, E>) -> MessageDestination<'sim, P, E> {
+    pub fn set(self, component: DynComponent<'sim, 'a, P, E>) -> Address<'sim, P, E> {
         let mut components = self.builder.components.borrow_mut();
         assert!(components[self.index].is_none());
         components[self.index] = Some(Box::new(ComponentWrapper::new(component)));
-        self.destination
+        self.address
     }
 }
 
@@ -324,10 +324,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         }
     }
 
-    pub fn insert<P>(
-        &self,
-        component: DynComponent<'sim, 'a, P, E>,
-    ) -> MessageDestination<'sim, P, E>
+    pub fn insert<P>(&self, component: DynComponent<'sim, 'a, P, E>) -> Address<'sim, P, E>
     where
         P: 'sim,
         E: HasSubEffect<P> + 'sim,
@@ -335,7 +332,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         let mut components = self.components.borrow_mut();
         let id = ComponentId::new(components.len(), self.id);
         components.push(Some(Box::new(ComponentWrapper::new(component))));
-        MessageDestination::new(id).cast()
+        Address::new(id).cast()
     }
 
     pub fn reserve_slot<'b, P>(&'b self) -> ComponentSlot<'sim, 'a, 'b, P, E>
@@ -350,7 +347,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
             index,
             builder: self,
             receive: PhantomData,
-            destination: MessageDestination::new(ComponentId::new(index, self.id)).cast(),
+            address: Address::new(ComponentId::new(index, self.id)).cast(),
         }
     }
 
