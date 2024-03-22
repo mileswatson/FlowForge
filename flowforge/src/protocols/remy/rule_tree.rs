@@ -13,7 +13,6 @@ use super::{
     autogen::remy_dna::{Whisker, WhiskerTree},
     cube::Cube,
     point::Point,
-    RemyConfig,
 };
 
 pub trait RuleTree<const TESTING: bool = false>: Debug {
@@ -360,12 +359,12 @@ impl BaseRuleTree {
     }
 
     #[must_use]
-    pub fn default(dna: &RemyConfig) -> Self {
+    pub fn default(default_action: Action) -> Self {
         BaseRuleTree {
             root: 0,
             nodes: vec![RuleTreeNode::Leaf {
                 domain: Cube::default(),
-                action: dna.default_action.clone(),
+                action: default_action,
                 optimized: false,
             }],
         }
@@ -424,7 +423,7 @@ mod tests {
     use tempfile::tempdir;
 
     use crate::{
-        trainers::remy::{rule_tree::BaseRuleTree, RemyDna},
+        protocols::remy::{dna::RemyDna, rule_tree::BaseRuleTree},
         Config,
     };
 
@@ -456,7 +455,7 @@ mod tests {
     #[test]
     fn original_remy_compatibility() -> Result<()> {
         let tmp_dir = tempdir()?;
-        let test_data_dir = Path::new("./src/trainers/remy/test_dna");
+        let test_data_dir = Path::new("./src/protocols/remy/test_dna");
         let dna_files = read_dir(test_data_dir)?
             .map(Result::unwrap)
             .map(|x| x.path())

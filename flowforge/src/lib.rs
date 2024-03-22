@@ -28,6 +28,7 @@ pub mod flow;
 pub mod meters;
 pub mod network;
 pub mod never;
+pub mod protocols;
 pub mod quantities;
 pub mod rand;
 pub mod simulation;

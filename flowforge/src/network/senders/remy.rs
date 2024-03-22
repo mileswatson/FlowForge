@@ -5,9 +5,9 @@ use crate::{
     logging::Logger,
     meters::EWMA,
     network::PacketAddress,
+    protocols::remy::{action::Action, point::Point, rule_tree::RuleTree},
     quantities::{Time, TimeSpan},
     simulation::{HasSubEffect, SimulatorBuilder},
-    trainers::remy::{action::Action, point::Point, rule_tree::RuleTree},
 };
 
 use super::window::{

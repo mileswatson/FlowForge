@@ -1,5 +1,4 @@
 use anyhow::Result;
-
 use indicatif::{ParallelProgressIterator, ProgressBar};
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -19,29 +18,18 @@ use crate::{
         },
         EffectTypeGenerator, Packet, PopulateComponents, PopulateComponentsResult,
     },
+    protocols::remy::{
+        action::Action,
+        dna::RemyDna,
+        point::Point,
+        rule_tree::{BaseRuleTree, CountingRuleTree, LeafHandle, RuleTree},
+    },
     quantities::{milliseconds, seconds, Float},
     rand::Rng,
     simulation::{Address, HasSubEffect, SimulatorBuilder},
     trainers::DefaultEffect,
     Dna, ProgressHandler, Trainer,
 };
-
-pub mod action;
-pub mod cube;
-pub mod point;
-pub mod rule_tree;
-
-use self::{
-    action::Action,
-    autogen::remy_dna::WhiskerTree,
-    point::Point,
-    rule_tree::{BaseRuleTree, CountingRuleTree, LeafHandle, RuleTree},
-};
-
-#[allow(clippy::all, clippy::pedantic, clippy::nursery)]
-mod autogen {
-    include!(concat!(env!("OUT_DIR"), "/protos/mod.rs"));
-}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RemyConfig {
@@ -97,39 +85,6 @@ impl Default for RemyConfig {
                 run_sim_for: seconds(120.),
             },
         }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct RemyDna<const TESTING: bool = false> {
-    tree: BaseRuleTree<TESTING>,
-}
-
-impl RemyDna {
-    #[must_use]
-    pub fn default(dna: &RemyConfig) -> Self {
-        RemyDna {
-            tree: BaseRuleTree::default(dna),
-        }
-    }
-}
-
-impl<const TESTING: bool> Dna for RemyDna<TESTING> {
-    const NAME: &'static str = "remy";
-    fn serialize(&self) -> Result<Vec<u8>> {
-        Ok(self.tree.to_whisker_tree().write_to_bytes()?)
-    }
-
-    fn deserialize(buf: &[u8]) -> Result<RemyDna<TESTING>> {
-        Ok(RemyDna {
-            tree: BaseRuleTree::<TESTING>::from_whisker_tree(&WhiskerTree::parse_from_bytes(buf)?),
-        })
-    }
-}
-
-impl RuleTree for RemyDna {
-    fn action(&self, point: &Point) -> Option<&Action> {
-        self.tree.action(point)
     }
 }
 
@@ -229,7 +184,8 @@ impl Trainer for RemyTrainer {
                 )
                 .expect("Simulation to have active flows")
         };
-        let mut dna = starting_point.unwrap_or_else(|| RemyDna::default(&self.config));
+        let mut dna =
+            starting_point.unwrap_or_else(|| RemyDna::default(self.config.default_action.clone()));
         for i in 0..=self.config.rule_splits {
             if i == 0 {
                 println!("Starting optimization");

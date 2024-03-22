@@ -9,12 +9,14 @@ use itertools::Itertools;
 use protobuf::MessageField;
 use serde::{Deserialize, Serialize};
 
-use crate::quantities::{milliseconds, seconds, Float, TimeSpan};
+use crate::{
+    quantities::{milliseconds, seconds, Float, TimeSpan},
+    trainers::remy::RemyConfig,
+};
 
 use super::{
     autogen::remy_dna::{MemoryRange, Whisker},
     point::Point,
-    RemyConfig,
 };
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
