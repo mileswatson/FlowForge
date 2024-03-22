@@ -45,7 +45,7 @@ impl Logger for PrintLogger {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NothingLogger;
 
 impl NothingLogger {
@@ -118,7 +118,7 @@ impl LogTable {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TableLogger<'a> {
     index: usize,
     table: &'a LogTable,

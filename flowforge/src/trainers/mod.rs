@@ -2,7 +2,11 @@ use derive_more::{From, TryInto};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    network::{protocols::window::lossy_window::LossySenderEffect, toggler::Toggle, EffectTypeGenerator, Packet},
+    network::{
+        protocols::window::lossy_window::{LossySenderEffect, LossyWindowControllerEffect},
+        toggler::Toggle,
+        EffectTypeGenerator, Packet,
+    },
     never::Never,
 };
 
@@ -23,6 +27,7 @@ pub enum TrainerConfig {
 pub enum DefaultEffect<'sim> {
     Packet(Packet<'sim, DefaultEffect<'sim>>),
     LossySenderEffect(LossySenderEffect<'sim, DefaultEffect<'sim>>),
+    LossyWindowControllerEffect(LossyWindowControllerEffect),
     Toggle(Toggle),
     Never(Never),
 }

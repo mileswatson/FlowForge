@@ -1,7 +1,5 @@
-use std::{cell::RefCell, rc::Rc};
-
 use anyhow::Result;
-use derive_where::derive_where;
+
 use indicatif::{ParallelProgressIterator, ProgressBar};
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -11,17 +9,21 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     evaluator::EvaluationConfig,
-    flow::{Flow, FlowProperties, NoActiveFlows, UtilityFunction},
+    flow::{FlowProperties, NoActiveFlows, UtilityFunction},
     logging::NothingLogger,
     network::{
         config::NetworkConfig,
-        protocols::{remy::LossySender, window::lossy_window::LossySenderEffect},
-        toggler::Toggle,
+        protocols::{
+            remy::LossyRemySender,
+            window::lossy_window::{
+                LossySenderDestinations, LossySenderEffect, LossyWindowControllerEffect,
+            },
+        },
         EffectTypeGenerator, Packet, PopulateComponents, PopulateComponentsResult,
     },
     quantities::{milliseconds, seconds, Float},
     rand::Rng,
-    simulation::{DynComponent, HasSubEffect, MessageDestination, SimulatorBuilder},
+    simulation::{HasSubEffect, MessageDestination, SimulatorBuilder},
     trainers::DefaultEffect,
     Dna, ProgressHandler, Trainer,
 };
@@ -137,17 +139,12 @@ pub struct RemyTrainer {
     config: RemyConfig,
 }
 
-#[derive_where(Debug)]
-pub enum RemyMessage<'sim, E> {
-    Packet(Packet<'sim, E>),
-    Toggle(Toggle),
-}
-
 impl<G, T> PopulateComponents<G> for T
 where
     T: RuleTree + Sync,
     G: EffectTypeGenerator,
-    for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>,
+    for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>
+        + HasSubEffect<LossyWindowControllerEffect>,
 {
     fn populate_components<'sim>(
         &'sim self,
@@ -161,27 +158,23 @@ where
     {
         let (senders, flows) = (0..num_senders)
             .map(|_| {
-                let slot = simulator_builder.reserve_slot();
-                let self_destination = slot.destination().cast();
-                let sender = Rc::new(RefCell::new(LossySender::<'sim, 'sim>::new(
-                    self_destination.clone(),
+                let slot = LossyRemySender::reserve_slot::<_, NothingLogger>(simulator_builder);
+                let LossySenderDestinations {
+                    packet_destination,
+                    toggle_destination,
+                } = slot.destination();
+                let (_, flow) = slot.set(
+                    packet_destination.clone(),
                     sender_link_id.clone(),
-                    self_destination,
+                    packet_destination,
                     self,
                     true,
                     NothingLogger,
-                )));
-                let id = slot.set(DynComponent::shared(sender.clone())).cast();
-                (id, sender as Rc<dyn Flow>)
+                );
+                (toggle_destination, flow)
             })
             .unzip();
         PopulateComponentsResult { senders, flows }
-    }
-}
-
-impl<'sim, E> From<Toggle> for RemyMessage<'sim, E> {
-    fn from(value: Toggle) -> Self {
-        RemyMessage::Toggle(value)
     }
 }
 

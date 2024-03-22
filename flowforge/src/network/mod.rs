@@ -81,6 +81,7 @@ where
 
 impl Network {
     #[must_use]
+    #[allow(clippy::type_complexity)]
     pub fn to_sim<'sim, G>(
         &self,
         guard: Guard<'sim>,

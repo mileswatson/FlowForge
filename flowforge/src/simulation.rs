@@ -29,27 +29,27 @@ pub enum DynComponent<'sim, 'a, P, E> {
 
 impl<'sim, 'a, P, E> DynComponent<'sim, 'a, P, E> {
     #[must_use]
-    pub fn new<T: Component<'sim, E, Receive = P> + 'sim>(
-        value: T,
-    ) -> DynComponent<'sim, 'a, P, E> {
+    pub fn new<T: Component<'sim, E, Receive = P> + 'a>(value: T) -> DynComponent<'sim, 'a, P, E> {
         DynComponent::Owned(Box::new(value))
     }
 
     #[must_use]
-    pub fn owned(value: Box<dyn Component<'sim, E, Receive = P>>) -> DynComponent<'sim, 'a, P, E> {
+    pub fn owned(
+        value: Box<dyn Component<'sim, E, Receive = P> + 'a>,
+    ) -> DynComponent<'sim, 'a, P, E> {
         DynComponent::Owned(value)
     }
 
     #[must_use]
     pub fn shared(
-        value: Rc<RefCell<dyn Component<'sim, E, Receive = P> + 'sim>>,
+        value: Rc<RefCell<dyn Component<'sim, E, Receive = P> + 'a>>,
     ) -> DynComponent<'sim, 'a, P, E> {
         DynComponent::Shared(value)
     }
 
     #[must_use]
     pub fn reference(
-        value: &'a mut dyn Component<'sim, E, Receive = P>,
+        value: &'a mut (dyn Component<'sim, E, Receive = P> + 'a),
     ) -> DynComponent<'sim, 'a, P, E> {
         DynComponent::Ref(value)
     }
@@ -116,10 +116,16 @@ impl<'sim, 'a, P, E> DerefMut for DynComponentRefMut<'sim, 'a, P, E> {
     }
 }
 
-#[derive(Hash, PartialEq, Eq, Clone, Copy, Debug)]
-struct ComponentId<'sim> {
+#[derive(Hash, PartialEq, Eq, Clone, Copy)]
+pub struct ComponentId<'sim> {
     index: usize,
     sim_id: Id<'sim>,
+}
+
+impl<'sim> Debug for ComponentId<'sim> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ComponentId").field(&self.index).finish()
+    }
 }
 
 impl<'sim> ComponentId<'sim> {
@@ -171,6 +177,12 @@ impl<'sim, I, E> MessageDestination<'sim, I, E> {
 pub struct Message<'sim, E> {
     component_id: ComponentId<'sim>,
     effect: E,
+}
+
+impl<'sim, E> Message<'sim, E> {
+    pub const fn destination(&self) -> ComponentId<'sim> {
+        self.component_id
+    }
 }
 
 #[derive(Debug)]
@@ -281,6 +293,7 @@ where
 
 pub struct SimulatorBuilder<'sim, 'a, E> {
     id: Id<'sim>,
+    #[allow(clippy::type_complexity)]
     components: RefCell<Vec<Option<Box<dyn Component<'sim, E, Receive = E> + 'a>>>>,
 }
 

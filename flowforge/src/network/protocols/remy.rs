@@ -1,19 +1,18 @@
-use std::fmt::Debug;
-
-use derive_where::derive_where;
+use std::{fmt::Debug, rc::Rc};
 
 use crate::{
-    flow::{Flow, FlowNeverActive, FlowProperties},
+    flow::Flow,
     logging::Logger,
     meters::EWMA,
     network::PacketDestination,
     quantities::{Time, TimeSpan},
-    simulation::{Component, EffectContext, Message},
+    simulation::{HasSubEffect, SimulatorBuilder},
     trainers::remy::{action::Action, point::Point, rule_tree::RuleTree},
 };
 
 use super::window::lossy_window::{
-    LossySenderEffect, LossyWindowBehavior, LossyWindowSender, LossyWindowSettings,
+    AckReceived, LossySenderDestinations, LossySenderEffect, LossyWindowBehavior,
+    LossyWindowControllerEffect, LossyWindowSender, LossyWindowSenderSlot, LossyWindowSettings,
 };
 
 #[derive(Debug, Clone)]
@@ -62,9 +61,8 @@ where
     }
 }
 
-impl<'a, L, T> LossyWindowBehavior<'a, L> for Behavior<'a, T>
+impl<'a, T> LossyWindowBehavior for Behavior<'a, T>
 where
-    L: Logger,
     T: RuleTree,
 {
     fn initial_settings(&self) -> LossyWindowSettings {
@@ -74,13 +72,18 @@ where
         }
     }
 
-    fn ack_received(
+    fn ack_received<L>(
         &mut self,
-        current: &mut LossyWindowSettings,
-        sent_time: Time,
-        received_time: Time,
+        AckReceived {
+            current_settings,
+            sent_time,
+            received_time,
+        }: AckReceived,
         logger: &mut L,
-    ) {
+    ) -> Option<LossyWindowSettings>
+    where
+        L: Logger,
+    {
         if let Some(last_ack) = self.last_ack {
             self.ack_ewma.update(received_time - last_ack);
         }
@@ -108,72 +111,86 @@ where
             ..
         } = self.action();
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        {
-            current.window = ((f64::from(current.window) * window_multiplier) as i32
-                + *window_increment)
-                .clamp(0, 1_000_000) as u32;
-        }
-        current.intersend_delay = *intersend_ms;
-        log!(logger, "Action is {:?}", current);
+        let window = ((f64::from(current_settings.window) * window_multiplier) as i32
+            + *window_increment)
+            .clamp(0, 1_000_000) as u32;
+        let intersend_delay = *intersend_ms;
+        Some(LossyWindowSettings {
+            window,
+            intersend_delay,
+        })
     }
 }
 
-#[derive_where(Debug)]
-pub struct LossySender<'sim, 'a, E, L, T>(LossyWindowSender<'sim, 'a, Behavior<'a, T>, E, L>)
-where
-    L: Logger,
-    T: RuleTree;
+pub struct LossyRemySender;
 
-impl<'sim, 'a, E, L, T> LossySender<'sim, 'a, E, L, T>
+pub struct LossyRemySenderSlot<'sim, 'a, 'b, E>(LossyWindowSenderSlot<'sim, 'a, 'b, E>);
+
+impl<'sim, 'a, 'b, E> LossyRemySenderSlot<'sim, 'a, 'b, E>
 where
-    L: Logger,
-    T: RuleTree,
+    E: HasSubEffect<LossySenderEffect<'sim, E>> + HasSubEffect<LossyWindowControllerEffect> + 'sim,
+    'sim: 'a,
 {
-    pub fn new(
+    #[must_use]
+    pub fn destination(&self) -> LossySenderDestinations<'sim, E> {
+        self.0.destination()
+    }
+
+    pub fn set<T>(
+        self,
         id: PacketDestination<'sim, E>,
         link: PacketDestination<'sim, E>,
         destination: PacketDestination<'sim, E>,
         rule_tree: &'a T,
         wait_for_enable: bool,
-        logger: L,
-    ) -> LossySender<'sim, 'a, E, L, T> {
-        LossySender(LossyWindowSender::<'sim, 'a, _, _, _>::new(
+        logger: impl Logger + Clone + 'a,
+    ) -> (LossySenderDestinations<'sim, E>, Rc<dyn Flow + 'a>)
+    where
+        T: RuleTree,
+    {
+        self.0.set(
             id,
             link,
             destination,
             Box::new(move || Behavior::<'a>::new(rule_tree)),
             wait_for_enable,
             logger,
-        ))
+        )
     }
 }
 
-impl<'sim, 'a, E, L, T> Component<'sim, E> for LossySender<'sim, 'a, E, L, T>
-where
-    L: Logger,
-    T: RuleTree,
-{
-    type Receive = LossySenderEffect<'sim, E>;
-
-    fn tick(&mut self, context: EffectContext) -> Vec<Message<'sim, E>> {
-        self.0.tick(context)
+impl LossyRemySender {
+    pub fn reserve_slot<'sim, 'a, 'b, E, L>(
+        builder: &'b SimulatorBuilder<'sim, 'a, E>,
+    ) -> LossyRemySenderSlot<'sim, 'a, 'b, E>
+    where
+        L: Logger + Clone + 'a,
+        E: HasSubEffect<LossySenderEffect<'sim, E>>
+            + HasSubEffect<LossyWindowControllerEffect>
+            + 'sim,
+        'sim: 'a,
+    {
+        LossyRemySenderSlot(LossyWindowSender::<E, L>::reserve_slot(builder))
     }
 
-    fn receive(&mut self, e: Self::Receive, context: EffectContext) -> Vec<Message<'sim, E>> {
-        self.0.receive(e, context)
-    }
-
-    fn next_tick(&self, time: Time) -> Option<Time> {
-        Component::next_tick(&self.0, time)
-    }
-}
-
-impl<E, L, T> Flow for LossySender<'_, '_, E, L, T>
-where
-    L: Logger,
-    T: RuleTree,
-{
-    fn properties(&self, current_time: Time) -> Result<FlowProperties, FlowNeverActive> {
-        self.0.properties(current_time)
+    pub fn insert<'sim, 'a, 'b, T, E, L>(
+        builder: &SimulatorBuilder<'sim, 'a, E>,
+        id: PacketDestination<'sim, E>,
+        link: PacketDestination<'sim, E>,
+        destination: PacketDestination<'sim, E>,
+        rule_tree: &'a T,
+        wait_for_enable: bool,
+        logger: L,
+    ) -> (LossySenderDestinations<'sim, E>, Rc<dyn Flow + 'a>)
+    where
+        T: RuleTree,
+        L: Logger + Clone + 'a,
+        E: HasSubEffect<LossySenderEffect<'sim, E>>
+            + HasSubEffect<LossyWindowControllerEffect>
+            + 'sim,
+        'sim: 'a,
+    {
+        let slot = Self::reserve_slot::<E, L>(builder);
+        slot.set(id, link, destination, rule_tree, wait_for_enable, logger)
     }
 }
