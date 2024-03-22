@@ -158,14 +158,32 @@ impl<'sim, T> MessageDestination<'sim, T, T> {
 }
 
 impl<'sim, I, E> MessageDestination<'sim, I, E> {
+    pub fn custom<F>(create_message: F) -> MessageDestination<'sim, I, E>
+    where
+        F: Fn(I) -> Message<'sim, E> + 'sim,
+    {
+        MessageDestination {
+            create_message: Rc::new(create_message),
+        }
+    }
+
     #[must_use]
     pub fn cast<J>(self) -> MessageDestination<'sim, J, E>
+    where
+        J: 'sim,
+        I: From<J> + 'sim,
+        E: 'sim,
+    {
+        self.manual_cast(I::from)
+    }
+
+    pub fn manual_cast<J>(self, f: impl (Fn(J) -> I) + 'sim) -> MessageDestination<'sim, J, E>
     where
         I: From<J> + 'sim,
         E: 'sim,
     {
         MessageDestination {
-            create_message: Rc::new(move |effect| (self.create_message)(effect.into())),
+            create_message: Rc::new(move |effect| (self.create_message)(f(effect))),
         }
     }
 
@@ -311,6 +329,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         component: DynComponent<'sim, 'a, P, E>,
     ) -> MessageDestination<'sim, P, E>
     where
+        P: 'sim,
         E: HasSubEffect<P> + 'sim,
     {
         let mut components = self.components.borrow_mut();
@@ -321,6 +340,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
 
     pub fn reserve_slot<'b, P>(&'b self) -> ComponentSlot<'sim, 'a, 'b, P, E>
     where
+        P: 'sim,
         E: From<P> + 'sim,
     {
         let mut components = self.components.borrow_mut();

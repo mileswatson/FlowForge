@@ -10,9 +10,9 @@ use crate::{
     trainers::remy::{action::Action, point::Point, rule_tree::RuleTree},
 };
 
-use super::window::lossy_window::{
-    AckReceived, LossySenderDestinations, LossySenderEffect, LossyWindowBehavior,
-    LossyWindowControllerEffect, LossyWindowSender, LossyWindowSenderSlot, LossyWindowSettings,
+use super::window::{
+    AckReceived, ControllerEffect, LossySenderMessageDestination, LossySenderSlot,
+    LossyWindowBehavior, LossyWindowSender, LossyWindowSettings, SenderEffect,
 };
 
 #[derive(Debug, Clone)]
@@ -124,15 +124,15 @@ where
 
 pub struct LossyRemySender;
 
-pub struct LossyRemySenderSlot<'sim, 'a, 'b, E>(LossyWindowSenderSlot<'sim, 'a, 'b, E>);
+pub struct LossyRemySenderSlot<'sim, 'a, 'b, E>(LossySenderSlot<'sim, 'a, 'b, E>);
 
 impl<'sim, 'a, 'b, E> LossyRemySenderSlot<'sim, 'a, 'b, E>
 where
-    E: HasSubEffect<LossySenderEffect<'sim, E>> + HasSubEffect<LossyWindowControllerEffect> + 'sim,
+    E: HasSubEffect<SenderEffect<'sim, E>> + HasSubEffect<ControllerEffect> + 'sim,
     'sim: 'a,
 {
     #[must_use]
-    pub fn destination(&self) -> LossySenderDestinations<'sim, E> {
+    pub fn destination(&self) -> LossySenderMessageDestination<'sim, E> {
         self.0.destination()
     }
 
@@ -144,7 +144,7 @@ where
         rule_tree: &'a T,
         wait_for_enable: bool,
         logger: impl Logger + Clone + 'a,
-    ) -> (LossySenderDestinations<'sim, E>, Rc<dyn Flow + 'a>)
+    ) -> (LossySenderMessageDestination<'sim, E>, Rc<dyn Flow + 'a>)
     where
         T: RuleTree,
     {
@@ -165,12 +165,10 @@ impl LossyRemySender {
     ) -> LossyRemySenderSlot<'sim, 'a, 'b, E>
     where
         L: Logger + Clone + 'a,
-        E: HasSubEffect<LossySenderEffect<'sim, E>>
-            + HasSubEffect<LossyWindowControllerEffect>
-            + 'sim,
+        E: HasSubEffect<SenderEffect<'sim, E>> + HasSubEffect<ControllerEffect> + 'sim,
         'sim: 'a,
     {
-        LossyRemySenderSlot(LossyWindowSender::<E, L>::reserve_slot(builder))
+        LossyRemySenderSlot(LossyWindowSender::reserve_slot(builder))
     }
 
     pub fn insert<'sim, 'a, 'b, T, E, L>(
@@ -181,13 +179,11 @@ impl LossyRemySender {
         rule_tree: &'a T,
         wait_for_enable: bool,
         logger: L,
-    ) -> (LossySenderDestinations<'sim, E>, Rc<dyn Flow + 'a>)
+    ) -> (LossySenderMessageDestination<'sim, E>, Rc<dyn Flow + 'a>)
     where
         T: RuleTree,
         L: Logger + Clone + 'a,
-        E: HasSubEffect<LossySenderEffect<'sim, E>>
-            + HasSubEffect<LossyWindowControllerEffect>
-            + 'sim,
+        E: HasSubEffect<SenderEffect<'sim, E>> + HasSubEffect<ControllerEffect> + 'sim,
         'sim: 'a,
     {
         let slot = Self::reserve_slot::<E, L>(builder);

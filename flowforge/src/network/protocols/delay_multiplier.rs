@@ -9,9 +9,9 @@ use crate::{
     simulation::{HasSubEffect, SimulatorBuilder},
 };
 
-use super::window::lossy_window::{
-    AckReceived, LossySenderDestinations, LossySenderEffect, LossyWindowBehavior,
-    LossyWindowControllerEffect, LossyWindowSender, LossyWindowSenderSlot, LossyWindowSettings,
+use super::window::{
+    AckReceived, ControllerEffect, LossySenderMessageDestination, LossySenderSlot,
+    LossyWindowBehavior, LossyWindowSender, LossyWindowSettings, SenderEffect,
 };
 
 #[derive(Debug)]
@@ -52,15 +52,15 @@ impl LossyWindowBehavior for Behavior {
 
 pub struct LossyDelayMultiplierSender;
 
-pub struct LossyDelayMultiplierSenderSlot<'sim, 'a, 'b, E>(LossyWindowSenderSlot<'sim, 'a, 'b, E>);
+pub struct LossyDelayMultiplierSenderSlot<'sim, 'a, 'b, E>(LossySenderSlot<'sim, 'a, 'b, E>);
 
 impl<'sim, 'a, 'b, E> LossyDelayMultiplierSenderSlot<'sim, 'a, 'b, E>
 where
-    E: HasSubEffect<LossySenderEffect<'sim, E>> + HasSubEffect<LossyWindowControllerEffect> + 'sim,
+    E: HasSubEffect<SenderEffect<'sim, E>> + HasSubEffect<ControllerEffect> + 'sim,
     'sim: 'a,
 {
     #[must_use]
-    pub fn destination(&self) -> LossySenderDestinations<'sim, E> {
+    pub fn destination(&self) -> LossySenderMessageDestination<'sim, E> {
         self.0.destination()
     }
 
@@ -72,7 +72,7 @@ where
         multiplier: Float,
         wait_for_enable: bool,
         logger: impl Logger + Clone + 'a,
-    ) -> (LossySenderDestinations<'sim, E>, Rc<dyn Flow + 'a>) {
+    ) -> (LossySenderMessageDestination<'sim, E>, Rc<dyn Flow + 'a>) {
         self.0.set(
             id,
             link,
@@ -93,11 +93,9 @@ impl LossyDelayMultiplierSender {
     ) -> LossyDelayMultiplierSenderSlot<'sim, 'a, 'b, E>
     where
         L: Logger + Clone + 'a,
-        E: HasSubEffect<LossySenderEffect<'sim, E>>
-            + HasSubEffect<LossyWindowControllerEffect>
-            + 'sim,
+        E: HasSubEffect<SenderEffect<'sim, E>> + HasSubEffect<ControllerEffect> + 'sim,
     {
-        LossyDelayMultiplierSenderSlot(LossyWindowSender::<E, L>::reserve_slot(builder))
+        LossyDelayMultiplierSenderSlot(LossyWindowSender::reserve_slot(builder))
     }
 
     pub fn insert<'sim, 'a, 'b, T, E, L>(
@@ -108,12 +106,10 @@ impl LossyDelayMultiplierSender {
         multiplier: Float,
         wait_for_enable: bool,
         logger: L,
-    ) -> (LossySenderDestinations<'sim, E>, Rc<dyn Flow + 'a>)
+    ) -> (LossySenderMessageDestination<'sim, E>, Rc<dyn Flow + 'a>)
     where
         L: Logger + Clone + 'sim,
-        E: HasSubEffect<LossySenderEffect<'sim, E>>
-            + HasSubEffect<LossyWindowControllerEffect>
-            + 'sim,
+        E: HasSubEffect<SenderEffect<'sim, E>> + HasSubEffect<ControllerEffect> + 'sim,
         'sim: 'a,
     {
         let slot = Self::reserve_slot::<E, L>(builder);

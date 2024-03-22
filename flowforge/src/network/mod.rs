@@ -17,6 +17,7 @@ use self::{
     toggler::{Toggle, Toggler},
 };
 
+pub mod bouncer;
 pub mod config;
 pub mod link;
 pub mod protocols;

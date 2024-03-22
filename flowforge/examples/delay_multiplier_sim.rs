@@ -3,10 +3,7 @@ use std::{mem::ManuallyDrop, ops::Deref};
 use flowforge::{
     logging::{LogTable, NothingLogger},
     network::{
-        link::Link,
-        protocols::{
-            delay_multiplier::LossyDelayMultiplierSender, window::lossy_window::LossyBouncer,
-        },
+        bouncer::LossyBouncer, link::Link, protocols::delay_multiplier::LossyDelayMultiplierSender,
     },
     quantities::{packets, packets_per_second, seconds},
     rand::Rng,
@@ -28,7 +25,7 @@ fn main() {
     let receiver_slot = builder.reserve_slot();
     let link2_slot = builder.reserve_slot();
 
-    let sender_destination = sender_slot.destination().packet_destination;
+    let sender_destination = sender_slot.destination().cast();
 
     sender_slot.set(
         sender_destination,

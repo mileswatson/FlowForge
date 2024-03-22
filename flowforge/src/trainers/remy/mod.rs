@@ -15,9 +15,7 @@ use crate::{
         config::NetworkConfig,
         protocols::{
             remy::LossyRemySender,
-            window::lossy_window::{
-                LossySenderDestinations, LossySenderEffect, LossyWindowControllerEffect,
-            },
+            window::{ControllerEffect, LossySenderEffect, SenderEffect},
         },
         EffectTypeGenerator, Packet, PopulateComponents, PopulateComponentsResult,
     },
@@ -144,7 +142,8 @@ where
     T: RuleTree + Sync,
     G: EffectTypeGenerator,
     for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>
-        + HasSubEffect<LossyWindowControllerEffect>,
+        + HasSubEffect<SenderEffect<'sim, G::Type<'sim>>>
+        + HasSubEffect<ControllerEffect>,
 {
     fn populate_components<'sim>(
         &'sim self,
@@ -159,10 +158,8 @@ where
         let (senders, flows) = (0..num_senders)
             .map(|_| {
                 let slot = LossyRemySender::reserve_slot::<_, NothingLogger>(simulator_builder);
-                let LossySenderDestinations {
-                    packet_destination,
-                    toggle_destination,
-                } = slot.destination();
+                let destination = slot.destination();
+                let packet_destination = destination.clone().cast();
                 let (_, flow) = slot.set(
                     packet_destination.clone(),
                     sender_link_id.clone(),
@@ -171,7 +168,7 @@ where
                     true,
                     NothingLogger,
                 );
-                (toggle_destination, flow)
+                (destination.cast(), flow)
             })
             .unzip();
         PopulateComponentsResult { senders, flows }
