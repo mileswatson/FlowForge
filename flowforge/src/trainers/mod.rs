@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     network::{
-        protocols::window::{
+        senders::window::{
             LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
         },
         toggler::Toggle,

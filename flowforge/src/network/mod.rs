@@ -20,7 +20,7 @@ use self::{
 pub mod bouncer;
 pub mod config;
 pub mod link;
-pub mod protocols;
+pub mod senders;
 pub mod toggler;
 
 #[derive_where(Debug)]

@@ -13,7 +13,7 @@ use crate::{
     logging::NothingLogger,
     network::{
         config::NetworkConfig,
-        protocols::{
+        senders::{
             remy::LossyRemySender,
             window::{LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect},
         },

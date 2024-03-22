@@ -3,7 +3,7 @@ use std::{mem::ManuallyDrop, ops::Deref};
 use flowforge::{
     logging::{LogTable, NothingLogger},
     network::{
-        bouncer::LossyBouncer, link::Link, protocols::delay_multiplier::LossyDelayMultiplierSender,
+        bouncer::LossyBouncer, link::Link, senders::delay_multiplier::LossyDelayMultiplierSender,
     },
     quantities::{packets, packets_per_second, seconds},
     rand::Rng,

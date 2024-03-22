@@ -5,7 +5,7 @@ use crate::{
     logging::NothingLogger,
     network::{
         config::NetworkConfig,
-        protocols::{
+        senders::{
             delay_multiplier::LossyDelayMultiplierSender,
             window::{LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect},
         },
