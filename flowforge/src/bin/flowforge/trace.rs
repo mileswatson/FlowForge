@@ -4,15 +4,30 @@ use flowforge::{
     flow::UtilityConfig,
     network::{config::NetworkConfig, AddFlows, EffectTypeGenerator, HasNetworkSubEffects},
     protocols::remy::dna::RemyDna,
-    quantities::{seconds, Time},
+    quantities::{seconds, Float, Time, TimeSpan},
     trainers::{delay_multiplier::DelayMultiplierFlowAdder, remy::RemyFlowAdder, DefaultEffect},
     Config, Dna,
 };
 use generativity::make_guard;
 use itertools::Itertools;
+use serde::Serialize;
 use std::path::Path;
 
 use crate::FlowAdders;
+
+#[derive(Serialize)]
+struct FlowTrace {
+    bandwidth_kbps: Vec<Float>,
+    rtt_ms: Vec<Float>,
+    utility: Vec<Float>,
+}
+
+#[derive(Serialize)]
+struct TraceResult {
+    timestamps: Vec<Float>,
+    aggregate_utility: Vec<Float>,
+    flows: Vec<FlowTrace>,
+}
 
 pub fn _trace<A, G>(
     network_config: &NetworkConfig,

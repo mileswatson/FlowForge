@@ -25,6 +25,7 @@ pub mod config;
 pub mod link;
 pub mod senders;
 pub mod toggler;
+pub mod ticker;
 
 #[derive_where(Debug)]
 pub struct Packet<'sim, E> {
