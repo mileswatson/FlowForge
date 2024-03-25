@@ -1,6 +1,6 @@
 use std::{
     fmt::Display,
-    ops::{Add, Div},
+    ops::{Add, Div, Mul},
 };
 
 use serde::{Deserialize, Serialize};
@@ -55,6 +55,14 @@ impl Add<InformationRate> for InformationRate {
 
     fn add(self, rhs: InformationRate) -> Self::Output {
         InformationRate(self.0 + rhs.0)
+    }
+}
+
+impl Mul<InformationRate> for Float {
+    type Output = InformationRate;
+
+    fn mul(self, rhs: InformationRate) -> Self::Output {
+        InformationRate(rhs.0 * self)
     }
 }
 

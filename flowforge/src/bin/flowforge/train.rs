@@ -33,7 +33,7 @@ pub fn _train<T>(
         .train(
             starting_point,
             network_config,
-            utility_config.inner(),
+            utility_config,
             &mut |progress, d: Option<&T::Dna>| {
                 if let Some(x) = d {
                     x.save(output_path).unwrap();

@@ -1,9 +1,10 @@
-use std::{fmt::Debug, rc::Rc};
+use std::fmt::Debug;
 
 use crate::{
-    core::logging::Logger,
-    core::meters::EWMA,
-    flow::Flow,
+    core::{
+        logging::Logger,
+        meters::{FlowMeter, EWMA},
+    },
     network::PacketAddress,
     protocols::remy::{action::Action, point::Point, rule_tree::RuleTree},
     quantities::{Time, TimeSpan},
@@ -138,17 +139,19 @@ where
         self.0.address()
     }
 
-    pub fn set<T>(
+    pub fn set<T, F>(
         self,
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         destination: PacketAddress<'sim, E>,
         rule_tree: &'a T,
         wait_for_enable: bool,
+        flow_meter: F,
         logger: impl Logger + Clone + 'a,
-    ) -> (LossySenderAddress<'sim, E>, Rc<dyn Flow + 'a>)
+    ) -> LossySenderAddress<'sim, E>
     where
         T: RuleTree,
+        F: FlowMeter + 'a,
     {
         self.0.set(
             id,
@@ -156,6 +159,7 @@ where
             destination,
             Box::new(move || Behavior::<'a>::new(rule_tree)),
             wait_for_enable,
+            flow_meter,
             logger,
         )
     }
@@ -175,24 +179,34 @@ impl LossyRemySender {
         LossyRemySenderSlot(LossyWindowSender::reserve_slot(builder))
     }
 
-    pub fn insert<'sim, 'a, 'b, T, E, L>(
+    pub fn insert<'sim, 'a, 'b, T, F, E, L>(
         builder: &SimulatorBuilder<'sim, 'a, E>,
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         destination: PacketAddress<'sim, E>,
         rule_tree: &'a T,
         wait_for_enable: bool,
+        flow_meter: F,
         logger: L,
-    ) -> (LossySenderAddress<'sim, E>, Rc<dyn Flow + 'a>)
+    ) -> LossySenderAddress<'sim, E>
     where
         T: RuleTree,
         L: Logger + Clone + 'a,
         E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
             + HasSubEffect<LossyInternalControllerEffect>
             + 'sim,
+        F: FlowMeter + 'a,
         'sim: 'a,
     {
         let slot = Self::reserve_slot::<E, L>(builder);
-        slot.set(id, link, destination, rule_tree, wait_for_enable, logger)
+        slot.set(
+            id,
+            link,
+            destination,
+            rule_tree,
+            wait_for_enable,
+            flow_meter,
+            logger,
+        )
     }
 }

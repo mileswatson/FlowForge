@@ -22,7 +22,7 @@ where
 {
     let dna = T::Dna::load(input_path).unwrap();
     T::new(trainer_config)
-        .evaluate(&dna, network_config, utility_config.inner(), rng)
+        .evaluate(&dna, network_config, utility_config, rng)
         .unwrap()
 }
 

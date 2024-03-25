@@ -1,12 +1,15 @@
 use std::{mem::ManuallyDrop, ops::Deref};
 
 use flowforge::{
-    core::logging::{LogTable, NothingLogger},
-    core::rand::Rng,
+    core::{
+        logging::{LogTable, NothingLogger},
+        meters::{AverageFlowMeter, CurrentFlowMeter},
+        rand::Rng,
+    },
     network::{
         bouncer::LossyBouncer, link::Link, senders::delay_multiplier::LossyDelayMultiplierSender,
     },
-    quantities::{packets, packets_per_second, seconds},
+    quantities::{packets, packets_per_second, seconds, Time},
     simulation::{DynComponent, SimulatorBuilder},
     trainers::DefaultEffect,
 };
@@ -27,12 +30,18 @@ fn main() {
 
     let sender_address = sender_slot.address().cast();
 
+    let mut flow_meter = (
+        AverageFlowMeter::new_disabled(),
+        CurrentFlowMeter::new_disabled(Time::SIM_START, seconds(10.)),
+    );
+
     sender_slot.set(
         sender_address,
         link1_slot.address().cast(),
         receiver_slot.address().cast(),
         2.0,
         false,
+        &mut flow_meter,
         table.logger(1),
     );
     let mut link1 = Link::create(
@@ -58,9 +67,20 @@ fn main() {
     link2_slot.set(DynComponent::Ref(&mut link2));
 
     let sim = ManuallyDrop::into_inner(builder).build(table.logger(0));
-    sim.run_for(seconds(100.));
+    let length = seconds(1000.);
+    sim.run_for(length);
 
     drop(link1);
 
     println!("{}", table.build());
+    println!("{:?}", flow_meter.1);
+    println!(
+        "{:?} {:?}",
+        flow_meter
+            .0
+            .average_properties(Time::from_sim_start(length)),
+        flow_meter
+            .1
+            .current_properties(Time::from_sim_start(length))
+    );
 }

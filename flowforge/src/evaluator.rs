@@ -4,9 +4,12 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::average::{AveragePair, IterAverage, SameEmptiness},
-    core::never::Never,
-    core::rand::Rng,
+    core::{
+        average::{AveragePair, IterAverage, SameEmptiness},
+        meters::AverageFlowMeter,
+        never::Never,
+        rand::Rng,
+    },
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
     network::{
         config::NetworkConfig, toggler::Toggle, EffectTypeGenerator, Network, Packet,
@@ -47,9 +50,16 @@ impl EvaluationConfig {
     {
         let score_network = |(n, mut rng): (Network, Rng)| {
             make_guard!(guard);
-            let (sim, flows) = n.to_sim(guard, &mut rng, components);
+            let mut flows = (0..n.num_senders)
+                .map(|_| AverageFlowMeter::new_disabled())
+                .collect_vec();
+            let sim = n.to_sim(guard, &mut rng, &mut flows, components);
             sim.run_for(self.run_sim_for);
-            utility_function.total_utility(&flows, Time::SIM_START + self.run_sim_for)
+            let flow_stats = flows
+                .iter()
+                .map(|x| x.average_properties(Time::SIM_START + self.run_sim_for))
+                .collect_vec();
+            utility_function.total_utility(&flow_stats)
         };
 
         let networks = (0..self.network_samples)

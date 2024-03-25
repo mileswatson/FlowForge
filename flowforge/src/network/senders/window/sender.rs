@@ -4,11 +4,9 @@ use derive_more::From;
 use derive_where::derive_where;
 
 use crate::{
-    core::logging::Logger,
-    core::meters::{DisabledInfoRateMeter, EnabledInfoRateMeter, InfoRateMeterNeverEnabled, Mean},
-    flow::{Flow, FlowNeverActive, FlowProperties, NoPacketsAcked},
+    core::{logging::Logger, meters::FlowMeter},
     network::{Packet, PacketAddress},
-    quantities::{latest, InformationRate, Time, TimeSpan},
+    quantities::{latest, Time},
     simulation::{Address, Component, EffectContext, Message},
 };
 
@@ -20,8 +18,6 @@ use super::{
 #[derive(Debug)]
 struct WaitingForEnable {
     packets_sent: u64,
-    average_throughput: DisabledInfoRateMeter,
-    average_rtt: Mean<TimeSpan>,
 }
 
 #[derive(Debug)]
@@ -30,24 +26,15 @@ struct Enabled {
     greatest_ack: u64,
     settings: LossyWindowSettings,
     packets_sent: u64,
-    average_throughput: EnabledInfoRateMeter,
-    average_rtt: Mean<TimeSpan>,
 }
 
 impl Enabled {
-    const fn new(
-        settings: LossyWindowSettings,
-        packets_sent: u64,
-        average_throughput: EnabledInfoRateMeter,
-        average_rtt: Mean<TimeSpan>,
-    ) -> Self {
+    const fn new(settings: LossyWindowSettings, packets_sent: u64) -> Self {
         Self {
             last_send: Time::MIN,
             greatest_ack: 0,
             settings,
             packets_sent,
-            average_throughput,
-            average_rtt,
         }
     }
 
@@ -69,19 +56,21 @@ enum State {
     Enabled(Enabled),
 }
 
-#[derive_where(Debug; L)]
-pub struct Sender<'sim, 'a, E, L> {
+#[derive_where(Debug; F, L)]
+pub struct Sender<'sim, 'a, F, E, L> {
     controller: Address<'sim, LossyInternalControllerEffect, E>,
     id: PacketAddress<'sim, E>,
     link: PacketAddress<'sim, E>,
     destination: PacketAddress<'sim, E>,
     state: State,
+    flow_meter: F,
     logger: L,
     phantom: PhantomData<&'a ()>,
 }
 
-impl<'sim, 'a, E, L> Sender<'sim, 'a, E, L>
+impl<'sim, 'a, F, E, L> Sender<'sim, 'a, F, E, L>
 where
+    F: FlowMeter,
     L: Logger,
 {
     pub fn new(
@@ -89,19 +78,16 @@ where
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         destination: PacketAddress<'sim, E>,
+        flow_meter: F,
         logger: L,
-    ) -> Sender<'sim, 'a, E, L> {
+    ) -> Sender<'sim, 'a, F, E, L> {
         Sender {
             controller,
             id,
             link,
             destination,
-            state: WaitingForEnable {
-                packets_sent: 0,
-                average_throughput: DisabledInfoRateMeter::new(),
-                average_rtt: Mean::new(),
-            }
-            .into(),
+            state: WaitingForEnable { packets_sent: 0 }.into(),
+            flow_meter,
             logger,
             phantom: PhantomData,
         }
@@ -124,12 +110,10 @@ where
             State::Enabled(Enabled {
                 settings,
                 greatest_ack,
-                average_rtt,
-                average_throughput,
                 ..
             }) => {
-                average_rtt.record(time - packet.sent_time);
-                average_throughput.record_info(packet.size());
+                self.flow_meter
+                    .packet_received(packet.size(), time - packet.sent_time, time);
                 log!(self.logger, "Received packet {}", packet.seq);
                 *greatest_ack = (*greatest_ack).max(packet.seq);
                 vec![self
@@ -150,40 +134,22 @@ where
     ) {
         match (&mut self.state, settings) {
             (
-                State::WaitingForEnable(WaitingForEnable {
-                    packets_sent,
-                    average_throughput,
-                    average_rtt,
-                }),
+                State::WaitingForEnable(WaitingForEnable { packets_sent }),
                 SettingsUpdate::Enable(settings),
             ) => {
                 log!(self.logger, "Enabled");
-                self.state = Enabled::new(
-                    settings,
-                    *packets_sent,
-                    average_throughput.clone().enable(time),
-                    average_rtt.clone(),
-                )
-                .into();
+                self.flow_meter.flow_enabled(time);
+                self.state = Enabled::new(settings, *packets_sent).into();
             }
             (State::Enabled(Enabled { settings, .. }), SettingsUpdate::Enable(new_settings)) => {
                 log!(self.logger, "Updated settings");
                 *settings = new_settings;
             }
-            (
-                State::Enabled(Enabled {
-                    packets_sent,
-                    average_throughput,
-                    average_rtt,
-                    ..
-                }),
-                SettingsUpdate::Disable,
-            ) => {
+            (State::Enabled(Enabled { packets_sent, .. }), SettingsUpdate::Disable) => {
+                self.flow_meter.flow_disabled(time);
                 log!(self.logger, "Disabled");
                 self.state = WaitingForEnable {
                     packets_sent: *packets_sent,
-                    average_throughput: average_throughput.clone().disable(time),
-                    average_rtt: average_rtt.clone(),
                 }
                 .into();
             }
@@ -210,33 +176,11 @@ where
             State::WaitingForEnable(_) => panic!(),
         }
     }
-
-    fn average_throughput(
-        &self,
-        current_time: Time,
-    ) -> Result<InformationRate, InfoRateMeterNeverEnabled> {
-        match &self.state {
-            State::WaitingForEnable(WaitingForEnable {
-                average_throughput, ..
-            }) => average_throughput.current_value(),
-            State::Enabled(Enabled {
-                average_throughput, ..
-            }) => average_throughput.current_value(current_time),
-        }
-    }
-
-    fn average_rtt(&self) -> Result<TimeSpan, NoPacketsAcked> {
-        match &self.state {
-            State::WaitingForEnable(WaitingForEnable { average_rtt, .. })
-            | State::Enabled(Enabled { average_rtt, .. }) => {
-                average_rtt.value().map_err(|_| NoPacketsAcked)
-            }
-        }
-    }
 }
 
-impl<'sim, 'a, E, L> Component<'sim, E> for Sender<'sim, 'a, E, L>
+impl<'sim, 'a, F, E, L> Component<'sim, E> for Sender<'sim, 'a, F, E, L>
 where
+    F: FlowMeter + 'a,
     L: Logger,
 {
     type Receive = LossyInternalSenderEffect<'sim, E>;
@@ -263,19 +207,5 @@ where
                 vec![]
             }
         }
-    }
-}
-
-impl<'sim, 'a, E, L> Flow for Sender<'sim, 'a, E, L>
-where
-    L: Logger,
-{
-    fn properties(&self, current_time: Time) -> Result<FlowProperties, FlowNeverActive> {
-        self.average_throughput(current_time)
-            .map_err(|_| FlowNeverActive {})
-            .map(|average_throughput| FlowProperties {
-                average_throughput,
-                average_rtt: self.average_rtt(),
-            })
     }
 }

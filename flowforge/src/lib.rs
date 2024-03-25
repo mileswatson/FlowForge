@@ -4,7 +4,8 @@
     clippy::use_self,
     clippy::missing_panics_doc,
     clippy::missing_errors_doc,
-    clippy::suboptimal_flops
+    clippy::suboptimal_flops,
+    clippy::too_many_arguments
 )]
 
 use std::{

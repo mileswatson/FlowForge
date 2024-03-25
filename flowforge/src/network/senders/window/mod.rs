@@ -3,8 +3,7 @@ use std::{cell::RefCell, fmt::Debug, rc::Rc};
 use derive_more::{From, TryInto};
 
 use crate::{
-    core::logging::Logger,
-    flow::Flow,
+    core::{logging::Logger, meters::FlowMeter},
     network::{toggler::Toggle, Packet, PacketAddress},
     quantities::{Time, TimeSpan},
     simulation::{Address, Component, ComponentSlot, DynComponent, HasSubEffect, SimulatorBuilder},
@@ -79,16 +78,18 @@ where
         self.address.clone()
     }
 
-    pub fn set<B>(
+    pub fn set<B, F>(
         self,
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         dest: PacketAddress<'sim, E>,
         new_behavior: Box<dyn (Fn() -> B) + 'a>,
         wait_for_enable: bool,
+        flow_meter: F,
         logger: impl Logger + Clone + 'a,
-    ) -> (LossySenderAddress<'sim, E>, Rc<dyn Flow + 'a>)
+    ) -> LossySenderAddress<'sim, E>
     where
+        F: FlowMeter + Debug + 'a,
         B: LossyWindowBehavior + 'a,
         'sim: 'a,
     {
@@ -102,6 +103,7 @@ where
             id,
             link,
             dest,
+            flow_meter,
             logger.clone(),
         )));
         let sender_address = sender_slot.set(DynComponent::shared(sender.clone()
@@ -114,7 +116,7 @@ where
             wait_for_enable,
             logger,
         )));
-        (address, sender)
+        address
     }
 }
 
@@ -147,24 +149,34 @@ impl LossyWindowSender {
         }
     }
 
-    pub fn insert<'sim, 'a, 'b, B, E, L>(
+    pub fn insert<'sim, 'a, 'b, B, F, E, L>(
         builder: &SimulatorBuilder<'sim, 'a, E>,
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         destination: PacketAddress<'sim, E>,
         new_behavior: Box<dyn (Fn() -> B) + 'a>,
         wait_for_enable: bool,
+        flow_meter: F,
         logger: L,
-    ) -> (LossySenderAddress<'sim, E>, Rc<dyn Flow + 'a>)
+    ) -> LossySenderAddress<'sim, E>
     where
         E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
             + HasSubEffect<LossyInternalControllerEffect>
             + 'sim,
         L: Logger + Clone + 'a,
         B: LossyWindowBehavior + 'a,
+        F: FlowMeter + Debug + 'a,
         'sim: 'a,
     {
         let slot = Self::reserve_slot(builder);
-        slot.set(id, link, destination, new_behavior, wait_for_enable, logger)
+        slot.set(
+            id,
+            link,
+            destination,
+            new_behavior,
+            wait_for_enable,
+            flow_meter,
+            logger,
+        )
     }
 }

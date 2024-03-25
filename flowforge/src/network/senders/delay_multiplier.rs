@@ -1,9 +1,10 @@
-use std::rc::Rc;
+use std::fmt::Debug;
 
 use crate::{
-    core::logging::Logger,
-    core::meters::EWMA,
-    flow::Flow,
+    core::{
+        logging::Logger,
+        meters::{FlowMeter, EWMA},
+    },
     network::PacketAddress,
     quantities::{Float, TimeSpan},
     simulation::{HasSubEffect, SimulatorBuilder},
@@ -66,15 +67,19 @@ where
         self.0.address()
     }
 
-    pub fn set(
+    pub fn set<F>(
         self,
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         destination: PacketAddress<'sim, E>,
         multiplier: Float,
         wait_for_enable: bool,
+        flow_meter: F,
         logger: impl Logger + Clone + 'a,
-    ) -> (LossySenderAddress<'sim, E>, Rc<dyn Flow + 'a>) {
+    ) -> LossySenderAddress<'sim, E>
+    where
+        F: FlowMeter + 'a,
+    {
         self.0.set(
             id,
             link,
@@ -84,6 +89,7 @@ where
                 rtt: EWMA::new(1. / 8.),
             }),
             wait_for_enable,
+            flow_meter,
             logger,
         )
     }
@@ -102,23 +108,33 @@ impl LossyDelayMultiplierSender {
         LossyDelayMultiplierSenderSlot(LossyWindowSender::reserve_slot(builder))
     }
 
-    pub fn insert<'sim, 'a, 'b, T, E, L>(
+    pub fn insert<'sim, 'a, 'b, T, F, E, L>(
         builder: &SimulatorBuilder<'sim, 'a, E>,
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         destination: PacketAddress<'sim, E>,
         multiplier: Float,
         wait_for_enable: bool,
+        flow_meter: F,
         logger: L,
-    ) -> (LossySenderAddress<'sim, E>, Rc<dyn Flow + 'a>)
+    ) -> LossySenderAddress<'sim, E>
     where
         L: Logger + Clone + 'sim,
         E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
             + HasSubEffect<LossyInternalControllerEffect>
             + 'sim,
+        F: FlowMeter + 'a,
         'sim: 'a,
     {
         let slot = Self::reserve_slot::<E, L>(builder);
-        slot.set(id, link, destination, multiplier, wait_for_enable, logger)
+        slot.set(
+            id,
+            link,
+            destination,
+            multiplier,
+            wait_for_enable,
+            flow_meter,
+            logger,
+        )
     }
 }

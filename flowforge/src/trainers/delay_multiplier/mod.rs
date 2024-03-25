@@ -1,8 +1,14 @@
+use std::fmt::Debug;
+
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::logging::NothingLogger,
-    core::rand::{ContinuousDistribution, Rng},
+    core::{
+        logging::NothingLogger,
+        meters::FlowMeter,
+        rand::{ContinuousDistribution, Rng},
+    },
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
     network::{
         config::NetworkConfig,
@@ -10,7 +16,8 @@ use crate::{
             delay_multiplier::LossyDelayMultiplierSender,
             window::{LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect},
         },
-        EffectTypeGenerator, Packet, PopulateComponents, PopulateComponentsResult,
+        toggler::Toggle,
+        EffectTypeGenerator, Packet, PopulateComponents,
     },
     quantities::Float,
     simulation::{Address, HasSubEffect, SimulatorBuilder},
@@ -55,34 +62,38 @@ where
         + HasSubEffect<LossyInternalSenderEffect<'sim, G::Type<'sim>>>
         + HasSubEffect<LossyInternalControllerEffect>,
 {
-    fn populate_components<'sim>(
+    fn populate_components<'sim, 'a, F>(
         &self,
-        num_senders: u32,
-        simulator_builder: &mut SimulatorBuilder<'sim, 'sim, G::Type<'sim>>,
+        flows: impl IntoIterator<Item = F>,
+        simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
         sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
         _rng: &mut Rng,
-    ) -> PopulateComponentsResult<'sim, 'sim, G::Type<'sim>>
+    ) -> Vec<Address<'sim, Toggle, G::Type<'sim>>>
     where
+        F: FlowMeter + 'a,
         G::Type<'sim>: 'sim,
+        'sim: 'a,
     {
-        let (senders, flows) = (0..num_senders)
-            .map(|_| {
+        let senders = flows
+            .into_iter()
+            .map(|flow| {
                 let slot =
                     LossyDelayMultiplierSender::reserve_slot::<_, NothingLogger>(simulator_builder);
                 let address = slot.address();
                 let packet_address = address.clone().cast();
-                let (_, flow) = slot.set(
+                let _ = slot.set(
                     packet_address.clone(),
                     sender_link_id.clone(),
                     packet_address,
                     self.multiplier,
                     true,
+                    flow,
                     NothingLogger,
                 );
-                (address.cast(), flow)
+                address.cast()
             })
-            .unzip();
-        PopulateComponentsResult { senders, flows }
+            .collect_vec();
+        senders
     }
 }
 

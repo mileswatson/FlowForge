@@ -1,13 +1,16 @@
-use std::{fmt::Debug, rc::Rc};
+use std::fmt::Debug;
 
 use derive_where::derive_where;
 use generativity::Guard;
+use itertools::Itertools;
 
 use crate::{
-    core::logging::NothingLogger,
-    core::never::Never,
-    core::rand::{PositiveContinuousDistribution, Rng},
-    flow::Flow,
+    core::{
+        logging::NothingLogger,
+        meters::FlowMeter,
+        never::Never,
+        rand::{PositiveContinuousDistribution, Rng},
+    },
     quantities::{packets, Float, Information, InformationRate, Time, TimeSpan},
     simulation::{Address, DynComponent, HasSubEffect, Simulator, SimulatorBuilder},
 };
@@ -55,11 +58,6 @@ pub struct Network {
     pub on_time: PositiveContinuousDistribution<TimeSpan>,
 }
 
-pub struct PopulateComponentsResult<'sim, 'a, E> {
-    pub senders: Vec<Address<'sim, Toggle, E>>,
-    pub flows: Vec<Rc<dyn Flow + 'a>>,
-}
-
 pub trait EffectTypeGenerator {
     type Type<'a>;
 }
@@ -69,36 +67,40 @@ where
     G: EffectTypeGenerator,
 {
     /// Populates senders and receiver slots
-    fn populate_components<'sim>(
+    fn populate_components<'sim, 'a, F>(
         &'sim self,
-        num_senders: u32,
-        simulator_builder: &mut SimulatorBuilder<'sim, 'sim, G::Type<'sim>>,
+        senders: impl IntoIterator<Item = F>,
+        simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
         sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
         rng: &mut Rng,
-    ) -> PopulateComponentsResult<'sim, 'sim, G::Type<'sim>>
+    ) -> Vec<Address<'sim, Toggle, G::Type<'sim>>>
     where
-        G::Type<'sim>: 'sim;
+        F: FlowMeter + 'a,
+        G::Type<'sim>: 'sim,
+        'sim: 'a;
 }
 
 impl Network {
     #[must_use]
     #[allow(clippy::type_complexity)]
-    pub fn to_sim<'sim, G>(
+    pub fn to_sim<'sim, 'a, F, G>(
         &self,
         guard: Guard<'sim>,
-        rng: &'sim mut Rng,
+        rng: &'a mut Rng,
+        flows: impl IntoIterator<Item = F>,
         populate_components: &'sim impl PopulateComponents<G>,
-    ) -> (
-        Simulator<'sim, 'sim, G::Type<'sim>, NothingLogger>,
-        Vec<Rc<dyn Flow + 'sim>>,
-    )
+    ) -> Simulator<'sim, 'a, G::Type<'sim>, NothingLogger>
     where
+        F: FlowMeter + 'a,
         G: EffectTypeGenerator,
         G::Type<'sim>: HasSubEffect<Packet<'sim, G::Type<'sim>>>
             + HasSubEffect<Toggle>
             + HasSubEffect<Never>
             + 'sim,
+        'sim: 'a,
     {
+        let flows = flows.into_iter().collect_vec();
+        assert_eq!(flows.len(), self.num_senders as usize);
         let mut builder = SimulatorBuilder::<'sim, '_>::new(guard);
         let sender_link_id = builder.insert(DynComponent::new(Link::create(
             self.rtt,
@@ -108,12 +110,8 @@ impl Network {
             rng.create_child(),
             NothingLogger,
         )));
-        let PopulateComponentsResult { senders, flows } = populate_components.populate_components(
-            self.num_senders,
-            &mut builder,
-            sender_link_id,
-            rng,
-        );
+        let senders =
+            populate_components.populate_components(flows, &mut builder, sender_link_id, rng);
         for sender in senders {
             builder.insert(DynComponent::new(Toggler::new(
                 sender,
@@ -123,6 +121,6 @@ impl Network {
             )));
         }
 
-        (builder.build(NothingLogger), flows)
+        builder.build(NothingLogger)
     }
 }
