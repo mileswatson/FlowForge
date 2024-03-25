@@ -10,9 +10,7 @@ use crate::{
     core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
-    network::{
-        config::NetworkConfig, toggler::Toggle, EffectTypeGenerator, Packet, PopulateComponents,
-    },
+    network::{config::NetworkConfig, toggler::Toggle, AddFlows, EffectTypeGenerator, Packet},
     quantities::Float,
     simulation::HasSubEffect,
     Dna, ProgressHandler, Trainer,
@@ -35,63 +33,63 @@ impl Default for GeneticConfig {
     }
 }
 
-pub struct GeneticTrainer<G, D> {
+pub struct GeneticTrainer<A, G> {
     iters: u32,
     population_size: u32,
     evaluation_config: EvaluationConfig,
     effect: PhantomData<G>,
-    dna: PhantomData<D>,
+    flow_adder: PhantomData<A>,
 }
 
-pub trait GeneticDna<G>: Dna + PopulateComponents<G>
-where
-    G: EffectTypeGenerator,
-{
+pub trait GeneticDna<G>: Dna {
     fn new_random(rng: &mut Rng) -> Self;
 
     #[must_use]
     fn spawn_child(&self, rng: &mut Rng) -> Self;
 }
 
-impl<G, D> Trainer for GeneticTrainer<G, D>
+impl<A, G> Trainer for GeneticTrainer<A, G>
 where
-    D: GeneticDna<G>,
     G: EffectTypeGenerator,
+    A: AddFlows<G>,
+    A::Dna: GeneticDna<G>,
     for<'sim> G::Type<'sim>: HasSubEffect<Packet<'sim, G::Type<'sim>>>
         + HasSubEffect<Toggle>
         + HasSubEffect<Never>
         + 'sim,
 {
     type Config = GeneticConfig;
-    type Dna = D;
+    type Dna = A::Dna;
+    type DefaultEffectGenerator = G;
+    type DefaultFlowAdder = A;
 
     fn new(config: &Self::Config) -> Self {
         GeneticTrainer {
             iters: config.iters,
             population_size: config.population_size,
             evaluation_config: config.evaluation_config.clone(),
-            dna: PhantomData,
+            flow_adder: PhantomData,
             effect: PhantomData,
         }
     }
 
     fn train<H>(
         &self,
-        starting_point: Option<D>,
+        starting_point: Option<A::Dna>,
         network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
-    ) -> D
+    ) -> A::Dna
     where
-        H: ProgressHandler<D>,
+        H: ProgressHandler<A::Dna>,
     {
         assert!(
             starting_point.is_none(),
             "Starting point not supported for genetic trainer!"
         );
         let mut population = (0..self.population_size)
-            .map(|_| D::new_random(rng))
+            .map(|_| A::Dna::new_random(rng))
             .collect_vec();
         let progress = Mutex::new((0, progress_handler));
         let increment_progress = || {
@@ -102,7 +100,7 @@ where
                 f64::from(handle.0) / (f64::from(self.population_size) * f64::from(self.iters));
             handle.1.update_progress(progress, None);
         };
-        let update_best = |best: &D| {
+        let update_best = |best: &A::Dna| {
             let mut handle = progress.lock().unwrap();
             #[allow(clippy::cast_precision_loss)]
             let progress =
@@ -115,7 +113,7 @@ where
                 .into_iter()
                 .map(|d| (d, rng.create_child()))
                 .filter_map(|(d, mut rng)| {
-                    let score = self.evaluation_config.evaluate::<G>(
+                    let score = self.evaluation_config.evaluate::<A, G>(
                         network_config,
                         &d,
                         utility_function,
@@ -141,12 +139,12 @@ where
 
     fn evaluate(
         &self,
-        d: &D,
+        d: &A::Dna,
         network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
         self.evaluation_config
-            .evaluate::<G>(network_config, d, utility_function, rng)
+            .evaluate::<A, G>(network_config, d, utility_function, rng)
     }
 }

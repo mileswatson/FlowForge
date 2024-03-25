@@ -17,7 +17,7 @@ use crate::{
             window::{LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect},
         },
         toggler::Toggle,
-        EffectTypeGenerator, Packet, PopulateComponents,
+        AddFlows, EffectTypeGenerator, Packet,
     },
     quantities::Float,
     simulation::{Address, HasSubEffect, SimulatorBuilder},
@@ -35,7 +35,7 @@ pub struct DelayMultiplierConfig {
 }
 
 pub struct DelayMultiplierTrainer {
-    genetic_trainer: GeneticTrainer<DefaultEffect<'static>, DelayMultiplierDna>,
+    genetic_trainer: GeneticTrainer<DelayMultiplierFlowAdder, DefaultEffect<'static>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -55,15 +55,19 @@ impl Dna for DelayMultiplierDna {
     }
 }
 
-impl<G> PopulateComponents<G> for DelayMultiplierDna
+pub struct DelayMultiplierFlowAdder;
+
+impl<G> AddFlows<G> for DelayMultiplierFlowAdder
 where
     G: EffectTypeGenerator,
     for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>
         + HasSubEffect<LossyInternalSenderEffect<'sim, G::Type<'sim>>>
         + HasSubEffect<LossyInternalControllerEffect>,
 {
-    fn populate_components<'sim, 'a, F>(
-        &self,
+    type Dna = DelayMultiplierDna;
+
+    fn add_flows<'sim, 'a, F>(
+        dna: &DelayMultiplierDna,
         flows: impl IntoIterator<Item = F>,
         simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
         sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
@@ -85,7 +89,7 @@ where
                     packet_address.clone(),
                     sender_link_id.clone(),
                     packet_address,
-                    self.multiplier,
+                    dna.multiplier,
                     true,
                     flow,
                     NothingLogger,
@@ -121,6 +125,8 @@ where
 impl Trainer for DelayMultiplierTrainer {
     type Config = DelayMultiplierConfig;
     type Dna = DelayMultiplierDna;
+    type DefaultEffectGenerator = DefaultEffect<'static>;
+    type DefaultFlowAdder = DelayMultiplierFlowAdder;
 
     fn new(config: &Self::Config) -> Self {
         DelayMultiplierTrainer {

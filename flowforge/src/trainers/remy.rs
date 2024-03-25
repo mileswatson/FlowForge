@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use anyhow::Result;
 use indicatif::{ParallelProgressIterator, ProgressBar};
 use itertools::Itertools;
@@ -16,12 +18,12 @@ use crate::{
             window::{LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect},
         },
         toggler::Toggle,
-        EffectTypeGenerator, Packet, PopulateComponents,
+        AddFlows, EffectTypeGenerator, Packet,
     },
     protocols::remy::{
         action::Action,
         dna::RemyDna,
-        rule_tree::{BaseRuleTree, CountingRuleTree, LeafHandle, RuleTree},
+        rule_tree::{AugmentedRuleTree, BaseRuleTree, CountingRuleTree, LeafHandle, RuleTree},
     },
     quantities::{milliseconds, seconds, Float},
     simulation::{Address, HasSubEffect, SimulatorBuilder},
@@ -90,7 +92,9 @@ pub struct RemyTrainer {
     config: RemyConfig,
 }
 
-impl<G, T> PopulateComponents<G> for T
+pub struct RemyFlowAdder<T>(PhantomData<T>);
+
+impl<G, T> AddFlows<G> for RemyFlowAdder<T>
 where
     T: RuleTree + Sync,
     G: EffectTypeGenerator,
@@ -98,8 +102,10 @@ where
         + HasSubEffect<LossyInternalSenderEffect<'sim, G::Type<'sim>>>
         + HasSubEffect<LossyInternalControllerEffect>,
 {
-    fn populate_components<'sim, 'a, F>(
-        &'sim self,
+    type Dna = T;
+
+    fn add_flows<'sim, 'a, F>(
+        dna: &'a T,
         flows: impl IntoIterator<Item = F>,
         simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
         sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
@@ -120,7 +126,7 @@ where
                     packet_address.clone(),
                     sender_link_id.clone(),
                     packet_address,
-                    self,
+                    dna,
                     true,
                     flow,
                     NothingLogger,
@@ -143,6 +149,8 @@ where
 impl Trainer for RemyTrainer {
     type Config = RemyConfig;
     type Dna = RemyDna;
+    type DefaultEffectGenerator = DefaultEffect<'static>;
+    type DefaultFlowAdder = RemyFlowAdder<RemyDna>;
 
     fn new(config: &RemyConfig) -> RemyTrainer {
         RemyTrainer {
@@ -165,7 +173,7 @@ impl Trainer for RemyTrainer {
             let (score, props) = self
                 .config
                 .evaluation_config
-                .evaluate::<DefaultEffect>(
+                .evaluate::<RemyFlowAdder<CountingRuleTree>, DefaultEffect>(
                     network_config,
                     &counting_tree,
                     utility_function,
@@ -178,7 +186,7 @@ impl Trainer for RemyTrainer {
         let test_new_action = |leaf: &LeafHandle, new_action: Action, mut rng: Rng| {
             self.config
                 .training_config
-                .evaluate::<DefaultEffect>(
+                .evaluate::<RemyFlowAdder<AugmentedRuleTree>, DefaultEffect>(
                     network_config,
                     &leaf.augmented_tree(new_action),
                     utility_function,
@@ -278,12 +286,14 @@ impl Trainer for RemyTrainer {
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
         println!("Number of rule splits: {}", d.tree.num_parents());
-        self.config.evaluation_config.evaluate::<DefaultEffect>(
-            network_config,
-            d,
-            utility_function,
-            rng,
-        )
+        self.config
+            .evaluation_config
+            .evaluate::<Self::DefaultFlowAdder, DefaultEffect>(
+                network_config,
+                d,
+                utility_function,
+                rng,
+            )
     }
 }
 

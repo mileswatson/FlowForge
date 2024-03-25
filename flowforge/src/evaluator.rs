@@ -12,8 +12,7 @@ use crate::{
     },
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
     network::{
-        config::NetworkConfig, toggler::Toggle, EffectTypeGenerator, Network, Packet,
-        PopulateComponents,
+        config::NetworkConfig, toggler::Toggle, AddFlows, EffectTypeGenerator, Network, Packet,
     },
     quantities::{seconds, Float, Time, TimeSpan},
     simulation::HasSubEffect,
@@ -36,14 +35,16 @@ impl Default for EvaluationConfig {
 }
 
 impl EvaluationConfig {
-    pub fn evaluate<G>(
+    pub fn evaluate<A, G>(
         &self,
         network_config: &NetworkConfig,
-        components: &impl PopulateComponents<G>,
+        dna: &A::Dna,
         utility_function: &(impl UtilityFunction + ?Sized),
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows>
     where
+        A: AddFlows<G>,
+        A::Dna: Sync,
         G: EffectTypeGenerator,
         for<'sim> G::Type<'sim>:
             HasSubEffect<Packet<'sim, G::Type<'sim>>> + HasSubEffect<Toggle> + HasSubEffect<Never>,
@@ -53,7 +54,7 @@ impl EvaluationConfig {
             let mut flows = (0..n.num_senders)
                 .map(|_| AverageFlowMeter::new_disabled())
                 .collect_vec();
-            let sim = n.to_sim(guard, &mut rng, &mut flows, components);
+            let sim = n.to_sim::<A, _, _>(guard, &mut rng, &mut flows, dna);
             sim.run_for(self.run_sim_for);
             let flow_stats = flows
                 .iter()

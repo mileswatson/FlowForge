@@ -17,7 +17,7 @@ use std::{
 use anyhow::{anyhow, Result};
 use core::rand::Rng;
 use flow::{FlowProperties, NoActiveFlows, UtilityFunction};
-use network::config::NetworkConfig;
+use network::{config::NetworkConfig, AddFlows, EffectTypeGenerator};
 use quantities::Float;
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -116,6 +116,8 @@ impl<D: Dna, F: FnMut(Float, Option<&D>) + Send> ProgressHandler<D> for F {
 pub trait Trainer {
     type Config: Config<Json>;
     type Dna: Dna;
+    type DefaultEffectGenerator: EffectTypeGenerator;
+    type DefaultFlowAdder: AddFlows<Self::DefaultEffectGenerator, Dna = Self::Dna>;
 
     fn new(config: &Self::Config) -> Self;
 

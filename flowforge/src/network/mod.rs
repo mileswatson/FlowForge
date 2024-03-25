@@ -62,14 +62,15 @@ pub trait EffectTypeGenerator {
     type Type<'a>;
 }
 
-pub trait PopulateComponents<G>: Sync
+pub trait AddFlows<G>: Sync
 where
     G: EffectTypeGenerator,
 {
-    /// Populates senders and receiver slots
-    fn populate_components<'sim, 'a, F>(
-        &'sim self,
-        senders: impl IntoIterator<Item = F>,
+    type Dna;
+
+    fn add_flows<'sim, 'a, F>(
+        dna: &'sim Self::Dna,
+        flows: impl IntoIterator<Item = F>,
         simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
         sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
         rng: &mut Rng,
@@ -80,23 +81,31 @@ where
         'sim: 'a;
 }
 
+pub trait HasNetworkSubEffects<'sim, E>:
+    HasSubEffect<Packet<'sim, E>> + HasSubEffect<Toggle> + HasSubEffect<Never> + 'sim
+{
+}
+
+impl<'sim, E, T> HasNetworkSubEffects<'sim, E> for T where
+    T: HasSubEffect<Packet<'sim, E>> + HasSubEffect<Toggle> + HasSubEffect<Never> + 'sim
+{
+}
+
 impl Network {
     #[must_use]
     #[allow(clippy::type_complexity)]
-    pub fn to_sim<'sim, 'a, F, G>(
+    pub fn to_sim<'sim, 'a, A, F, G>(
         &self,
         guard: Guard<'sim>,
         rng: &'a mut Rng,
         flows: impl IntoIterator<Item = F>,
-        populate_components: &'sim impl PopulateComponents<G>,
+        dna: &'sim A::Dna,
     ) -> Simulator<'sim, 'a, G::Type<'sim>, NothingLogger>
     where
+        A: AddFlows<G>,
         F: FlowMeter + 'a,
         G: EffectTypeGenerator,
-        G::Type<'sim>: HasSubEffect<Packet<'sim, G::Type<'sim>>>
-            + HasSubEffect<Toggle>
-            + HasSubEffect<Never>
-            + 'sim,
+        G::Type<'sim>: HasNetworkSubEffects<'sim, G::Type<'sim>>,
         'sim: 'a,
     {
         let flows = flows.into_iter().collect_vec();
@@ -110,8 +119,7 @@ impl Network {
             rng.create_child(),
             NothingLogger,
         )));
-        let senders =
-            populate_components.populate_components(flows, &mut builder, sender_link_id, rng);
+        let senders = A::add_flows(dna, flows, &mut builder, sender_link_id, rng);
         for sender in senders {
             builder.insert(DynComponent::new(Toggler::new(
                 sender,

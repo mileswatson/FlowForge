@@ -1,14 +1,16 @@
 use std::path::PathBuf;
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 
 use create_configs::create_all_configs;
 use evaluate::evaluate;
+use trace::trace;
 use train::train;
 
 mod create_configs;
 mod evaluate;
+mod trace;
 mod train;
 
 #[derive(Subcommand, Debug)]
@@ -55,6 +57,34 @@ enum Command {
         #[arg(short, long)]
         input: PathBuf,
     },
+    /// Trace the execution of a particular sender
+    Trace {
+        /// Flow mode
+        #[arg(long)]
+        mode: FlowAdders,
+
+        /// Network config file (JSON)
+        #[arg(long)]
+        network: PathBuf,
+
+        /// Utility function config file (JSON)
+        #[arg(long)]
+        utility: PathBuf,
+
+        /// File to read congestion control algorithm DNA from
+        #[arg(short, long)]
+        input: PathBuf,
+
+        /// Random seed to use
+        #[arg(long, default_value_t = 12345)]
+        seed: u64,
+    },
+}
+
+#[derive(Debug, Clone, ValueEnum)]
+pub enum FlowAdders {
+    Remy,
+    DelayMultiplier,
 }
 
 #[derive(Parser, Debug)]
@@ -90,5 +120,12 @@ fn main() -> Result<()> {
             utility,
             input,
         } => evaluate(&trainer, &network, &utility, &input),
+        Command::Trace {
+            mode,
+            network,
+            utility,
+            input,
+            seed,
+        } => trace(&mode, &network, &utility, &input, seed),
     }
 }
