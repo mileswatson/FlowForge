@@ -29,11 +29,11 @@
     "intersend_delay": "3ms"
   },
   "training_config": {
-    "network_samples": 100,
-    "run_sim_for": "120s"
+    "network_samples": 50,
+    "run_sim_for": "60s"
   },
   "evaluation_config": {
-    "network_samples": 10000,
-    "run_sim_for": "120s"
+    "network_samples": 500,
+    "run_sim_for": "60s"
   }
 }
