@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use derive_where::derive_where;
 use generativity::Guard;
 use itertools::Itertools;
+use serde::Serialize;
 
 use crate::{
     core::{
@@ -24,8 +25,8 @@ pub mod bouncer;
 pub mod config;
 pub mod link;
 pub mod senders;
-pub mod toggler;
 pub mod ticker;
+pub mod toggler;
 
 #[derive_where(Debug)]
 pub struct Packet<'sim, E> {
@@ -48,7 +49,7 @@ impl<'sim, E> Packet<'sim, E> {
 
 pub type PacketAddress<'sim, E> = Address<'sim, Packet<'sim, E>, E>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Network {
     pub rtt: TimeSpan,
     pub packet_rate: InformationRate,
@@ -70,7 +71,7 @@ where
     type Dna;
 
     fn add_flows<'sim, 'a, F>(
-        dna: &'sim Self::Dna,
+        dna: &'a Self::Dna,
         flows: impl IntoIterator<Item = F>,
         simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
         sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
@@ -100,7 +101,8 @@ impl Network {
         guard: Guard<'sim>,
         rng: &'a mut Rng,
         flows: impl IntoIterator<Item = F>,
-        dna: &'sim A::Dna,
+        dna: &'a A::Dna,
+        extra_components: impl FnOnce(&SimulatorBuilder<'sim, 'a, G::Type<'sim>>),
     ) -> Simulator<'sim, 'a, G::Type<'sim>, NothingLogger>
     where
         A: AddFlows<G>,
@@ -112,6 +114,7 @@ impl Network {
         let flows = flows.into_iter().collect_vec();
         assert_eq!(flows.len(), self.num_senders as usize);
         let mut builder = SimulatorBuilder::<'sim, '_>::new(guard);
+        extra_components(&builder);
         let sender_link_id = builder.insert(DynComponent::new(Link::create(
             self.rtt,
             self.packet_rate,

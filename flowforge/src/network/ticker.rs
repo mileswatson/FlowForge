@@ -8,7 +8,7 @@ use crate::{
 
 pub struct Ticker<F>
 where
-    F: Fn(),
+    F: FnMut(Time),
 {
     next_tick: Time,
     interval: TimeSpan,
@@ -17,7 +17,7 @@ where
 
 impl<F> Debug for Ticker<F>
 where
-    F: Fn(),
+    F: FnMut(Time),
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Ticker")
@@ -28,7 +28,7 @@ where
 
 impl<F> Ticker<F>
 where
-    F: Fn(),
+    F: FnMut(Time),
 {
     pub const fn new(interval: TimeSpan, action: F) -> Ticker<F> {
         Ticker {
@@ -41,7 +41,7 @@ where
 
 impl<'sim, E, F> Component<'sim, E> for Ticker<F>
 where
-    F: Fn(),
+    F: FnMut(Time),
 {
     type Receive = Never;
 
@@ -49,8 +49,9 @@ where
         Some(self.next_tick)
     }
 
-    fn tick(&mut self, _context: EffectContext) -> Vec<Message<'sim, E>> {
-        (self.action)();
+    fn tick(&mut self, EffectContext { time }: EffectContext) -> Vec<Message<'sim, E>> {
+        self.next_tick = time + self.interval;
+        (self.action)(time);
         vec![]
     }
 

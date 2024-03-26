@@ -75,6 +75,10 @@ enum Command {
         #[arg(short, long)]
         input: PathBuf,
 
+        /// File to output trace to (JSON)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+
         /// Random seed to use
         #[arg(long, default_value_t = 12345)]
         seed: u64,
@@ -125,7 +129,8 @@ fn main() -> Result<()> {
             network,
             utility,
             input,
+            output,
             seed,
-        } => trace(&mode, &network, &utility, &input, seed),
+        } => trace(&mode, &network, &utility, &input, output.as_deref(), seed),
     }
 }

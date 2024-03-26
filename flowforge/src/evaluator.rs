@@ -54,11 +54,14 @@ impl EvaluationConfig {
             let mut flows = (0..n.num_senders)
                 .map(|_| AverageFlowMeter::new_disabled())
                 .collect_vec();
-            let sim = n.to_sim::<A, _, _>(guard, &mut rng, &mut flows, dna);
+            let sim = n.to_sim::<A, _, _>(guard, &mut rng, &mut flows, dna, |_| {});
             sim.run_for(self.run_sim_for);
             let flow_stats = flows
                 .iter()
-                .map(|x| x.average_properties(Time::SIM_START + self.run_sim_for))
+                .filter_map(|x| {
+                    x.average_properties(Time::SIM_START + self.run_sim_for)
+                        .ok()
+                })
                 .collect_vec();
             utility_function.total_utility(&flow_stats)
         };

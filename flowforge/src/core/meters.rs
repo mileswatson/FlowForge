@@ -358,7 +358,11 @@ pub struct CurrentFlowMeter {
     current_throughput: TimeBasedEWMA<InformationRate>,
     current_rtt: TimeBasedEWMA<TimeSpan>,
     last_received: Time,
+    enabled: bool,
 }
+
+#[derive(Clone, Debug)]
+pub struct FlowNotActive;
 
 impl CurrentFlowMeter {
     #[must_use]
@@ -377,27 +381,44 @@ impl CurrentFlowMeter {
             ),
             current_rtt: TimeBasedEWMA::new(half_life, None),
             last_received: current_time,
+            enabled: false,
         }
     }
 
-    pub fn current_properties(
-        &self,
-        current_time: Time,
-    ) -> Result<FlowProperties, FlowNeverActive> {
-        self.current_throughput
-            .value(current_time)
-            .map(|average_throughput| FlowProperties {
-                average_throughput,
+    #[must_use]
+    pub fn current_bandwidth(&self, time: Time) -> InformationRate {
+        self.current_throughput.value(time).unwrap()
+    }
+
+    pub fn current_rtt(&self, time: Time) -> Result<TimeSpan, NoPacketsAcked> {
+        self.current_rtt.value(time).ok_or(NoPacketsAcked)
+    }
+
+    pub fn current_properties(&self, current_time: Time) -> Result<FlowProperties, FlowNotActive> {
+        if self.enabled {
+            Ok(FlowProperties {
+                average_throughput: self.current_throughput.value(current_time).unwrap(),
                 average_rtt: self.current_rtt.value(current_time).ok_or(NoPacketsAcked),
             })
-            .ok_or(FlowNeverActive)
+        } else {
+            Err(FlowNotActive)
+        }
+    }
+
+    #[must_use]
+    pub const fn active(&self) -> bool {
+        self.enabled
     }
 }
 
 impl FlowMeter for CurrentFlowMeter {
-    fn flow_enabled(&mut self, _time: Time) {}
+    fn flow_enabled(&mut self, _time: Time) {
+        self.enabled = true;
+    }
 
-    fn flow_disabled(&mut self, _time: Time) {}
+    fn flow_disabled(&mut self, _time: Time) {
+        self.enabled = false;
+    }
 
     fn packet_received(&mut self, data: Information, rtt: TimeSpan, time: Time) {
         assert!(time > self.last_received);

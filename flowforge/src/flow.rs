@@ -88,8 +88,10 @@ pub trait UtilityFunction: Sync {
     /// Calculates flow properties and the total utility of a network simulation.
     fn total_utility(
         &self,
-        flows: &[Result<FlowProperties, FlowNeverActive>],
+        flows: &[FlowProperties],
     ) -> Result<(Float, FlowProperties), NoActiveFlows>;
+
+    fn flow_utility(&self, flow: &FlowProperties) -> Float;
 }
 
 #[derive(Serialize, Deserialize)]
@@ -100,10 +102,16 @@ pub enum UtilityConfig {
 impl UtilityFunction for UtilityConfig {
     fn total_utility(
         &self,
-        flows: &[Result<FlowProperties, FlowNeverActive>],
+        flows: &[FlowProperties],
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
         match self {
             UtilityConfig::AlphaFairness(x) => x.total_utility(flows),
+        }
+    }
+
+    fn flow_utility(&self, flow: &FlowProperties) -> Float {
+        match self {
+            UtilityConfig::AlphaFairness(x) => x.flow_utility(flow),
         }
     }
 }
@@ -117,15 +125,13 @@ pub enum FlowUtilityAggregator {
 impl FlowUtilityAggregator {
     pub fn total_utility<F>(
         &self,
-        flows: &[Result<FlowProperties, FlowNeverActive>],
+        flows: &[FlowProperties],
         flow_utility: F,
     ) -> Result<(Float, FlowProperties), NoActiveFlows>
     where
         F: Fn(&FlowProperties) -> Float,
     {
-        let scores = flows
-            .iter()
-            .filter_map(|flow| flow.as_ref().map(|x| (flow_utility(x), x.clone())).ok());
+        let scores = flows.iter().map(|flow| (flow_utility(flow), flow.clone()));
         match self {
             FlowUtilityAggregator::Mean => scores
                 .map(AveragePair::new)
@@ -171,6 +177,16 @@ impl AlphaFairness {
         worst_case_rtt: seconds(10.),
         flow_utility_aggregator: FlowUtilityAggregator::Mean,
     };
+}
+
+impl UtilityFunction for AlphaFairness {
+    fn total_utility(
+        &self,
+        flows: &[FlowProperties],
+    ) -> Result<(Float, FlowProperties), NoActiveFlows> {
+        self.flow_utility_aggregator
+            .total_utility(flows, |flow| self.flow_utility(flow))
+    }
 
     fn flow_utility(&self, properties: &FlowProperties) -> Float {
         let throughput_utility = alpha_fairness(properties.average_throughput.value(), self.alpha);
@@ -185,16 +201,6 @@ impl AlphaFairness {
                 self.beta,
             );
         throughput_utility + rtt_utility
-    }
-}
-
-impl UtilityFunction for AlphaFairness {
-    fn total_utility(
-        &self,
-        flows: &[Result<FlowProperties, FlowNeverActive>],
-    ) -> Result<(Float, FlowProperties), NoActiveFlows> {
-        self.flow_utility_aggregator
-            .total_utility(flows, |flow| self.flow_utility(flow))
     }
 }
 
@@ -255,11 +261,9 @@ mod tests {
     #[test]
     fn flow_utility_aggregator() {
         let flows = (0..5)
-            .map(|x| {
-                Ok(FlowProperties {
-                    average_throughput: bits_per_second(Float::from(x)),
-                    average_rtt: Err(NoPacketsAcked),
-                })
+            .map(|x| FlowProperties {
+                average_throughput: bits_per_second(Float::from(x)),
+                average_rtt: Err(NoPacketsAcked),
             })
             .collect_vec();
         assert_eq!(

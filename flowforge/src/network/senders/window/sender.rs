@@ -32,7 +32,7 @@ impl Enabled {
     const fn new(settings: LossyWindowSettings, packets_sent: u64) -> Self {
         Self {
             last_send: Time::MIN,
-            greatest_ack: 0,
+            greatest_ack: packets_sent,
             settings,
             packets_sent,
         }
