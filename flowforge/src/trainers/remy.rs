@@ -77,12 +77,12 @@ impl Default for RemyConfig {
                 intersend_delay: milliseconds(3.),
             },
             training_config: EvaluationConfig {
-                network_samples: 100,
-                run_sim_for: seconds(120.),
+                network_samples: 50,
+                run_sim_for: seconds(60.),
             },
             evaluation_config: EvaluationConfig {
-                network_samples: 10000,
-                run_sim_for: seconds(120.),
+                network_samples: 500,
+                run_sim_for: seconds(60.),
             },
         }
     }
