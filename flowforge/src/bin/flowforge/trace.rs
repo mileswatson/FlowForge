@@ -1,16 +1,12 @@
 use anyhow::Result;
 use flowforge::{
-    core::{
-        meters::{CurrentFlowMeter, FlowNotActive},
-        never::Never,
-        rand::Rng,
-    },
-    flow::{FlowNeverActive, UtilityConfig, UtilityFunction},
+    core::{meters::CurrentFlowMeter, never::Never, rand::Rng},
+    flow::{UtilityConfig, UtilityFunction},
     network::{
         config::NetworkConfig, ticker::Ticker, AddFlows, EffectTypeGenerator, HasNetworkSubEffects,
         Network,
     },
-    protocols::remy::dna::RemyDna,
+    protocols::{remy::dna::RemyDna, remyr::dna::RemyrDna},
     quantities::{milliseconds, seconds, Float, InformationRate, Time, TimeSpan},
     simulation::DynComponent,
     trainers::{delay_multiplier::DelayMultiplierFlowAdder, remy::RemyFlowAdder, DefaultEffect},
@@ -147,6 +143,12 @@ pub fn trace(
             &mut rng,
         ),
         FlowAdders::DelayMultiplier => _trace::<DelayMultiplierFlowAdder, DefaultEffect>(
+            &network_config,
+            &utility_config,
+            input_path,
+            &mut rng,
+        ),
+        FlowAdders::Remyr => _trace::<RemyFlowAdder<RemyrDna>, DefaultEffect>(
             &network_config,
             &utility_config,
             input_path,

@@ -16,7 +16,11 @@ use super::{
 };
 
 pub trait RuleTree<const TESTING: bool = false>: Debug {
-    fn action(&self, point: &Point) -> Option<&Action<TESTING>>;
+    type Action<'a>: AsRef<Action<TESTING>> + 'a
+    where
+        Self: 'a;
+
+    fn action<'a>(&'a self, point: &Point) -> Option<Self::Action<'a>>;
 }
 
 #[derive(Debug)]
@@ -26,6 +30,8 @@ pub struct AugmentedRuleTree<'a> {
 }
 
 impl<'a> RuleTree for AugmentedRuleTree<'a> {
+    type Action<'b> = &'b Action where Self: 'b;
+
     fn action(&self, point: &Point) -> Option<&Action> {
         self.tree._action(self.tree.root, point, &|idx| {
             if idx == self.rule_override.0 {
@@ -44,6 +50,8 @@ pub struct CountingRuleTree<'a> {
 }
 
 impl<'a> RuleTree for CountingRuleTree<'a> {
+    type Action<'b> = &'b Action where Self: 'b;
+
     fn action(&self, point: &Point) -> Option<&Action> {
         self.tree._action(self.tree.root, point, &|idx| {
             self.counts[idx].fetch_add(1, Ordering::Relaxed);
@@ -391,6 +399,8 @@ impl BaseRuleTree {
 }
 
 impl RuleTree for BaseRuleTree {
+    type Action<'b> = &'b Action where Self: 'b;
+
     fn action(&self, point: &Point) -> Option<&Action> {
         self._action(self.root, point, &|_| None)
     }

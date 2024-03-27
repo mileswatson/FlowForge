@@ -26,6 +26,12 @@ pub struct Action<const TESTING: bool = false> {
     pub intersend_delay: TimeSpan,
 }
 
+impl<const TESTING: bool> AsRef<Action<TESTING>> for Action<TESTING> {
+    fn as_ref(&self) -> &Action<TESTING> {
+        self
+    }
+}
+
 impl<const TESTING: bool> Display for Action<TESTING> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(

@@ -88,6 +88,7 @@ enum Command {
 #[derive(Debug, Clone, ValueEnum)]
 pub enum FlowAdders {
     Remy,
+    Remyr,
     DelayMultiplier,
 }
 

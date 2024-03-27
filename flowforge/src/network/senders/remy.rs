@@ -55,7 +55,7 @@ where
         }
     }
 
-    fn action(&self) -> &Action {
+    fn action(&self) -> T::Action<'_> {
         self.rule_tree
             .action(&self.point())
             .unwrap_or_else(|| panic!("Expected {} to map to an action", self.point()))
@@ -105,12 +105,13 @@ where
             current: current_rtt,
         });
         log!(logger, "Updated state to {:?}", self);
+        let action = self.action();
         let Action {
             window_multiplier,
             window_increment,
             intersend_delay: intersend_ms,
             ..
-        } = self.action();
+        } = action.as_ref();
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let window = ((f64::from(current_settings.window) * window_multiplier) as i32
             + *window_increment)

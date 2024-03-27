@@ -1,12 +1,13 @@
 use std::fmt::Display;
 
 use protobuf::MessageField;
+use serde::{Deserialize, Serialize};
 
 use crate::quantities::{milliseconds, seconds, Float, TimeSpan};
 
 use super::autogen::remy_dna::Memory;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Point<const TESTING: bool = false> {
     pub ack_ewma: TimeSpan,
     pub send_ewma: TimeSpan,
