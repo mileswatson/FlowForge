@@ -61,7 +61,6 @@ pub fn _train<T>(
                     result.utility.push(utility);
                     output_file.rewind().unwrap();
                     serde_json::to_writer(output_file, &result).unwrap();
-                    output_file.flush().unwrap();
                 }
             },
             rng,
