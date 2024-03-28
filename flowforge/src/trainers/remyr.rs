@@ -35,6 +35,7 @@ pub struct RemyrConfig {
     pub min_action: Action,
     pub max_action: Action,
     pub hidden_layers: HiddenLayers,
+    pub stddev_multiplier: f32,
     pub learning_rate: f64,
     pub learning_rate_annealing: bool,
     pub weight_decay: Option<f64>,
@@ -48,7 +49,7 @@ pub struct RemyrConfig {
 impl Default for RemyrConfig {
     fn default() -> Self {
         Self {
-            iters: 1000,
+            iters: 3000,
             updates_per_iter: 10,
             min_point: Point {
                 ack_ewma: milliseconds(0.),
@@ -71,8 +72,8 @@ impl Default for RemyrConfig {
                 intersend_delay: milliseconds(3.),
             },
             training_config: EvaluationConfig {
-                network_samples: 30,
-                run_sim_for: seconds(60.),
+                network_samples: 3,
+                run_sim_for: seconds(20.),
             },
             evaluation_config: EvaluationConfig {
                 network_samples: 100,
@@ -85,6 +86,7 @@ impl Default for RemyrConfig {
             bandwidth_half_life: milliseconds(100.),
             clip: 0.2,
             gamma: 0.99,
+            stddev_multiplier: 1.,
         }
     }
 }
@@ -96,6 +98,7 @@ impl RemyrConfig {
             max_point: self.max_point.clone(),
             min_action: self.min_action.clone(),
             max_action: self.max_action.clone(),
+            stddev_multiplier: self.stddev_multiplier,
             policy,
         }
     }
@@ -400,8 +403,11 @@ impl Trainer for RemyrTrainer {
 
                 // let stddevs = stddevs * STDDEV_MULTIPLIER;
 
-                let action_log_probs_i =
-                    calculate_action_log_probs(actions.clone(), means, stddevs);
+                let action_log_probs_i = calculate_action_log_probs(
+                    actions.clone(),
+                    means,
+                    stddevs * dna.stddev_multiplier,
+                );
 
                 let ratios = (action_log_probs_i.reshape_like(action_log_probs.shape())
                     - action_log_probs.clone())

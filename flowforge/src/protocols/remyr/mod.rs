@@ -69,10 +69,8 @@ where
         let min_point = point_to_tensor(dev, &self.min_point);
         let max_point = point_to_tensor(dev, &self.max_point);
         let input = ((point - min_point.clone()) / (max_point - min_point)).clamp(0., 1.) * 2. - 1.;
-        let action = f(
-            input.clone(),
-            self.policy.as_policy_net_ref().forward(input),
-        );
+        let (mean, stddev) = self.policy.as_policy_net_ref().forward(input.clone());
+        let action = f(input, (mean, stddev * self.stddev_multiplier));
 
         let max_action = action_to_tensor(dev, &self.max_action);
         let min_action = action_to_tensor(dev, &self.min_action);

@@ -50,6 +50,7 @@ struct _RemyrDna {
     max_point: Point,
     min_action: Action,
     max_action: Action,
+    stddev_multiplier: f32,
     hidden_layers: HiddenLayers,
     policy: Vec<u8>,
 }
@@ -59,17 +60,22 @@ pub struct RemyrDna<P = PolicyNetwork<Cpu>> {
     pub max_point: Point,
     pub min_action: Action,
     pub max_action: Action,
+    pub stddev_multiplier: f32,
     pub policy: P,
 }
 
-impl<P> Debug for RemyrDna<P> {
+impl<P> Debug for RemyrDna<P>
+where
+    P: AsPolicyNetRef,
+{
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("RemyrDna")
             .field("min_point", &self.min_point)
             .field("max_point", &self.max_point)
             .field("min_action", &self.min_action)
             .field("max_action", &self.max_action)
-            .field("policy", &"P")
+            .field("stddev_multiplier", &self.stddev_multiplier)
+            .field("policy", &self.policy.as_policy_net_ref().hidden_layers())
             .finish()
     }
 }
@@ -84,6 +90,7 @@ impl Serialize for RemyrDna {
             max_point: self.max_point.clone(),
             min_action: self.min_action.clone(),
             max_action: self.max_action.clone(),
+            stddev_multiplier: self.stddev_multiplier,
             hidden_layers: self.policy.as_policy_net_ref().hidden_layers(),
             policy: self.policy.serialize(),
         }
@@ -101,6 +108,7 @@ impl<'de> Deserialize<'de> for RemyrDna<PolicyNetwork<Cpu>> {
             max_point,
             min_action,
             max_action,
+            stddev_multiplier,
             hidden_layers,
             policy,
         } = _RemyrDna::deserialize(deserializer)?;
@@ -112,6 +120,7 @@ impl<'de> Deserialize<'de> for RemyrDna<PolicyNetwork<Cpu>> {
             max_point,
             min_action,
             max_action,
+            stddev_multiplier,
             policy: loaded_policy,
         })
     }

@@ -1,6 +1,6 @@
 {
   "type": "remyr",
-  "iters": 1000,
+  "iters": 3000,
   "updates_per_iter": 10,
   "min_point": {
     "ack_ewma": "0ms",
@@ -26,6 +26,7 @@
     32,
     16
   ],
+  "stddev_multiplier": 1.0,
   "learning_rate": 0.0003,
   "learning_rate_annealing": true,
   "weight_decay": 0.001,
@@ -33,8 +34,8 @@
   "gamma": 0.99,
   "bandwidth_half_life": "100ms",
   "training_config": {
-    "network_samples": 30,
-    "run_sim_for": "60s"
+    "network_samples": 3,
+    "run_sim_for": "20s"
   },
   "evaluation_config": {
     "network_samples": 100,
