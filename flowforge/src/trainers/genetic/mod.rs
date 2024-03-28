@@ -98,14 +98,12 @@ where
             #[allow(clippy::cast_precision_loss)]
             let progress =
                 f64::from(handle.0) / (f64::from(self.population_size) * f64::from(self.iters));
-            handle.1.update_progress(progress, None);
         };
         let update_best = |best: &A::Dna| {
             let mut handle = progress.lock().unwrap();
             #[allow(clippy::cast_precision_loss)]
             let progress =
                 f64::from(handle.0) / (f64::from(self.population_size) * f64::from(self.iters));
-            handle.1.update_progress(progress, Some(best));
         };
         let update_progress = &increment_progress;
         for _ in 0..self.iters {

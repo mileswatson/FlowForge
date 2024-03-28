@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     core::{meters::CurrentFlowMeter, rand::Rng},
     evaluator::EvaluationConfig,
+    flow::{FlowProperties, NoActiveFlows, UtilityFunction},
+    network::config::NetworkConfig,
     protocols::{
         remy::{action::Action, point::Point, rule_tree::RuleTree},
         remyr::{
@@ -20,7 +22,7 @@ use crate::{
             net::{AsPolicyNetRef, CopyToDevice, HiddenLayers, PolicyNetwork, ACTION, STATE},
         },
     },
-    quantities::{milliseconds, seconds, Time, TimeSpan},
+    quantities::{milliseconds, seconds, Float, Time, TimeSpan},
     Trainer,
 };
 
@@ -216,8 +218,8 @@ where
 
 fn rollout(
     dna: &RemyrDna,
-    network_config: &crate::network::config::NetworkConfig,
-    utility_function: &dyn crate::flow::UtilityFunction,
+    network_config: &NetworkConfig,
+    utility_function: &dyn UtilityFunction,
     training_config: &EvaluationConfig,
     half_life: TimeSpan,
     gamma: f32,
@@ -292,8 +294,8 @@ impl Trainer for RemyrTrainer {
     fn train<H>(
         &self,
         starting_point: Option<Self::Dna>,
-        network_config: &crate::network::config::NetworkConfig,
-        utility_function: &dyn crate::flow::UtilityFunction,
+        network_config: &NetworkConfig,
+        utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut crate::core::rand::Rng,
     ) -> Self::Dna
@@ -328,7 +330,7 @@ impl Trainer for RemyrTrainer {
         );
 
         let new_eval_rng = rng.identical_child_factory();
-        let eval = |dna: &RemyrDna| {
+        let mut eval = |dna: &RemyrDna| {
             let (score, props) = self
                 .config
                 .evaluation_config
@@ -340,6 +342,12 @@ impl Trainer for RemyrTrainer {
                 )
                 .expect("Simulation to have active flows");
             println!("    Achieved eval score {score:.2} with {props}");
+            progress_handler.update_progress(
+                Some(dna),
+                score,
+                props.average_throughput,
+                props.average_rtt.unwrap_or(seconds(f64::NAN)),
+            );
         };
 
         let sim_dev = Cpu::default();
@@ -355,10 +363,6 @@ impl Trainer for RemyrTrainer {
                 last_percent_completed = percent_completed;
                 eval(&dna);
             }
-            progress_handler.update_progress(
-                frac,
-                Some(&self.config.initial_dna(policy.copy_to(&sim_dev))),
-            );
 
             if self.config.learning_rate_annealing {
                 policy_optimizer.cfg.lr = (1.0 - frac) * self.config.learning_rate;
@@ -451,20 +455,23 @@ impl Trainer for RemyrTrainer {
         }
         let dna = self.config.initial_dna(policy.copy_to(&sim_dev));
         eval(&dna);
-        progress_handler.update_progress(1., Some(&dna));
         dna
     }
 
     fn evaluate(
         &self,
         d: &Self::Dna,
-        network_config: &crate::network::config::NetworkConfig,
-        utility_function: &dyn crate::flow::UtilityFunction,
+        network_config: &NetworkConfig,
+        utility_function: &dyn UtilityFunction,
         rng: &mut crate::core::rand::Rng,
-    ) -> anyhow::Result<
-        (crate::quantities::Float, crate::flow::FlowProperties),
-        crate::flow::NoActiveFlows,
-    > {
-        todo!()
+    ) -> anyhow::Result<(Float, FlowProperties), NoActiveFlows> {
+        self.config
+            .evaluation_config
+            .evaluate::<Self::DefaultFlowAdder, DefaultEffect>(
+                network_config,
+                d,
+                utility_function,
+                rng,
+            )
     }
 }

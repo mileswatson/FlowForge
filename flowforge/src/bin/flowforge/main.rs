@@ -36,8 +36,12 @@ enum Command {
         utility: PathBuf,
 
         /// File to write congestion control algorithm DNA to
+        #[arg(long)]
+        dna: PathBuf,
+
+        /// File to write training progress to
         #[arg(short, long)]
-        output: PathBuf,
+        output: Option<PathBuf>,
     },
     /// Evaluate a congestion control algorithm for a given network
     Evaluate {
@@ -117,8 +121,9 @@ fn main() -> Result<()> {
             trainer,
             network,
             utility,
+            dna,
             output,
-        } => train(&trainer, &network, &utility, &output),
+        } => train(&trainer, &network, &utility, &dna, output.as_deref()),
         Command::Evaluate {
             trainer,
             network,

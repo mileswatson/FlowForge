@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{cell::RefCell, f64::NAN, marker::PhantomData};
 
 use anyhow::Result;
 use indicatif::{ParallelProgressIterator, ProgressBar};
@@ -23,7 +23,7 @@ use crate::{
     protocols::remy::{
         action::Action,
         dna::RemyDna,
-        rule_tree::{AugmentedRuleTree, BaseRuleTree, CountingRuleTree, LeafHandle, RuleTree},
+        rule_tree::{AugmentedRuleTree, CountingRuleTree, LeafHandle, RuleTree},
     },
     quantities::{milliseconds, seconds, Float},
     simulation::{Address, HasSubEffect, SimulatorBuilder},
@@ -138,7 +138,7 @@ where
 /// Hack until <https://github.com/rust-lang/rust/issues/97362> is stabilised
 const fn coerce<F>(f: F) -> F
 where
-    F: for<'a> Fn(&'a mut BaseRuleTree) -> CountingRuleTree<'a>,
+    F: for<'a> Fn(&'a mut RemyDna) -> CountingRuleTree<'a>,
 {
     f
 }
@@ -164,9 +164,28 @@ impl Trainer for RemyTrainer {
         progress_handler: &mut H,
         rng: &mut Rng,
     ) -> RemyDna {
+        let prog_handler = RefCell::new(progress_handler);
         let new_eval_rng = rng.identical_child_factory();
-        let eval_and_count = coerce(|tree: &mut BaseRuleTree| {
-            let counting_tree = CountingRuleTree::new(tree);
+        let eval = |dna: &RemyDna| {
+            let (score, props) = self
+                .config
+                .evaluation_config
+                .evaluate::<RemyFlowAdder<RemyDna>, DefaultEffect>(
+                    network_config,
+                    dna,
+                    utility_function,
+                    &mut new_eval_rng(),
+                )
+                .expect("Simulation to have active flows");
+            prog_handler.borrow_mut().update_progress(
+                Some(dna),
+                score,
+                props.average_throughput,
+                props.average_rtt.unwrap_or(seconds(NAN)),
+            );
+        };
+        let eval_and_count = coerce(|dna: &mut RemyDna| {
+            let counting_tree = CountingRuleTree::new(&mut dna.tree);
             let (score, props) = self
                 .config
                 .evaluation_config
@@ -194,10 +213,11 @@ impl Trainer for RemyTrainer {
         let mut dna =
             starting_point.unwrap_or_else(|| RemyDna::default(self.config.default_action.clone()));
         for i in 0..=self.config.rule_splits {
+            eval(&dna);
             if i == 0 {
                 println!("Starting optimization");
             } else {
-                let (fraction_used, leaf) = eval_and_count(&mut dna.tree).most_used_rule();
+                let (fraction_used, leaf) = eval_and_count(&mut dna).most_used_rule();
                 println!(
                     "Split rule {} with usage {:.2}%",
                     leaf.domain(),
@@ -212,7 +232,7 @@ impl Trainer for RemyTrainer {
                     self.config.optimization_rounds_per_split
                 );
                 while let Some((fraction_used, mut leaf)) =
-                    eval_and_count(&mut dna.tree).most_used_unoptimized_rule()
+                    eval_and_count(&mut dna).most_used_unoptimized_rule()
                 {
                     if fraction_used == 0. {
                         println!("    Skipped remaining rules with 0% usage");
@@ -259,19 +279,9 @@ impl Trainer for RemyTrainer {
                     leaf.mark_optimized();
                 }
                 dna.tree.mark_all_unoptimized();
-                progress_handler.update_progress(
-                    f64::from(
-                        i * self.config.optimization_rounds_per_split + optimization_round + 1,
-                    ) / f64::from(
-                        self.config.optimization_rounds_per_split
-                            * self.config.optimization_rounds_per_split,
-                    ),
-                    Some(&dna),
-                );
             }
         }
-        eval_and_count(&mut dna.tree);
-        progress_handler.update_progress(1., Some(&dna));
+        eval_and_count(&mut dna);
         dna
     }
 
@@ -326,7 +336,7 @@ mod tests {
                 None,
                 &NetworkConfig::default(),
                 &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
-                &mut |_, _: Option<&RemyDna>| {},
+                &mut |_: Option<&RemyDna>, _, _, _| {},
                 &mut rng,
             );
             trainer.evaluate(

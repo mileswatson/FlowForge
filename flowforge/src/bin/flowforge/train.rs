@@ -1,28 +1,36 @@
-use std::path::Path;
+use std::{
+    fs::File,
+    io::{Seek, Write},
+    path::Path,
+    time::Instant,
+};
 
 use anyhow::Result;
 use flowforge::{
-    core::rand::Rng,
+    core::rand::{Rng, Wrapper},
     flow::UtilityConfig,
     network::config::NetworkConfig,
+    quantities::{Float, InformationRate, TimeSpan},
     trainers::{
         delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
         TrainerConfig,
     },
     Config, Trainer,
 };
+use serde::Serialize;
 
 pub fn _train<T>(
     trainer_config: &T::Config,
     network_config: &NetworkConfig,
     utility_config: &UtilityConfig,
-    output_path: &Path,
+    dna: &Path,
+    output_path: Option<&Path>,
     rng: &mut Rng,
 ) where
     T: Trainer,
 {
-    assert!(T::Dna::valid_path(output_path));
-    let starting_point = T::Dna::load(output_path).ok().and_then(|d| loop {
+    assert!(T::Dna::valid_path(dna));
+    let starting_point = T::Dna::load(dna).ok().and_then(|d| loop {
         let mut buf = String::new();
         println!("There is already valid DNA in the output path. Would you like to use it as a starting point? Y/N");
         std::io::stdin().read_line(&mut buf).unwrap();
@@ -32,27 +40,50 @@ pub fn _train<T>(
             return None
         }
     });
+    let mut output_file = output_path.map(|x| File::create(x).unwrap());
+    let mut result = TrainResult::default();
+    let start = Instant::now();
     T::new(trainer_config)
         .train(
             starting_point,
             network_config,
             utility_config,
-            &mut |progress, d: Option<&T::Dna>| {
+            &mut |d: Option<&T::Dna>, utility, bandwidth: InformationRate, rtt: TimeSpan| {
                 if let Some(x) = d {
-                    x.save(output_path).unwrap();
+                    x.save(dna).unwrap();
+                }
+                if let Some(output_file) = &mut output_file {
+                    result
+                        .timestamps
+                        .push((Instant::now() - start).as_secs_f64());
+                    result.bandwidth.push(bandwidth.to_underlying());
+                    result.rtt.push(rtt.to_underlying());
+                    result.utility.push(utility);
+                    output_file.rewind().unwrap();
+                    serde_json::to_writer(output_file, &result).unwrap();
+                    output_file.flush().unwrap();
                 }
             },
             rng,
         )
-        .save(output_path)
+        .save(dna)
         .unwrap();
+}
+
+#[derive(Default, Serialize)]
+struct TrainResult {
+    timestamps: Vec<Float>,
+    bandwidth: Vec<Float>,
+    rtt: Vec<Float>,
+    utility: Vec<Float>,
 }
 
 pub fn train(
     trainer_config: &Path,
     network_config: &Path,
     utility_config: &Path,
-    output_path: &Path,
+    dna: &Path,
+    output_path: Option<&Path>,
 ) -> Result<()> {
     let trainer_config = TrainerConfig::load(trainer_config)?;
     let network_config = NetworkConfig::load(network_config)?;
@@ -65,6 +96,7 @@ pub fn train(
             &cfg,
             &network_config,
             &utility_config,
+            dna,
             output_path,
             &mut rng,
         ),
@@ -72,6 +104,7 @@ pub fn train(
             &cfg,
             &network_config,
             &utility_config,
+            dna,
             output_path,
             &mut rng,
         ),
@@ -79,6 +112,7 @@ pub fn train(
             &cfg,
             &network_config,
             &utility_config,
+            dna,
             output_path,
             &mut rng,
         ),

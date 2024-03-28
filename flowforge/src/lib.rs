@@ -18,7 +18,7 @@ use anyhow::{anyhow, Result};
 use core::rand::Rng;
 use flow::{FlowProperties, NoActiveFlows, UtilityFunction};
 use network::{config::NetworkConfig, AddFlows, EffectTypeGenerator};
-use quantities::Float;
+use quantities::{Float, InformationRate, TimeSpan};
 use serde::{de::DeserializeOwned, Serialize};
 
 #[macro_use]
@@ -104,12 +104,26 @@ impl<D: Dna> Config<Custom> for D {
 }
 
 pub trait ProgressHandler<D: Dna>: Send {
-    fn update_progress(&mut self, fraction_completed: Float, top_scorer: Option<&D>);
+    fn update_progress(
+        &mut self,
+        top_scorer: Option<&D>,
+        utility: Float,
+        average_bandwidth: InformationRate,
+        average_rtt: TimeSpan,
+    );
 }
 
-impl<D: Dna, F: FnMut(Float, Option<&D>) + Send> ProgressHandler<D> for F {
-    fn update_progress(&mut self, fraction_completed: Float, top_scorer: Option<&D>) {
-        self(fraction_completed, top_scorer);
+impl<D: Dna, F: FnMut(Option<&D>, Float, InformationRate, TimeSpan) + Send> ProgressHandler<D>
+    for F
+{
+    fn update_progress(
+        &mut self,
+        top_scorer: Option<&D>,
+        utility: Float,
+        average_bandwidth: InformationRate,
+        average_rtt: TimeSpan,
+    ) {
+        self(top_scorer, utility, average_bandwidth, average_rtt);
     }
 }
 

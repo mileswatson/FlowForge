@@ -6,7 +6,10 @@ use flowforge::{
     flow::{FlowProperties, UtilityConfig},
     network::config::NetworkConfig,
     quantities::Float,
-    trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, TrainerConfig},
+    trainers::{
+        delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
+        TrainerConfig,
+    },
     Config, Trainer,
 };
 
@@ -49,7 +52,9 @@ pub fn evaluate(
             input_path,
             &mut rng,
         ),
-        TrainerConfig::Remyr(cfg) => todo!(),
+        TrainerConfig::Remyr(cfg) => {
+            _evaluate::<RemyrTrainer>(&cfg, &network_config, &utility_config, input_path, &mut rng)
+        }
     };
 
     println!(
