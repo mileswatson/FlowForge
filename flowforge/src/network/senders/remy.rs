@@ -55,9 +55,9 @@ where
         }
     }
 
-    fn action(&self) -> T::Action<'_> {
+    fn action(&self, time: Time) -> T::Action<'_> {
         self.rule_tree
-            .action(&self.point())
+            .action(&self.point(), time)
             .unwrap_or_else(|| panic!("Expected {} to map to an action", self.point()))
     }
 }
@@ -105,7 +105,7 @@ where
             current: current_rtt,
         });
         log!(logger, "Updated state to {:?}", self);
-        let action = self.action();
+        let action = self.action(received_time);
         let Action {
             window_multiplier,
             window_increment,

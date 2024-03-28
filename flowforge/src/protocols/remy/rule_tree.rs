@@ -6,7 +6,7 @@ use std::{
 use itertools::Itertools;
 use protobuf::MessageField;
 
-use crate::quantities::Float;
+use crate::quantities::{Float, Time};
 
 use super::{
     action::Action,
@@ -20,7 +20,7 @@ pub trait RuleTree<const TESTING: bool = false>: Debug {
     where
         Self: 'a;
 
-    fn action<'a>(&'a self, point: &Point) -> Option<Self::Action<'a>>;
+    fn action<'a>(&'a self, point: &Point, time: Time) -> Option<Self::Action<'a>>;
 }
 
 #[derive(Debug)]
@@ -32,7 +32,7 @@ pub struct AugmentedRuleTree<'a> {
 impl<'a> RuleTree for AugmentedRuleTree<'a> {
     type Action<'b> = &'b Action where Self: 'b;
 
-    fn action(&self, point: &Point) -> Option<&Action> {
+    fn action(&self, point: &Point, _time: Time) -> Option<&Action> {
         self.tree._action(self.tree.root, point, &|idx| {
             if idx == self.rule_override.0 {
                 Some(&self.rule_override.1)
@@ -52,7 +52,7 @@ pub struct CountingRuleTree<'a> {
 impl<'a> RuleTree for CountingRuleTree<'a> {
     type Action<'b> = &'b Action where Self: 'b;
 
-    fn action(&self, point: &Point) -> Option<&Action> {
+    fn action(&self, point: &Point, _time: Time) -> Option<&Action> {
         self.tree._action(self.tree.root, point, &|idx| {
             self.counts[idx].fetch_add(1, Ordering::Relaxed);
             None
@@ -401,7 +401,7 @@ impl BaseRuleTree {
 impl RuleTree for BaseRuleTree {
     type Action<'b> = &'b Action where Self: 'b;
 
-    fn action(&self, point: &Point) -> Option<&Action> {
+    fn action(&self, point: &Point, _time: Time) -> Option<&Action> {
         self._action(self.root, point, &|_| None)
     }
 }

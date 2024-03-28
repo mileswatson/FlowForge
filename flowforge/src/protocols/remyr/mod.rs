@@ -1,30 +1,21 @@
-use std::fmt::{self, Debug, Formatter};
+use std::f32::consts::PI;
 
-use dfdx::{
-    nn::Module,
-    shapes::Const,
-    tensor::{AsArray, Cpu, Tensor, TensorFrom, Tensorlike},
+use dfdx::prelude::*;
+
+use crate::{
+    core::rand::Wrapper,
+    quantities::{Time, TimeSpan},
 };
-
-use crate::{core::rand::Wrapper, quantities::TimeSpan};
 
 use self::{
     dna::RemyrDna,
-    net::{AsPolicyNetRef, ACTION, STATE},
+    net::{AsPolicyNetRef, PolicyNet, ACTION, STATE},
 };
 
 use super::remy::{action::Action, point::Point, rule_tree::RuleTree};
 
 pub mod dna;
 pub mod net;
-
-pub struct RuleNetwork<T>(T);
-
-impl<T> Debug for RuleNetwork<T> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("RuleNetwork").finish()
-    }
-}
 
 fn point_to_tensor(dev: &Cpu, point: &Point) -> Tensor<(Const<STATE>,), f32, Cpu> {
     #[allow(clippy::cast_possible_truncation)]
@@ -55,25 +46,76 @@ fn tensor_to_action(tensor: &Tensor<(Const<ACTION>,), f32, Cpu>) -> Action {
     }
 }
 
+fn calculate_action_log_probs<S: Dim, D: Device<f32>, T: Tape<f32, D>>(
+    actions: Tensor<(S, Const<ACTION>), f32, D>,
+    means: Tensor<(S, Const<ACTION>), f32, D, T>,
+    stddevs: Tensor<(S, Const<ACTION>), f32, D, T>,
+) -> Tensor<(S,), f32, D, T> {
+    (((means - actions) / stddevs.with_empty_tape()).square() + stddevs.ln() * 2. + (2. * PI).ln())
+        .sum::<(S,), Axis<1>>()
+        * -0.5
+}
+
+impl<P> RemyrDna<P>
+where
+    P: AsPolicyNetRef,
+{
+    fn _action<F>(&self, point: &Point, f: F) -> Action
+    where
+        F: FnOnce(Tensor1D<STATE>, (Tensor1D<ACTION>, Tensor1D<ACTION>)) -> Tensor1D<ACTION>,
+    {
+        let dev = self.policy.as_policy_net_ref().0 .0.weight.dev();
+        let point = point_to_tensor(dev, point);
+        let min_point = point_to_tensor(dev, &self.min_point);
+        let max_point = point_to_tensor(dev, &self.max_point);
+        let input = ((point - min_point.clone()) / (max_point - min_point)).clamp(0., 1.) * 2. - 1.;
+        let action = f(
+            input.clone(),
+            self.policy.as_policy_net_ref().forward(input),
+        );
+
+        let max_action = action_to_tensor(dev, &self.max_action);
+        let min_action = action_to_tensor(dev, &self.min_action);
+
+        let action =
+            min_action.clone() + (max_action - min_action) * (action.clamp(-1., 1.) + 1.) / 2.;
+
+        tensor_to_action(&action)
+    }
+
+    fn deterministic_action(&self, point: &Point) -> Action {
+        self._action(point, |_, (mean, _stddev)| mean)
+    }
+
+    pub fn probabilistic_action<F>(&self, point: &Point, f: F) -> Action
+    where
+        F: FnOnce([f32; STATE], [f32; ACTION], f32),
+    {
+        self._action(point, |observation, (mean, stddev)| {
+            let action = mean.clone()
+                + self.policy.as_policy_net_ref().device().sample_normal() * stddev.clone();
+            let action_log_prob = calculate_action_log_probs::<Const<1>, _, _>(
+                action.clone().reshape(),
+                mean.reshape(),
+                stddev.reshape(),
+            );
+            f(
+                observation.array(),
+                action.array(),
+                action_log_prob.reshape::<()>().array(),
+            );
+            action
+        })
+    }
+}
+
 impl<P> RuleTree for RemyrDna<P>
 where
     P: AsPolicyNetRef,
 {
     type Action<'b> = Action where Self: 'b;
 
-    fn action(&self, point: &Point) -> Option<Action> {
-        let dev = self.policy.as_policy_net_ref().0 .0.weight.dev();
-        let point = point_to_tensor(dev, point);
-        let min_point = point_to_tensor(dev, &self.min_point);
-        let max_point = point_to_tensor(dev, &self.max_point);
-        let input = ((point - min_point.clone()) / (max_point - min_point)).clamp(0., 1.) * 2. - 1.;
-        let (mean, _) = self.policy.as_policy_net_ref().forward(input);
-        let max_action = action_to_tensor(dev, &self.max_action);
-        let min_action = action_to_tensor(dev, &self.min_action);
-
-        let action =
-            min_action.clone() + (max_action - min_action) * (mean.clamp(-1., 1.) + 1.) / 2.;
-
-        Some(tensor_to_action(&action))
+    fn action(&self, point: &Point, _time: Time) -> Option<Action> {
+        Some(self.deterministic_action(point))
     }
 }

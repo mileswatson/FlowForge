@@ -64,7 +64,7 @@ pub trait EffectTypeGenerator {
     type Type<'a>;
 }
 
-pub trait AddFlows<G>: Sync
+pub trait AddFlows<G>
 where
     G: EffectTypeGenerator,
 {

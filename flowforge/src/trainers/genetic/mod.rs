@@ -41,7 +41,7 @@ pub struct GeneticTrainer<A, G> {
     flow_adder: PhantomData<A>,
 }
 
-pub trait GeneticDna<G>: Dna {
+pub trait GeneticDna<G>: Dna + Sync {
     fn new_random(rng: &mut Rng) -> Self;
 
     #[must_use]

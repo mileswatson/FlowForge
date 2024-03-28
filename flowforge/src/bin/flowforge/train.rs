@@ -5,7 +5,10 @@ use flowforge::{
     core::rand::Rng,
     flow::UtilityConfig,
     network::config::NetworkConfig,
-    trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, TrainerConfig},
+    trainers::{
+        delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
+        TrainerConfig,
+    },
     Config, Trainer,
 };
 
@@ -37,7 +40,6 @@ pub fn _train<T>(
             &mut |progress, d: Option<&T::Dna>| {
                 if let Some(x) = d {
                     x.save(output_path).unwrap();
-                    println!("Progress {:.2}, saved current version.", progress * 100.);
                 }
             },
             rng,
@@ -60,6 +62,13 @@ pub fn train(
 
     match trainer_config {
         TrainerConfig::Remy(cfg) => _train::<RemyTrainer>(
+            &cfg,
+            &network_config,
+            &utility_config,
+            output_path,
+            &mut rng,
+        ),
+        TrainerConfig::Remyr(cfg) => _train::<RemyrTrainer>(
             &cfg,
             &network_config,
             &utility_config,

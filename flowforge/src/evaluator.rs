@@ -28,8 +28,8 @@ pub struct EvaluationConfig {
 impl Default for EvaluationConfig {
     fn default() -> Self {
         Self {
-            network_samples: 1000,
-            run_sim_for: seconds(120.),
+            network_samples: 500,
+            run_sim_for: seconds(60.),
         }
     }
 }

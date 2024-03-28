@@ -1,4 +1,5 @@
 use dfdx::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use super::dna::SerializeTensors;
 
@@ -20,7 +21,7 @@ pub type CriticArchitecture = (
     (LinearConfig<usize, Const<1>>,),
 );
 
-pub type PolicyNetwork<D> = <PolicyArchitecture as BuildOnDevice<f32, D>>::Built;
+pub type PolicyNetwork<D = Cpu> = <PolicyArchitecture as BuildOnDevice<f32, D>>::Built;
 
 pub type CriticNetwork<D> = <CriticArchitecture as BuildOnDevice<f32, D>>::Built;
 
@@ -34,7 +35,7 @@ impl AsPolicyNetRef for PolicyNetwork<Cpu> {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub struct HiddenLayers(pub usize, pub usize);
 
 impl HiddenLayers {
@@ -42,7 +43,7 @@ impl HiddenLayers {
     where
         D: Device<f32>,
     {
-        let (i, o) = policy.1 .0.weight.shape();
+        let (o, i) = policy.1 .0.weight.shape();
         HiddenLayers(*i, *o)
     }
 
@@ -86,8 +87,27 @@ where
     type Architecture = PolicyArchitecture;
 
     fn copy_to(&self, device: &M) -> <Self::Architecture as BuildOnDevice<f32, M>>::Built {
-        let mut new = device.build_module(HiddenLayers::new(self).policy_arch());
+        let mut new = device.build_module(self.hidden_layers().policy_arch());
         new.deserialize(&self.serialize());
         new
+    }
+}
+
+pub trait PolicyNet<D> {
+    fn device(&self) -> &D;
+
+    fn hidden_layers(&self) -> HiddenLayers;
+}
+
+impl<D> PolicyNet<D> for PolicyNetwork<D>
+where
+    D: Device<f32>,
+{
+    fn device(&self) -> &D {
+        self.0 .0.weight.dev()
+    }
+
+    fn hidden_layers(&self) -> HiddenLayers {
+        HiddenLayers::new(self)
     }
 }

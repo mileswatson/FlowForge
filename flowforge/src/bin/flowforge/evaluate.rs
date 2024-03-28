@@ -49,6 +49,7 @@ pub fn evaluate(
             input_path,
             &mut rng,
         ),
+        TrainerConfig::Remyr(cfg) => todo!(),
     };
 
     println!(

@@ -80,10 +80,7 @@ impl Default for RemyConfig {
                 network_samples: 50,
                 run_sim_for: seconds(60.),
             },
-            evaluation_config: EvaluationConfig {
-                network_samples: 500,
-                run_sim_for: seconds(60.),
-            },
+            evaluation_config: EvaluationConfig::default(),
         }
     }
 }
@@ -96,7 +93,7 @@ pub struct RemyFlowAdder<T>(PhantomData<T>);
 
 impl<G, T> AddFlows<G> for RemyFlowAdder<T>
 where
-    T: RuleTree + Sync,
+    T: RuleTree,
     G: EffectTypeGenerator,
     for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>
         + HasSubEffect<LossyInternalSenderEffect<'sim, G::Type<'sim>>>

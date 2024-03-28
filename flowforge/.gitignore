@@ -22,6 +22,10 @@ flamegraph.svg
 /configs/trainer/remy/*
 !/configs/trainer/remy/default.json
 
+!/configs/trainer/remyr
+/configs/trainer/remyr/*
+!/configs/trainer/remyr/default.json
+
 !/configs/utility
 /configs/utility/*
 !/configs/utility/mflft_default.json
