@@ -30,14 +30,14 @@
   "learning_rate_annealing": true,
   "weight_decay": 0.001,
   "clip": 0.2,
-  "gamma": 0.999,
+  "gamma": 0.99,
   "bandwidth_half_life": "100ms",
   "training_config": {
     "network_samples": 30,
     "run_sim_for": "60s"
   },
   "evaluation_config": {
-    "network_samples": 500,
+    "network_samples": 100,
     "run_sim_for": "60s"
   }
 }

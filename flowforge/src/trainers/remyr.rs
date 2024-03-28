@@ -74,14 +74,17 @@ impl Default for RemyrConfig {
                 network_samples: 30,
                 run_sim_for: seconds(60.),
             },
-            evaluation_config: EvaluationConfig::default(),
+            evaluation_config: EvaluationConfig {
+                network_samples: 100,
+                run_sim_for: seconds(60.),
+            },
             hidden_layers: HiddenLayers(32, 16),
             learning_rate: 0.0003,
             learning_rate_annealing: true,
             weight_decay: Some(0.001),
             bandwidth_half_life: milliseconds(100.),
             clip: 0.2,
-            gamma: 0.999,
+            gamma: 0.99,
         }
     }
 }
@@ -229,6 +232,7 @@ fn rollout(
             let flows = (0..n.num_senders)
                 .map(|_| RefCell::new(CurrentFlowMeter::new_disabled(Time::SIM_START, half_life)))
                 .collect_vec();
+            let last_utility: RefCell<Option<f32>> = RefCell::new(None);
             let dna = RemyrRecorder {
                 dna,
                 current_utility: |time| {
@@ -237,7 +241,14 @@ fn rollout(
                         .filter_map(|x| x.borrow().current_properties(time).ok())
                         .collect_vec();
                     #[allow(clippy::cast_possible_truncation)]
-                    return utility_function.total_utility(&flow_stats).unwrap().0 as f32;
+                    let current_utility =
+                        utility_function.total_utility(&flow_stats).unwrap().0 as f32;
+                    let increase = last_utility
+                        .borrow()
+                        .map(|l| current_utility - l)
+                        .unwrap_or(0.);
+                    *last_utility.borrow_mut() = Some(current_utility);
+                    increase
                 },
                 record: |r| records.borrow_mut().push(r),
             };
