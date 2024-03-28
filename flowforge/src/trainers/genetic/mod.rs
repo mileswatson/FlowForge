@@ -104,6 +104,7 @@ where
             #[allow(clippy::cast_precision_loss)]
             let progress =
                 f64::from(handle.0) / (f64::from(self.population_size) * f64::from(self.iters));
+            todo!()
         };
         let update_progress = &increment_progress;
         for _ in 0..self.iters {
