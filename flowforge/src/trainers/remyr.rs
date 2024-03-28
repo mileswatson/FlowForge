@@ -93,7 +93,6 @@ impl RemyrConfig {
             max_point: self.max_point.clone(),
             min_action: self.min_action.clone(),
             max_action: self.max_action.clone(),
-            stddev_multiplier: NAN,
             policy,
         }
     }
@@ -314,20 +313,44 @@ impl Trainer for RemyrTrainer {
             },
         );
 
+        let new_eval_rng = rng.identical_child_factory();
+        let eval = |dna: &RemyrDna| {
+            let (score, props) = self
+                .config
+                .evaluation_config
+                .evaluate::<RemyFlowAdder<RemyrDna>, DefaultEffect>(
+                    network_config,
+                    dna,
+                    utility_function,
+                    &mut new_eval_rng(),
+                )
+                .expect("Simulation to have active flows");
+            println!("    Achieved eval score {score:.2} with {props}");
+        };
+
         let sim_dev = Cpu::default();
 
+        let mut last_percent_completed = -1;
         for i in 0..self.config.iters {
+            let dna = self.config.initial_dna(policy.copy_to(&sim_dev));
+
             let frac = f64::from(i) / f64::from(self.config.iters);
+            #[allow(clippy::cast_possible_truncation)]
+            let percent_completed = (frac * 100.).floor() as i32;
+            if percent_completed > last_percent_completed {
+                last_percent_completed = percent_completed;
+                eval(&dna);
+            }
             progress_handler.update_progress(
                 frac,
                 Some(&self.config.initial_dna(policy.copy_to(&sim_dev))),
             );
+
             if self.config.learning_rate_annealing {
                 policy_optimizer.cfg.lr = (1.0 - frac) * self.config.learning_rate;
                 critic_optimizer.cfg.lr = (1.0 - frac) * self.config.learning_rate;
             }
 
-            let dna = self.config.initial_dna(policy.copy_to(&sim_dev));
             let trajectories: Vec<Trajectory> = rollout(
                 &dna,
                 network_config,
@@ -410,6 +433,7 @@ impl Trainer for RemyrTrainer {
             );
         }
         let dna = self.config.initial_dna(policy.copy_to(&sim_dev));
+        eval(&dna);
         progress_handler.update_progress(1., Some(&dna));
         dna
     }

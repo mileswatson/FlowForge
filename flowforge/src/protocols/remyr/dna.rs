@@ -15,7 +15,7 @@ use crate::{
     Dna,
 };
 
-use super::net::{PolicyArchitecture, PolicyNetwork};
+use super::net::{AsPolicyNetRef, HiddenLayers, PolicyNet, PolicyNetwork};
 
 pub trait SerializeTensors {
     fn serialize(&self) -> Vec<u8>;
@@ -50,7 +50,7 @@ struct _RemyrDna {
     max_point: Point,
     min_action: Action,
     max_action: Action,
-    stddev_multiplier: f32,
+    hidden_layers: HiddenLayers,
     policy: Vec<u8>,
 }
 
@@ -59,7 +59,6 @@ pub struct RemyrDna<P = PolicyNetwork<Cpu>> {
     pub max_point: Point,
     pub min_action: Action,
     pub max_action: Action,
-    pub stddev_multiplier: f32,
     pub policy: P,
 }
 
@@ -70,7 +69,6 @@ impl<P> Debug for RemyrDna<P> {
             .field("max_point", &self.max_point)
             .field("min_action", &self.min_action)
             .field("max_action", &self.max_action)
-            .field("stddev_multiplier", &self.stddev_multiplier)
             .field("policy", &"P")
             .finish()
     }
@@ -86,7 +84,7 @@ impl Serialize for RemyrDna {
             max_point: self.max_point.clone(),
             min_action: self.min_action.clone(),
             max_action: self.max_action.clone(),
-            stddev_multiplier: self.stddev_multiplier,
+            hidden_layers: self.policy.as_policy_net_ref().hidden_layers(),
             policy: self.policy.serialize(),
         }
         .serialize(serializer)
@@ -103,18 +101,17 @@ impl<'de> Deserialize<'de> for RemyrDna<PolicyNetwork<Cpu>> {
             max_point,
             min_action,
             max_action,
-            stddev_multiplier,
+            hidden_layers,
             policy,
         } = _RemyrDna::deserialize(deserializer)?;
         let cpu = Cpu::default();
-        let mut loaded_policy = cpu.build_module(PolicyArchitecture::default());
+        let mut loaded_policy = cpu.build_module(hidden_layers.policy_arch());
         loaded_policy.deserialize(&policy);
         Ok(RemyrDna {
             min_point,
             max_point,
             min_action,
             max_action,
-            stddev_multiplier,
             policy: loaded_policy,
         })
     }
