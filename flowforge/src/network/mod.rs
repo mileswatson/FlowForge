@@ -64,13 +64,14 @@ pub trait EffectTypeGenerator {
     type Type<'a>;
 }
 
-pub trait AddFlows<G>
+pub trait AddFlows<G>: Default
 where
     G: EffectTypeGenerator,
 {
     type Dna;
 
     fn add_flows<'sim, 'a, F>(
+        &self,
         dna: &'a Self::Dna,
         flows: impl IntoIterator<Item = F>,
         simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
@@ -98,6 +99,7 @@ impl Network {
     #[allow(clippy::type_complexity)]
     pub fn to_sim<'sim, 'a, A, F, G>(
         &self,
+        flow_adder: &A,
         guard: Guard<'sim>,
         rng: &'a mut Rng,
         flows: impl IntoIterator<Item = F>,
@@ -123,7 +125,7 @@ impl Network {
             rng.create_child(),
             NothingLogger,
         )));
-        let senders = A::add_flows(dna, flows, &mut builder, sender_link_id, rng);
+        let senders = flow_adder.add_flows(dna, flows, &mut builder, sender_link_id, rng);
         for sender in senders {
             builder.insert(DynComponent::new(Toggler::new(
                 sender,

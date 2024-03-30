@@ -80,7 +80,7 @@ where
             ))
         })
         .collect_vec();
-    let sim = n.to_sim::<A, _, _>(guard, rng, &flows, &dna, |builder| {
+    let sim = n.to_sim::<A, _, _>(&A::default(), guard, rng, &flows, &dna, |builder| {
         builder.insert(DynComponent::<Never, _>::new(Ticker::new(
             milliseconds(1.),
             |time| {

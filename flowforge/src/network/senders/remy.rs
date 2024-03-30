@@ -1,5 +1,7 @@
 use std::fmt::Debug;
 
+use rand::{rngs::ThreadRng, Rng};
+
 use crate::{
     core::{
         logging::Logger,
@@ -30,13 +32,15 @@ struct Behavior<'a, T> {
     ack_ewma: EWMA<TimeSpan>,
     send_ewma: EWMA<TimeSpan>,
     rtt: Option<Rtt>,
+    next_change: Option<(usize, Action)>,
+    repeat_updates: usize,
 }
 
 impl<T> Behavior<'_, T>
 where
     T: RuleTree,
 {
-    fn new(rule_tree: &T) -> Behavior<T> {
+    fn new(rule_tree: &T, repeat_updates: usize) -> Behavior<T> {
         Behavior {
             rule_tree,
             ack_ewma: EWMA::new(1. / 8.),
@@ -44,6 +48,8 @@ where
             last_ack: None,
             last_send: None,
             rtt: None,
+            next_change: None,
+            repeat_updates,
         }
     }
 
@@ -105,18 +111,37 @@ where
             current: current_rtt,
         });
         log!(logger, "Updated state to {:?}", self);
-        let action = self.action(received_time);
+
         let Action {
             window_multiplier,
             window_increment,
-            intersend_delay: intersend_ms,
-            ..
-        } = action.as_ref();
+            intersend_delay,
+        } = match &mut self.next_change {
+            Some((remaining, a)) => {
+                *remaining -= 1;
+                let a = a.clone();
+                if *remaining == 0 {
+                    self.next_change = None;
+                }
+                a
+            }
+            None => {
+                let action = self.action(received_time);
+                let a = action.as_ref().clone();
+                drop(action);
+                self.next_change = if self.repeat_updates == 0 {
+                    None
+                } else {
+                    let mut rng = ThreadRng::default();
+                    Some((rng.gen_range(0..self.repeat_updates * 2), a.clone()))
+                };
+                a
+            }
+        };
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
         let window = ((f64::from(current_settings.window) * window_multiplier) as i32
-            + *window_increment)
+            + window_increment)
             .clamp(0, 1_000_000) as u32;
-        let intersend_delay = *intersend_ms;
         Some(LossyWindowSettings {
             window,
             intersend_delay,
@@ -148,6 +173,7 @@ where
         rule_tree: &'a T,
         wait_for_enable: bool,
         flow_meter: F,
+        repeat_updates: usize,
         logger: impl Logger + Clone + 'a,
     ) -> LossySenderAddress<'sim, E>
     where
@@ -158,7 +184,7 @@ where
             id,
             link,
             destination,
-            Box::new(move || Behavior::<'a>::new(rule_tree)),
+            Box::new(move || Behavior::<'a>::new(rule_tree, repeat_updates)),
             wait_for_enable,
             flow_meter,
             logger,
@@ -188,6 +214,7 @@ impl LossyRemySender {
         rule_tree: &'a T,
         wait_for_enable: bool,
         flow_meter: F,
+        repeat_updates: usize,
         logger: L,
     ) -> LossySenderAddress<'sim, E>
     where
@@ -207,6 +234,7 @@ impl LossyRemySender {
             rule_tree,
             wait_for_enable,
             flow_meter,
+            repeat_updates,
             logger,
         )
     }

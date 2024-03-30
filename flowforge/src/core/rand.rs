@@ -1,4 +1,4 @@
-use rand::SeedableRng;
+use rand::{seq::SliceRandom, SeedableRng};
 use rand_distr::{num_traits::PrimInt, Distribution, Exp, Normal, Uniform};
 use rand_xoshiro::Xoshiro256PlusPlus;
 use serde::{Deserialize, Serialize};
@@ -166,6 +166,10 @@ impl Rng {
 
     pub fn sample<R>(&mut self, dist: &impl Distribution<R>) -> R {
         dist.sample(&mut self.rng)
+    }
+
+    pub fn shuffle<T>(&mut self, slice: &mut [T]) {
+        slice.shuffle(&mut self.rng);
     }
 }
 

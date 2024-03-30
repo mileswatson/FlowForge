@@ -55,6 +55,7 @@ impl Dna for DelayMultiplierDna {
     }
 }
 
+#[derive(Default)]
 pub struct DelayMultiplierFlowAdder;
 
 impl<G> AddFlows<G> for DelayMultiplierFlowAdder
@@ -67,6 +68,7 @@ where
     type Dna = DelayMultiplierDna;
 
     fn add_flows<'sim, 'a, F>(
+        &self,
         dna: &DelayMultiplierDna,
         flows: impl IntoIterator<Item = F>,
         simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,

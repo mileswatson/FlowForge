@@ -89,7 +89,20 @@ pub struct RemyTrainer {
     config: RemyConfig,
 }
 
-pub struct RemyFlowAdder<T>(PhantomData<T>);
+pub struct RemyFlowAdder<T>(usize, PhantomData<T>);
+
+impl<T> Default for RemyFlowAdder<T> {
+    fn default() -> Self {
+        Self(Default::default(), PhantomData)
+    }
+}
+
+impl<T> RemyFlowAdder<T> {
+    #[must_use]
+    pub const fn new(repeat_updates: usize) -> RemyFlowAdder<T> {
+        RemyFlowAdder(repeat_updates, PhantomData)
+    }
+}
 
 impl<G, T> AddFlows<G> for RemyFlowAdder<T>
 where
@@ -102,6 +115,7 @@ where
     type Dna = T;
 
     fn add_flows<'sim, 'a, F>(
+        &self,
         dna: &'a T,
         flows: impl IntoIterator<Item = F>,
         simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
@@ -126,6 +140,7 @@ where
                     dna,
                     true,
                     flow,
+                    self.0,
                     NothingLogger,
                 );
                 address.cast()
@@ -171,6 +186,7 @@ impl Trainer for RemyTrainer {
                 .config
                 .evaluation_config
                 .evaluate::<RemyFlowAdder<RemyDna>, DefaultEffect>(
+                    &RemyFlowAdder::default(),
                     network_config,
                     dna,
                     utility_function,
@@ -190,6 +206,7 @@ impl Trainer for RemyTrainer {
                 .config
                 .evaluation_config
                 .evaluate::<RemyFlowAdder<CountingRuleTree>, DefaultEffect>(
+                    &RemyFlowAdder::default(),
                     network_config,
                     &counting_tree,
                     utility_function,
@@ -203,6 +220,7 @@ impl Trainer for RemyTrainer {
             self.config
                 .training_config
                 .evaluate::<RemyFlowAdder<AugmentedRuleTree>, DefaultEffect>(
+                    &RemyFlowAdder::default(),
                     network_config,
                     &leaf.augmented_tree(new_action),
                     utility_function,
@@ -296,6 +314,7 @@ impl Trainer for RemyTrainer {
         self.config
             .evaluation_config
             .evaluate::<Self::DefaultFlowAdder, DefaultEffect>(
+                &RemyFlowAdder::default(),
                 network_config,
                 d,
                 utility_function,

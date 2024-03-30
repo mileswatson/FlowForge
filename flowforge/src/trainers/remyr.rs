@@ -1,6 +1,6 @@
 use std::{cell::RefCell, f32::consts::PI};
 
-use dfdx::prelude::*;
+use dfdx::{data::IteratorBatchExt, prelude::*};
 use generativity::make_guard;
 use itertools::Itertools;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -42,11 +42,11 @@ pub struct RemyrConfig {
     pub min_action: Action,
     pub max_action: Action,
     pub hidden_layers: HiddenLayers,
-    pub stddev_multiplier: f32,
     pub learning_rate: f64,
     pub learning_rate_annealing: bool,
-    pub weight_decay: Option<f64>,
     pub clip: f32,
+    pub clip_annealing: bool,
+    pub weight_decay: Option<f64>,
     pub discounting_mode: DiscountingMode,
     pub bandwidth_half_life: TimeSpan,
     pub training_config: EvaluationConfig,
@@ -57,7 +57,7 @@ impl Default for RemyrConfig {
     fn default() -> Self {
         Self {
             iters: 1500,
-            updates_per_iter: 10,
+            updates_per_iter: 5,
             min_point: Point {
                 ack_ewma: milliseconds(0.),
                 send_ewma: milliseconds(0.),
@@ -92,10 +92,10 @@ impl Default for RemyrConfig {
             weight_decay: Some(0.001),
             bandwidth_half_life: milliseconds(100.),
             clip: 0.2,
+            clip_annealing: true,
             discounting_mode: DiscountingMode::ContinuousRate {
                 half_life: seconds(1.),
             },
-            stddev_multiplier: 1.,
         }
     }
 }
@@ -107,7 +107,6 @@ impl RemyrConfig {
             max_point: self.max_point.clone(),
             min_action: self.min_action.clone(),
             max_action: self.max_action.clone(),
-            stddev_multiplier: self.stddev_multiplier,
             policy,
         }
     }
@@ -309,7 +308,8 @@ fn rollout(
                     records.1.push((current_utility(time), time));
                 },
             };
-            let sim = n.to_sim::<RemyFlowAdder<_>, _, DefaultEffect>(
+            let sim = n.to_sim::<_, _, DefaultEffect>(
+                &RemyFlowAdder::new(100),
                 guard,
                 &mut rng,
                 &flows,
@@ -367,6 +367,7 @@ impl Trainer for RemyrTrainer {
             AdamConfig {
                 lr: self.config.learning_rate,
                 weight_decay: self.config.weight_decay.map(WeightDecay::Decoupled),
+                eps: 1e-5,
                 ..Default::default()
             },
         );
@@ -376,6 +377,7 @@ impl Trainer for RemyrTrainer {
             AdamConfig {
                 lr: self.config.learning_rate,
                 weight_decay: self.config.weight_decay.map(WeightDecay::Decoupled),
+                eps: 1e-5,
                 ..Default::default()
             },
         );
@@ -386,6 +388,7 @@ impl Trainer for RemyrTrainer {
                 .config
                 .evaluation_config
                 .evaluate::<RemyFlowAdder<RemyrDna>, DefaultEffect>(
+                    &RemyFlowAdder::default(),
                     network_config,
                     dna,
                     utility_function,
@@ -409,7 +412,7 @@ impl Trainer for RemyrTrainer {
 
             let frac = f64::from(i) / f64::from(self.config.iters);
             #[allow(clippy::cast_possible_truncation)]
-            let percent_completed = (frac * 100.).floor() as i32;
+            let percent_completed = (frac * 10.).floor() as i32;
             if percent_completed > last_percent_completed {
                 last_percent_completed = percent_completed;
                 eval(&dna);
@@ -420,6 +423,13 @@ impl Trainer for RemyrTrainer {
                 critic_optimizer.cfg.lr = (1.0 - frac) * self.config.learning_rate;
             }
 
+            #[allow(clippy::cast_possible_truncation)]
+            let clip = if self.config.clip_annealing {
+                (1.0 - frac as f32) * self.config.clip
+            } else {
+                self.config.clip
+            };
+
             let trajectories: Vec<Trajectory> = rollout(
                 &dna,
                 network_config,
@@ -429,17 +439,6 @@ impl Trainer for RemyrTrainer {
                 &self.config.discounting_mode,
                 rng,
             );
-            #[allow(clippy::cast_precision_loss)]
-            let average_initial_discounted_reward = trajectories
-                .iter()
-                .map(|x| {
-                    x.rewards_to_go_before_actions
-                        .first()
-                        .copied()
-                        .unwrap_or(0.)
-                })
-                .sum::<f32>()
-                / trajectories.len() as f32;
             let RolloutResult {
                 observations,
                 actions,
@@ -452,61 +451,67 @@ impl Trainer for RemyrTrainer {
                 let shape = (estimated_values_k.shape().0,);
                 rewards_to_go_before_action.clone() - estimated_values_k.reshape_like(&shape)
             };
-            let advantages_k = (advantages_k.clone() - advantages_k.clone().mean().array())
-                / (advantages_k.stddev(0.).array() + 1e-10);
 
-            let mut final_policy_loss = 0.;
-            let mut final_critic_loss = 0.;
             for _ in 0..self.config.updates_per_iter {
-                let (means, stddevs) = policy.forward(observations.trace(policy_gradients));
+                let mut all_indices = (0..observations.shape().0).collect_vec();
+                rng.shuffle(&mut all_indices);
+                for batch_indices in all_indices.into_iter().batch_with_last(64) {
+                    let batch_len = batch_indices.len();
+                    let batch_indices = dev.tensor_from_vec(batch_indices, (batch_len,));
 
-                // let stddevs = stddevs * STDDEV_MULTIPLIER;
+                    let batch_observations = observations.clone().gather(batch_indices.clone());
 
-                let action_log_probs_i = calculate_action_log_probs(
-                    actions.clone(),
-                    means,
-                    stddevs * dna.stddev_multiplier,
-                );
+                    let (batch_means, batch_stddevs) =
+                        policy.forward(batch_observations.clone().trace(policy_gradients));
 
-                let ratios = (action_log_probs_i.reshape_like(action_log_probs.shape())
-                    - action_log_probs.clone())
-                .exp();
+                    let batch_action_log_probs = calculate_action_log_probs(
+                        actions.clone().gather(batch_indices.clone()),
+                        batch_means,
+                        batch_stddevs,
+                    );
 
-                let policy_loss = (-minimum(
-                    ratios.with_empty_tape() * advantages_k.clone(),
-                    clamp(ratios, 1. - self.config.clip, 1. + self.config.clip)
-                        * advantages_k.clone(),
-                ))
-                .sum();
+                    let batch_ratios = (batch_action_log_probs
+                        - action_log_probs.clone().gather(batch_indices.clone()))
+                    .exp();
 
-                final_policy_loss = policy_loss.array();
+                    let batch_advantages = advantages_k.clone().gather(batch_indices.clone());
+                    let batch_advantages = (batch_advantages.clone()
+                        - batch_advantages.clone().mean().array())
+                        / (batch_advantages.stddev(0.).array() + 1e-10);
 
-                policy_gradients = policy_loss.backward();
+                    let policy_loss = (-minimum(
+                        batch_ratios.with_empty_tape() * batch_advantages.clone(),
+                        clamp(batch_ratios, 1. - clip, 1. + clip) * batch_advantages.clone(),
+                    ))
+                    .sum();
 
-                policy_optimizer
-                    .update(&mut policy, &policy_gradients)
-                    .unwrap();
-                policy.zero_grads(&mut policy_gradients);
+                    policy_gradients = policy_loss.backward();
+
+                    policy_optimizer
+                        .update(&mut policy, &policy_gradients)
+                        .unwrap();
+                    policy.zero_grads(&mut policy_gradients);
+
+                    // critic
+                    let batch_estimated_values =
+                        critic.forward(batch_observations.clone().traced(critic_gradients));
+
+                    let batch_rewards_to_go_before_action =
+                        rewards_to_go_before_action.clone().gather(batch_indices);
+
+                    let critic_loss = mse_loss(
+                        batch_estimated_values
+                            .reshape_like(batch_rewards_to_go_before_action.shape()),
+                        batch_rewards_to_go_before_action.clone(),
+                    );
+
+                    critic_gradients = critic_loss.backward();
+                    critic_optimizer
+                        .update(&mut critic, &critic_gradients)
+                        .unwrap();
+                    critic.zero_grads(&mut critic_gradients);
+                }
             }
-            for _ in 0..self.config.updates_per_iter {
-                let estimated_values_i =
-                    critic.forward(observations.clone().traced(critic_gradients));
-
-                let critic_loss = mse_loss(
-                    estimated_values_i.reshape_like(rewards_to_go_before_action.shape()),
-                    rewards_to_go_before_action.clone(),
-                );
-                final_critic_loss = critic_loss.array();
-
-                critic_gradients = critic_loss.backward();
-                critic_optimizer
-                    .update(&mut critic, &critic_gradients)
-                    .unwrap();
-                critic.zero_grads(&mut critic_gradients);
-            }
-            println!(
-                "{frac:>5.2} {final_policy_loss:>5.2} {final_critic_loss:>5.2} {average_initial_discounted_reward:>5.2}"
-            );
         }
         let dna = self.config.initial_dna(policy.copy_to(&sim_dev));
         eval(&dna);
@@ -523,6 +528,7 @@ impl Trainer for RemyrTrainer {
         self.config
             .evaluation_config
             .evaluate::<Self::DefaultFlowAdder, DefaultEffect>(
+                &RemyFlowAdder::default(),
                 network_config,
                 d,
                 utility_function,

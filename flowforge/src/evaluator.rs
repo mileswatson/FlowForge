@@ -37,13 +37,14 @@ impl Default for EvaluationConfig {
 impl EvaluationConfig {
     pub fn evaluate<A, G>(
         &self,
+        flow_adder: &A,
         network_config: &NetworkConfig,
         dna: &A::Dna,
         utility_function: &(impl UtilityFunction + ?Sized),
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows>
     where
-        A: AddFlows<G>,
+        A: AddFlows<G> + Sync,
         A::Dna: Sync,
         G: EffectTypeGenerator,
         for<'sim> G::Type<'sim>:
@@ -54,7 +55,7 @@ impl EvaluationConfig {
             let mut flows = (0..n.num_senders)
                 .map(|_| AverageFlowMeter::new_disabled())
                 .collect_vec();
-            let sim = n.to_sim::<A, _, _>(guard, &mut rng, &mut flows, dna, |_| {});
+            let sim = n.to_sim::<A, _, _>(flow_adder, guard, &mut rng, &mut flows, dna, |_| {});
             sim.run_for(self.run_sim_for);
             let flow_stats = flows
                 .iter()

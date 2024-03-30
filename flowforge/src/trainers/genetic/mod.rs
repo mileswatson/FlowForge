@@ -51,7 +51,7 @@ pub trait GeneticDna<G>: Dna + Sync {
 impl<A, G> Trainer for GeneticTrainer<A, G>
 where
     G: EffectTypeGenerator,
-    A: AddFlows<G>,
+    A: AddFlows<G> + Sync,
     A::Dna: GeneticDna<G>,
     for<'sim> G::Type<'sim>: HasSubEffect<Packet<'sim, G::Type<'sim>>>
         + HasSubEffect<Toggle>
@@ -113,6 +113,7 @@ where
                 .map(|d| (d, rng.create_child()))
                 .filter_map(|(d, mut rng)| {
                     let score = self.evaluation_config.evaluate::<A, G>(
+                        &A::default(),
                         network_config,
                         &d,
                         utility_function,
@@ -143,7 +144,12 @@ where
         utility_function: &dyn UtilityFunction,
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows> {
-        self.evaluation_config
-            .evaluate::<A, G>(network_config, d, utility_function, rng)
+        self.evaluation_config.evaluate::<A, G>(
+            &A::default(),
+            network_config,
+            d,
+            utility_function,
+            rng,
+        )
     }
 }
