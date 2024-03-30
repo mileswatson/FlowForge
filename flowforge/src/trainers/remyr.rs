@@ -1,8 +1,4 @@
-use std::{
-    cell::RefCell,
-    f32::{consts::PI, NAN},
-    ops::Mul,
-};
+use std::{cell::RefCell, f32::consts::PI};
 
 use dfdx::prelude::*;
 use generativity::make_guard;
@@ -26,6 +22,15 @@ use crate::{
     Trainer,
 };
 
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum DiscountingMode {
+    Discrete { gamma: f32 },
+    DiscreteDelta { gamma: f32 },
+    DiscreteRate { gamma: f32 },
+    ContinuousRate { half_life: TimeSpan },
+}
+
 use super::{remy::RemyFlowAdder, DefaultEffect};
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -42,7 +47,7 @@ pub struct RemyrConfig {
     pub learning_rate_annealing: bool,
     pub weight_decay: Option<f64>,
     pub clip: f32,
-    pub gamma: f32,
+    pub discounting_mode: DiscountingMode,
     pub bandwidth_half_life: TimeSpan,
     pub training_config: EvaluationConfig,
     pub evaluation_config: EvaluationConfig,
@@ -51,7 +56,7 @@ pub struct RemyrConfig {
 impl Default for RemyrConfig {
     fn default() -> Self {
         Self {
-            iters: 3000,
+            iters: 1500,
             updates_per_iter: 10,
             min_point: Point {
                 ack_ewma: milliseconds(0.),
@@ -74,20 +79,22 @@ impl Default for RemyrConfig {
                 intersend_delay: milliseconds(3.),
             },
             training_config: EvaluationConfig {
-                network_samples: 3,
+                network_samples: 6,
                 run_sim_for: seconds(20.),
             },
             evaluation_config: EvaluationConfig {
                 network_samples: 100,
                 run_sim_for: seconds(60.),
             },
-            hidden_layers: HiddenLayers(32, 16),
+            hidden_layers: HiddenLayers(64, 32),
             learning_rate: 0.0003,
             learning_rate_annealing: true,
             weight_decay: Some(0.001),
             bandwidth_half_life: milliseconds(100.),
             clip: 0.2,
-            gamma: 0.99,
+            discounting_mode: DiscountingMode::ContinuousRate {
+                half_life: seconds(1.),
+            },
             stddev_multiplier: 1.,
         }
     }
@@ -111,21 +118,68 @@ struct Record {
     observation: [f32; STATE],
     action: [f32; ACTION],
     action_log_prob: f32,
-    reward_after_action: f32,
-    reward_to_go_before_action: f32,
 }
 
 #[derive(Debug)]
 struct Trajectory {
     records: Vec<Record>,
+    rewards_to_go_before_actions: Vec<f32>,
 }
 
-impl Trajectory {
-    fn fill_reward_to_go(&mut self, gamma: f32) {
-        let mut discounted_reward = 0.;
-        for point in self.records.iter_mut().rev() {
-            discounted_reward = point.reward_after_action + discounted_reward.mul(gamma);
-            point.reward_to_go_before_action = discounted_reward;
+impl DiscountingMode {
+    fn create_trajectory(&self, records: Vec<Record>, utilities: &[(f32, Time)]) -> Trajectory {
+        assert_eq!(records.len() + 1, utilities.len());
+        let utilities_after_action = &utilities[1..];
+        let utilities_before_action = &utilities[..utilities.len() - 1];
+        #[allow(clippy::cast_possible_truncation)]
+        let mut rewards_to_go_before_actions = match self {
+            DiscountingMode::Discrete { gamma } => utilities_after_action
+                .iter()
+                .rev()
+                .scan(0., |acc, utility_after_action| {
+                    *acc = utility_after_action.0 + gamma * *acc;
+                    Some(*acc)
+                })
+                .collect_vec(),
+            DiscountingMode::DiscreteDelta { gamma } => utilities_after_action
+                .iter()
+                .zip(utilities_before_action)
+                .map(|(after, before)| after.0 - before.0)
+                .rev()
+                .scan(0., |acc, utility_delta| {
+                    *acc = utility_delta + gamma * *acc;
+                    Some(*acc)
+                })
+                .collect_vec(),
+            DiscountingMode::DiscreteRate { gamma } => utilities_after_action
+                .iter()
+                .zip(utilities_before_action)
+                .map(|(after, before)| after.0 * (after.1 - before.1).seconds() as f32)
+                .rev()
+                .scan(0., |acc, utility_delta| {
+                    *acc = utility_delta + gamma * *acc;
+                    Some(*acc)
+                })
+                .collect_vec(),
+            DiscountingMode::ContinuousRate { half_life } => {
+                let alpha = (2_f32).ln() / half_life.seconds() as f32;
+                utilities_after_action
+                    .iter()
+                    .zip(utilities_before_action)
+                    .map(|(after, before)| ((after.1 - before.1).seconds() as f32, after.0))
+                    .rev()
+                    .scan(0., |acc, (delta_t, utility_after_action)| {
+                        let gamma = (-alpha * delta_t).exp();
+                        *acc = alpha * (1. - gamma) * utility_after_action + gamma * *acc;
+                        Some(*acc)
+                    })
+                    .collect_vec()
+            }
+        };
+        rewards_to_go_before_actions.reverse();
+        Trajectory {
+            records,
+            rewards_to_go_before_actions,
         }
     }
 }
@@ -157,8 +211,8 @@ impl<D: Device<f32>> RolloutResult<D> {
             .collect();
         let rewards_to_go_before_action = trajectories
             .iter()
-            .flat_map(|x| x.records.iter())
-            .map(|x| x.reward_to_go_before_action)
+            .flat_map(|x| x.rewards_to_go_before_actions.iter())
+            .copied()
             .collect();
         RolloutResult {
             observations: dev.tensor_from_vec(observations, (num_timesteps, Const::<STATE>)),
@@ -180,23 +234,21 @@ fn calculate_action_log_probs<S: Dim, D: Device<f32>, T: Tape<f32, D>>(
         * -0.5
 }
 
-pub struct RemyrRecorder<'a, P, U, F> {
+pub struct RemyrRecorder<'a, P, F> {
     dna: &'a RemyrDna<P>,
-    current_utility: U,
     record: F,
 }
 
-impl<'a, P, U, F> std::fmt::Debug for RemyrRecorder<'a, P, U, F> {
+impl<'a, P, F> std::fmt::Debug for RemyrRecorder<'a, P, F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("RemyrRecordWrapper").finish()
     }
 }
 
-impl<'d, P, U, F> RuleTree for RemyrRecorder<'d, P, U, F>
+impl<'d, P, F> RuleTree for RemyrRecorder<'d, P, F>
 where
     P: AsPolicyNetRef,
-    F: Fn(Record),
-    U: Fn(Time) -> f32,
+    F: Fn(Record, Time),
 {
     type Action<'b> = Action where Self: 'b;
 
@@ -204,13 +256,14 @@ where
         Some(
             self.dna
                 .probabilistic_action(point, |observation, action, action_log_prob| {
-                    (self.record)(Record {
-                        observation,
-                        action,
-                        action_log_prob,
-                        reward_after_action: (self.current_utility)(time),
-                        reward_to_go_before_action: NAN,
-                    });
+                    (self.record)(
+                        Record {
+                            observation,
+                            action,
+                            action_log_prob,
+                        },
+                        time,
+                    );
                 }),
         )
     }
@@ -222,7 +275,7 @@ fn rollout(
     utility_function: &dyn UtilityFunction,
     training_config: &EvaluationConfig,
     half_life: TimeSpan,
-    gamma: f32,
+    discounting_mode: &DiscountingMode,
     rng: &mut Rng,
 ) -> Vec<Trajectory> {
     let networks = (0..training_config.network_samples)
@@ -232,30 +285,29 @@ fn rollout(
     networks
         .into_par_iter()
         .map(|(n, mut rng)| {
-            let records = RefCell::new(Vec::new());
+            let records = RefCell::new((Vec::new(), Vec::new()));
             make_guard!(guard);
             let flows = (0..n.num_senders)
                 .map(|_| RefCell::new(CurrentFlowMeter::new_disabled(Time::SIM_START, half_life)))
                 .collect_vec();
-            let last_utility: RefCell<Option<f32>> = RefCell::new(None);
+            let current_utility = |time| {
+                let flow_stats = flows
+                    .iter()
+                    .filter_map(|x| x.borrow().current_properties(time).ok())
+                    .collect_vec();
+                #[allow(clippy::cast_possible_truncation)]
+                return utility_function
+                    .total_utility(&flow_stats)
+                    .map(|(u, _)| u)
+                    .unwrap_or(0.) as f32;
+            };
             let dna = RemyrRecorder {
                 dna,
-                current_utility: |time| {
-                    let flow_stats = flows
-                        .iter()
-                        .filter_map(|x| x.borrow().current_properties(time).ok())
-                        .collect_vec();
-                    #[allow(clippy::cast_possible_truncation)]
-                    let current_utility =
-                        utility_function.total_utility(&flow_stats).unwrap().0 as f32;
-                    let increase = last_utility
-                        .borrow()
-                        .map(|l| current_utility - l)
-                        .unwrap_or(0.);
-                    *last_utility.borrow_mut() = Some(current_utility);
-                    increase
+                record: |rec, time| {
+                    let mut records = records.borrow_mut();
+                    records.0.push(rec);
+                    records.1.push((current_utility(time), time));
                 },
-                record: |r| records.borrow_mut().push(r),
             };
             let sim = n.to_sim::<RemyFlowAdder<_>, _, DefaultEffect>(
                 guard,
@@ -265,11 +317,10 @@ fn rollout(
                 |_| {},
             );
             sim.run_for(training_config.run_sim_for);
-            let mut trajectory = Trajectory {
-                records: records.into_inner(),
-            };
-            trajectory.fill_reward_to_go(gamma);
-            trajectory
+            let mut records = records.into_inner();
+            let sim_end = Time::from_sim_start(training_config.run_sim_for);
+            records.1.push((current_utility(sim_end), sim_end));
+            discounting_mode.create_trajectory(records.0, &records.1)
         })
         .collect()
 }
@@ -375,14 +426,18 @@ impl Trainer for RemyrTrainer {
                 utility_function,
                 &self.config.training_config,
                 self.config.bandwidth_half_life,
-                self.config.gamma,
+                &self.config.discounting_mode,
                 rng,
             );
             #[allow(clippy::cast_precision_loss)]
-            let average_reward = trajectories
+            let average_initial_discounted_reward = trajectories
                 .iter()
-                .flat_map(|x| &x.records)
-                .map(|x| x.reward_after_action)
+                .map(|x| {
+                    x.rewards_to_go_before_actions
+                        .first()
+                        .copied()
+                        .unwrap_or(0.)
+                })
                 .sum::<f32>()
                 / trajectories.len() as f32;
             let RolloutResult {
@@ -450,7 +505,7 @@ impl Trainer for RemyrTrainer {
                 critic.zero_grads(&mut critic_gradients);
             }
             println!(
-                "{frac:>5.2} {final_policy_loss:>5.2} {final_critic_loss:>5.2} {average_reward:>5.2}"
+                "{frac:>5.2} {final_policy_loss:>5.2} {final_critic_loss:>5.2} {average_initial_discounted_reward:>5.2}"
             );
         }
         let dna = self.config.initial_dna(policy.copy_to(&sim_dev));

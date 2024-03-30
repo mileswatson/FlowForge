@@ -189,6 +189,7 @@ impl UtilityFunction for AlphaFairness {
     }
 
     fn flow_utility(&self, properties: &FlowProperties) -> Float {
+        assert!(self.delta >= 0.);
         let throughput_utility = alpha_fairness(properties.average_throughput.value(), self.alpha);
         let rtt_utility = -self.delta
             * alpha_fairness(
@@ -201,6 +202,8 @@ impl UtilityFunction for AlphaFairness {
                 self.beta,
             );
         throughput_utility + rtt_utility
+            - (alpha_fairness(0., self.alpha)
+                - self.delta * alpha_fairness(self.worst_case_rtt.seconds(), self.beta))
     }
 }
 

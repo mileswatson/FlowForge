@@ -1,6 +1,6 @@
 {
   "type": "remyr",
-  "iters": 3000,
+  "iters": 1500,
   "updates_per_iter": 10,
   "min_point": {
     "ack_ewma": "0ms",
@@ -23,18 +23,21 @@
     "intersend_delay": "3ms"
   },
   "hidden_layers": [
-    32,
-    16
+    64,
+    32
   ],
   "stddev_multiplier": 1.0,
   "learning_rate": 0.0003,
   "learning_rate_annealing": true,
   "weight_decay": 0.001,
   "clip": 0.2,
-  "gamma": 0.99,
+  "discounting_mode": {
+    "type": "continuous_rate",
+    "half_life": "1s"
+  },
   "bandwidth_half_life": "100ms",
   "training_config": {
-    "network_samples": 3,
+    "network_samples": 6,
     "run_sim_for": "20s"
   },
   "evaluation_config": {
