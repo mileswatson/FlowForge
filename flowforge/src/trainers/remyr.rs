@@ -264,7 +264,7 @@ where
     fn action(&self, point: &Point, time: Time) -> Option<Action> {
         Some(self.dna.raw_action(point, |observation, (mean, stddev)| {
             let mut rng = self.rng.borrow_mut();
-            if self.prob_deterministic == 0.
+            if self.prob_deterministic == 1.
                 || rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. })
                     <= self.prob_deterministic
             {
