@@ -11,10 +11,7 @@ use std::{
 };
 use vec_map::VecMap;
 
-use crate::{
-    core::logging::Logger,
-    quantities::{Time, TimeSpan},
-};
+use crate::{core::logging::Logger, quantities::Time};
 
 pub trait HasSubEffect<P>: From<P> + TryInto<P> {}
 
@@ -453,8 +450,7 @@ where
         self.handle_messages(time, &mut effects);
     }
 
-    pub fn run_for(mut self, timespan: TimeSpan) {
-        let end_time = Time::SIM_START + timespan;
+    pub fn run_while(mut self, f: impl Fn(Time) -> bool) -> Time {
         self.components
             .iter()
             .enumerate()
@@ -462,11 +458,14 @@ where
                 self.tick_queue
                     .update(idx, component.next_tick(Time::SIM_START));
             });
+        let mut last_time = Time::SIM_START;
         while let Some((time, idx)) = self.tick_queue.pop_next() {
-            if time >= end_time {
+            last_time = time;
+            if !f(time) {
                 break;
             }
             self.tick(ComponentId::new(idx, self.id), time);
         }
+        last_time
     }
 }

@@ -1,7 +1,5 @@
 use std::fmt::Debug;
 
-use rand::{rngs::ThreadRng, Rng};
-
 use crate::{
     core::{
         logging::Logger,
@@ -132,8 +130,7 @@ where
                 self.next_change = if self.repeat_updates == 0 {
                     None
                 } else {
-                    let mut rng = ThreadRng::default();
-                    Some((rng.gen_range(0..self.repeat_updates * 2), a.clone()))
+                    Some((self.repeat_updates, a.clone()))
                 };
                 a
             }

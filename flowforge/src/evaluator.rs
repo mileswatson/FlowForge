@@ -56,13 +56,11 @@ impl EvaluationConfig {
                 .map(|_| AverageFlowMeter::new_disabled())
                 .collect_vec();
             let sim = n.to_sim::<A, _, _>(flow_adder, guard, &mut rng, &mut flows, dna, |_| {});
-            sim.run_for(self.run_sim_for);
+            let sim_end = Time::from_sim_start(self.run_sim_for);
+            sim.run_while(|t| t < sim_end);
             let flow_stats = flows
                 .iter()
-                .filter_map(|x| {
-                    x.average_properties(Time::SIM_START + self.run_sim_for)
-                        .ok()
-                })
+                .filter_map(|x| x.average_properties(sim_end).ok())
                 .collect_vec();
             utility_function.total_utility(&flow_stats)
         };

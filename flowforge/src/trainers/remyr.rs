@@ -264,9 +264,8 @@ where
     fn action(&self, point: &Point, time: Time) -> Option<Action> {
         Some(self.dna.raw_action(point, |observation, (mean, stddev)| {
             let mut rng = self.rng.borrow_mut();
-            if self.prob_deterministic == 1.
-                || rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. })
-                    <= self.prob_deterministic
+            if rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. })
+                <= self.prob_deterministic
             {
                 mean
             } else {
@@ -307,6 +306,9 @@ fn rollout(
     training_config: &EvaluationConfig,
     half_life: TimeSpan,
     discounting_mode: &DiscountingMode,
+    steps: usize,
+    prob_deterministic: Float,
+    repeat: usize,
     rng: &mut Rng,
 ) -> Vec<Trajectory> {
     let networks = (0..training_config.network_samples)
@@ -341,19 +343,18 @@ fn rollout(
                     records.1.push((current_utility(time), time));
                 },
                 rng: RefCell::new(&mut policy_rng),
-                prob_deterministic: 0.99,
+                prob_deterministic,
             };
             let sim = n.to_sim::<_, _, DefaultEffect>(
-                &RemyFlowAdder::new(0),
+                &RemyFlowAdder::new(repeat),
                 guard,
                 &mut rng,
                 &flows,
                 &dna,
                 |_| {},
             );
-            sim.run_for(training_config.run_sim_for);
+            let sim_end = sim.run_while(|_| records.borrow().0.len() < steps);
             let mut records = records.into_inner();
-            let sim_end = Time::from_sim_start(training_config.run_sim_for);
             records.1.push((current_utility(sim_end), sim_end));
             discounting_mode.create_trajectory(records.0, &records.1)
         })
@@ -473,6 +474,9 @@ impl Trainer for RemyrTrainer {
                 &self.config.training_config,
                 self.config.bandwidth_half_life,
                 &self.config.discounting_mode,
+                2048,
+                frac * 0.99,
+                (100. * (1. - frac)).round() as usize,
                 rng,
             );
             let RolloutResult {

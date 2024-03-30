@@ -118,7 +118,7 @@ where
             },
         )));
     });
-    sim.run_for(seconds(100.));
+    sim.run_while(|t| t < Time::from_sim_start(seconds(100.)));
     result
 }
 

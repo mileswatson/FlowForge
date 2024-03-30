@@ -67,8 +67,8 @@ fn main() {
     link2_slot.set(DynComponent::Ref(&mut link2));
 
     let sim = ManuallyDrop::into_inner(builder).build(table.logger(0));
-    let length = seconds(1000.);
-    sim.run_for(length);
+    let sim_end = Time::from_sim_start(seconds(1000.));
+    sim.run_while(|t| t < sim_end);
 
     drop(link1);
 
@@ -76,11 +76,7 @@ fn main() {
     println!("{:?}", flow_meter.1);
     println!(
         "{:?} {:?}",
-        flow_meter
-            .0
-            .average_properties(Time::from_sim_start(length)),
-        flow_meter
-            .1
-            .current_properties(Time::from_sim_start(length))
+        flow_meter.0.average_properties(sim_end),
+        flow_meter.1.current_properties(sim_end)
     );
 }
