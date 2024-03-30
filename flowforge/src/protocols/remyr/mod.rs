@@ -56,11 +56,8 @@ fn calculate_action_log_probs<S: Dim, D: Device<f32>, T: Tape<f32, D>>(
         * -0.5
 }
 
-impl<P> RemyrDna<P>
-where
-    P: AsPolicyNetRef,
-{
-    fn _action<F>(&self, point: &Point, f: F) -> Action
+impl RemyrDna {
+    pub fn raw_action<F>(&self, point: &Point, f: F) -> Action
     where
         F: FnOnce(Tensor1D<STATE>, (Tensor1D<ACTION>, Tensor1D<ACTION>)) -> Tensor1D<ACTION>,
     {
@@ -82,14 +79,14 @@ where
     }
 
     fn deterministic_action(&self, point: &Point) -> Action {
-        self._action(point, |_, (mean, _stddev)| mean)
+        self.raw_action(point, |_, (mean, _stddev)| mean)
     }
 
     pub fn probabilistic_action<F>(&self, point: &Point, f: F) -> Action
     where
         F: FnOnce([f32; STATE], [f32; ACTION], f32),
     {
-        self._action(point, |observation, (mean, stddev)| {
+        self.raw_action(point, |observation, (mean, stddev)| {
             let action = mean.clone()
                 + self.policy.as_policy_net_ref().device().sample_normal() * stddev.clone();
             let action_log_prob = calculate_action_log_probs::<Const<1>, _, _>(
@@ -107,10 +104,7 @@ where
     }
 }
 
-impl<P> RuleTree for RemyrDna<P>
-where
-    P: AsPolicyNetRef,
-{
+impl RuleTree for RemyrDna {
     type Action<'b> = Action where Self: 'b;
 
     fn action(&self, point: &Point, _time: Time) -> Option<Action> {

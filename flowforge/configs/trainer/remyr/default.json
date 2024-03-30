@@ -1,16 +1,16 @@
 {
   "type": "remyr",
   "iters": 1500,
-  "updates_per_iter": 10,
+  "updates_per_iter": 5,
   "min_point": {
     "ack_ewma": "0ms",
     "send_ewma": "0ms",
     "rtt_ratio": 1.0
   },
   "max_point": {
-    "ack_ewma": "1s",
-    "send_ewma": "1s",
-    "rtt_ratio": 10.0
+    "ack_ewma": "125ms",
+    "send_ewma": "125ms",
+    "rtt_ratio": 5.0
   },
   "min_action": {
     "window_multiplier": 0.0,
@@ -26,19 +26,19 @@
     64,
     32
   ],
-  "stddev_multiplier": 1.0,
   "learning_rate": 0.0003,
   "learning_rate_annealing": true,
-  "weight_decay": 0.001,
   "clip": 0.2,
+  "clip_annealing": true,
+  "weight_decay": 0.001,
   "discounting_mode": {
     "type": "continuous_rate",
     "half_life": "1s"
   },
   "bandwidth_half_life": "100ms",
   "training_config": {
-    "network_samples": 6,
-    "run_sim_for": "20s"
+    "network_samples": 8,
+    "run_sim_for": "60s"
   },
   "evaluation_config": {
     "network_samples": 100,

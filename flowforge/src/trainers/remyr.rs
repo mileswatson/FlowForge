@@ -7,7 +7,10 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::{meters::CurrentFlowMeter, rand::Rng},
+    core::{
+        meters::CurrentFlowMeter,
+        rand::{ContinuousDistribution, Rng},
+    },
     evaluator::EvaluationConfig,
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
     network::config::NetworkConfig,
@@ -15,7 +18,7 @@ use crate::{
         remy::{action::Action, point::Point, rule_tree::RuleTree},
         remyr::{
             dna::RemyrDna,
-            net::{AsPolicyNetRef, CopyToDevice, HiddenLayers, PolicyNetwork, ACTION, STATE},
+            net::{CopyToDevice, HiddenLayers, PolicyNet, PolicyNetwork, ACTION, STATE},
         },
     },
     quantities::{milliseconds, seconds, Float, Time, TimeSpan},
@@ -64,9 +67,9 @@ impl Default for RemyrConfig {
                 rtt_ratio: 1.,
             },
             max_point: Point {
-                ack_ewma: seconds(1.),
-                send_ewma: seconds(1.),
-                rtt_ratio: 10.,
+                ack_ewma: seconds(0.125),
+                send_ewma: seconds(0.125),
+                rtt_ratio: 5.,
             },
             min_action: Action {
                 window_multiplier: 0.,
@@ -79,8 +82,8 @@ impl Default for RemyrConfig {
                 intersend_delay: milliseconds(3.),
             },
             training_config: EvaluationConfig {
-                network_samples: 6,
-                run_sim_for: seconds(20.),
+                network_samples: 8,
+                run_sim_for: seconds(60.),
             },
             evaluation_config: EvaluationConfig {
                 network_samples: 100,
@@ -233,38 +236,67 @@ fn calculate_action_log_probs<S: Dim, D: Device<f32>, T: Tape<f32, D>>(
         * -0.5
 }
 
-pub struct RemyrRecorder<'a, P, F> {
-    dna: &'a RemyrDna<P>,
-    record: F,
+pub struct RolloutWrapper<'a, F> {
+    dna: &'a RemyrDna,
+    rng: RefCell<&'a mut Rng>,
+    prob_deterministic: Float,
+    f: F,
 }
 
-impl<'a, P, F> std::fmt::Debug for RemyrRecorder<'a, P, F> {
+impl<'a, F> std::fmt::Debug for RolloutWrapper<'a, F> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("RemyrRecordWrapper").finish()
+        f.debug_struct("RolloutWrapper")
+            .field("dna", &self.dna)
+            .field("rng", &self.rng)
+            .field("prob_deterministic", &self.prob_deterministic)
+            .finish()
     }
 }
 
-impl<'d, P, F> RuleTree for RemyrRecorder<'d, P, F>
+impl<'a, F> RuleTree for RolloutWrapper<'a, F>
 where
-    P: AsPolicyNetRef,
     F: Fn(Record, Time),
 {
-    type Action<'b> = Action where Self: 'b;
+    type Action<'b> = Action
+    where
+        Self: 'b;
 
     fn action(&self, point: &Point, time: Time) -> Option<Action> {
-        Some(
-            self.dna
-                .probabilistic_action(point, |observation, action, action_log_prob| {
-                    (self.record)(
-                        Record {
-                            observation,
-                            action,
-                            action_log_prob,
-                        },
-                        time,
-                    );
-                }),
-        )
+        Some(self.dna.raw_action(point, |observation, (mean, stddev)| {
+            let mut rng = self.rng.borrow_mut();
+            if self.prob_deterministic == 0.
+                || rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. })
+                    <= self.prob_deterministic
+            {
+                mean
+            } else {
+                let dev = self.dna.policy.device();
+                let mut sample_normal = || {
+                    #[allow(clippy::cast_possible_truncation)]
+                    return rng.sample(&ContinuousDistribution::Normal {
+                        mean: 0.,
+                        std_dev: 1.,
+                    }) as f32;
+                };
+                let normal_samples =
+                    dev.tensor([sample_normal(), sample_normal(), sample_normal()]);
+                let action = mean.clone() + normal_samples * stddev.clone();
+                let action_log_prob = calculate_action_log_probs::<Const<1>, _, _>(
+                    action.clone().reshape(),
+                    mean.reshape(),
+                    stddev.reshape(),
+                );
+                (self.f)(
+                    Record {
+                        observation: observation.array(),
+                        action: action.array(),
+                        action_log_prob: action_log_prob.reshape::<()>().array(),
+                    },
+                    time,
+                );
+                action
+            }
+        }))
     }
 }
 
@@ -300,16 +332,19 @@ fn rollout(
                     .map(|(u, _)| u)
                     .unwrap_or(0.) as f32;
             };
-            let dna = RemyrRecorder {
+            let mut policy_rng = rng.create_child();
+            let dna = RolloutWrapper {
                 dna,
-                record: |rec, time| {
+                f: |rec, time| {
                     let mut records = records.borrow_mut();
                     records.0.push(rec);
                     records.1.push((current_utility(time), time));
                 },
+                rng: RefCell::new(&mut policy_rng),
+                prob_deterministic: 0.99,
             };
             let sim = n.to_sim::<_, _, DefaultEffect>(
-                &RemyFlowAdder::new(100),
+                &RemyFlowAdder::new(0),
                 guard,
                 &mut rng,
                 &flows,
@@ -411,8 +446,9 @@ impl Trainer for RemyrTrainer {
             let dna = self.config.initial_dna(policy.copy_to(&sim_dev));
 
             let frac = f64::from(i) / f64::from(self.config.iters);
+            println!("{frac}");
             #[allow(clippy::cast_possible_truncation)]
-            let percent_completed = (frac * 10.).floor() as i32;
+            let percent_completed = (frac * 100.).floor() as i32;
             if percent_completed > last_percent_completed {
                 last_percent_completed = percent_completed;
                 eval(&dna);

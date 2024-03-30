@@ -111,3 +111,24 @@ where
         HiddenLayers::new(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use dfdx::{nn::BuildModuleExt, tensor::Cpu};
+
+    use crate::protocols::remyr::dna::SerializeTensors;
+
+    use super::HiddenLayers;
+
+    #[test]
+    fn determinism() {
+        let dev1 = Cpu::default();
+        let dev2 = Cpu::default();
+        let n1 = dev1.build_module::<f32>(HiddenLayers(32, 32).policy_arch());
+        let n2 = dev2.build_module::<f32>(HiddenLayers(32, 32).policy_arch());
+        assert_eq!(n1.serialize(), n2.serialize());
+        dbg!(n1.0 .0.bias);
+        dbg!(n2.0 .0.bias);
+        panic!()
+    }
+}

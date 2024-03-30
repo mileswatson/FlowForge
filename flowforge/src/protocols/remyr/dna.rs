@@ -54,18 +54,15 @@ struct _RemyrDna {
     policy: Vec<u8>,
 }
 
-pub struct RemyrDna<P = PolicyNetwork<Cpu>> {
+pub struct RemyrDna {
     pub min_point: Point,
     pub max_point: Point,
     pub min_action: Action,
     pub max_action: Action,
-    pub policy: P,
+    pub policy: PolicyNetwork<Cpu>,
 }
 
-impl<P> Debug for RemyrDna<P>
-where
-    P: AsPolicyNetRef,
-{
+impl Debug for RemyrDna {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("RemyrDna")
             .field("min_point", &self.min_point)
@@ -94,7 +91,7 @@ impl Serialize for RemyrDna {
     }
 }
 
-impl<'de> Deserialize<'de> for RemyrDna<PolicyNetwork<Cpu>> {
+impl<'de> Deserialize<'de> for RemyrDna {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
