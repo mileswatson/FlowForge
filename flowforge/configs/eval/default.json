@@ -1,0 +1,4 @@
+{
+  "network_samples": 500,
+  "run_sim_for": "60s"
+}

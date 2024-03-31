@@ -18,7 +18,6 @@ pub mod dna;
 pub mod net;
 
 fn point_to_tensor(dev: &Cpu, point: &Point) -> Tensor<(Const<STATE>,), f32, Cpu> {
-    #[allow(clippy::cast_possible_truncation)]
     dev.tensor([
         point.ack_ewma.to_underlying() as f32,
         point.send_ewma.to_underlying() as f32,
@@ -27,7 +26,6 @@ fn point_to_tensor(dev: &Cpu, point: &Point) -> Tensor<(Const<STATE>,), f32, Cpu
 }
 
 fn action_to_tensor(dev: &Cpu, action: &Action) -> Tensor<(Const<ACTION>,), f32, Cpu> {
-    #[allow(clippy::cast_possible_truncation)]
     #[allow(clippy::cast_precision_loss)]
     dev.tensor([
         action.window_multiplier as f32,
@@ -38,7 +36,6 @@ fn action_to_tensor(dev: &Cpu, action: &Action) -> Tensor<(Const<ACTION>,), f32,
 
 fn tensor_to_action(tensor: &Tensor<(Const<ACTION>,), f32, Cpu>) -> Action {
     let arr = tensor.array();
-    #[allow(clippy::cast_possible_truncation)]
     Action {
         window_multiplier: f64::from(arr[0]),
         window_increment: arr[1].round() as i32,

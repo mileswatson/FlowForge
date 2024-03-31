@@ -9,7 +9,7 @@ use crate::{
         meters::FlowMeter,
         rand::{ContinuousDistribution, Rng},
     },
-    flow::{FlowProperties, NoActiveFlows, UtilityFunction},
+    flow::UtilityFunction,
     network::{
         config::NetworkConfig,
         senders::{
@@ -19,7 +19,6 @@ use crate::{
         toggler::Toggle,
         AddFlows, EffectTypeGenerator, Packet,
     },
-    quantities::Float,
     simulation::{Address, HasSubEffect, SimulatorBuilder},
     Dna, Trainer,
 };
@@ -154,16 +153,5 @@ impl Trainer for DelayMultiplierTrainer {
             progress_handler,
             rng,
         )
-    }
-
-    fn evaluate(
-        &self,
-        d: &DelayMultiplierDna,
-        network_config: &NetworkConfig,
-        utility_function: &dyn UtilityFunction,
-        rng: &mut Rng,
-    ) -> anyhow::Result<(Float, FlowProperties), NoActiveFlows> {
-        self.genetic_trainer
-            .evaluate(d, network_config, utility_function, rng)
     }
 }

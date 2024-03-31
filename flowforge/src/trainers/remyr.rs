@@ -12,7 +12,7 @@ use crate::{
         rand::{ContinuousDistribution, Rng},
     },
     evaluator::EvaluationConfig,
-    flow::{FlowProperties, NoActiveFlows, UtilityFunction},
+    flow::UtilityFunction,
     network::config::NetworkConfig,
     protocols::{
         remy::{action::Action, point::Point, rule_tree::RuleTree},
@@ -52,8 +52,7 @@ pub struct RemyrConfig {
     pub weight_decay: Option<f64>,
     pub discounting_mode: DiscountingMode,
     pub bandwidth_half_life: TimeSpan,
-    pub training_config: EvaluationConfig,
-    pub evaluation_config: EvaluationConfig,
+    pub rollout_config: EvaluationConfig,
 }
 
 impl Default for RemyrConfig {
@@ -81,12 +80,8 @@ impl Default for RemyrConfig {
                 window_increment: 256,
                 intersend_delay: milliseconds(3.),
             },
-            training_config: EvaluationConfig {
+            rollout_config: EvaluationConfig {
                 network_samples: 8,
-                run_sim_for: seconds(60.),
-            },
-            evaluation_config: EvaluationConfig {
-                network_samples: 100,
                 run_sim_for: seconds(60.),
             },
             hidden_layers: HiddenLayers(64, 32),
@@ -133,7 +128,6 @@ impl DiscountingMode {
         assert_eq!(records.len() + 1, utilities.len());
         let utilities_after_action = &utilities[1..];
         let utilities_before_action = &utilities[..utilities.len() - 1];
-        #[allow(clippy::cast_possible_truncation)]
         let mut rewards_to_go_before_actions = match self {
             DiscountingMode::Discrete { gamma } => utilities_after_action
                 .iter()
@@ -271,11 +265,10 @@ where
             } else {
                 let dev = self.dna.policy.device();
                 let mut sample_normal = || {
-                    #[allow(clippy::cast_possible_truncation)]
-                    return rng.sample(&ContinuousDistribution::Normal {
+                    rng.sample(&ContinuousDistribution::Normal {
                         mean: 0.,
                         std_dev: 1.,
-                    }) as f32;
+                    }) as f32
                 };
                 let normal_samples =
                     dev.tensor([sample_normal(), sample_normal(), sample_normal()]);
@@ -328,11 +321,10 @@ fn rollout(
                     .iter()
                     .filter_map(|x| x.borrow().current_properties(time).ok())
                     .collect_vec();
-                #[allow(clippy::cast_possible_truncation)]
-                return utility_function
+                utility_function
                     .total_utility(&flow_stats)
                     .map(|(u, _)| u)
-                    .unwrap_or(0.) as f32;
+                    .unwrap_or(0.) as f32
             };
             let mut policy_rng = rng.create_child();
             let dna = RolloutWrapper {
@@ -418,49 +410,19 @@ impl Trainer for RemyrTrainer {
             },
         );
 
-        let new_eval_rng = rng.identical_child_factory();
-        let mut eval = |dna: &RemyrDna| {
-            let (score, props) = self
-                .config
-                .evaluation_config
-                .evaluate::<RemyFlowAdder<RemyrDna>, DefaultEffect>(
-                    &RemyFlowAdder::default(),
-                    network_config,
-                    dna,
-                    utility_function,
-                    &mut new_eval_rng(),
-                )
-                .expect("Simulation to have active flows");
-            println!("    Achieved eval score {score:.2} with {props}");
-            progress_handler.update_progress(
-                Some(dna),
-                score,
-                props.average_throughput,
-                props.average_rtt.unwrap_or(seconds(f64::NAN)),
-            );
-        };
-
         let sim_dev = Cpu::default();
 
-        let mut last_percent_completed = -1;
         for i in 0..self.config.iters {
             let dna = self.config.initial_dna(policy.copy_to(&sim_dev));
 
             let frac = f64::from(i) / f64::from(self.config.iters);
-            println!("{frac}");
-            #[allow(clippy::cast_possible_truncation)]
-            let percent_completed = (frac * 100.).floor() as i32;
-            if percent_completed > last_percent_completed {
-                last_percent_completed = percent_completed;
-                eval(&dna);
-            }
+            progress_handler.update_progress(frac, &dna);
 
             if self.config.learning_rate_annealing {
                 policy_optimizer.cfg.lr = (1.0 - frac) * self.config.learning_rate;
                 critic_optimizer.cfg.lr = (1.0 - frac) * self.config.learning_rate;
             }
 
-            #[allow(clippy::cast_possible_truncation)]
             let clip = if self.config.clip_annealing {
                 (1.0 - frac as f32) * self.config.clip
             } else {
@@ -471,7 +433,7 @@ impl Trainer for RemyrTrainer {
                 &dna,
                 network_config,
                 utility_function,
-                &self.config.training_config,
+                &self.config.rollout_config,
                 self.config.bandwidth_half_life,
                 &self.config.discounting_mode,
                 2048,
@@ -554,25 +516,7 @@ impl Trainer for RemyrTrainer {
             }
         }
         let dna = self.config.initial_dna(policy.copy_to(&sim_dev));
-        eval(&dna);
+        progress_handler.update_progress(1., &dna);
         dna
-    }
-
-    fn evaluate(
-        &self,
-        d: &Self::Dna,
-        network_config: &NetworkConfig,
-        utility_function: &dyn UtilityFunction,
-        rng: &mut crate::core::rand::Rng,
-    ) -> anyhow::Result<(Float, FlowProperties), NoActiveFlows> {
-        self.config
-            .evaluation_config
-            .evaluate::<Self::DefaultFlowAdder, DefaultEffect>(
-                &RemyFlowAdder::default(),
-                network_config,
-                d,
-                utility_function,
-                rng,
-            )
     }
 }

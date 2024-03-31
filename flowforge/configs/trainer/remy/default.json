@@ -28,11 +28,11 @@
     "window_increment": 1,
     "intersend_delay": "3ms"
   },
-  "training_config": {
+  "change_eval_config": {
     "network_samples": 50,
     "run_sim_for": "60s"
   },
-  "evaluation_config": {
+  "count_rule_usage_config": {
     "network_samples": 500,
     "run_sim_for": "60s"
   }

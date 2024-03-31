@@ -24,42 +24,54 @@ enum Command {
     /// Tailor a congestion control algorithm for a given network
     Train {
         /// Trainer config file (JSON)
-        #[arg(long)]
-        trainer: PathBuf,
+        #[arg(short, long)]
+        config: PathBuf,
 
         /// Network config file (JSON)
         #[arg(long)]
-        network: PathBuf,
+        net: PathBuf,
 
         /// Utility function config file (JSON)
         #[arg(long)]
-        utility: PathBuf,
+        util: PathBuf,
 
         /// File to write congestion control algorithm DNA to
         #[arg(long)]
         dna: PathBuf,
 
-        /// File to write training progress to
-        #[arg(short, long)]
-        output: Option<PathBuf>,
+        /// OPTIONAL Run eval this number of times during training
+        #[arg(long)]
+        eval_times: Option<u32>,
+
+        /// IF EVAL_EVERY Evaluation config file (JSON)
+        #[arg(long)]
+        eval: Option<PathBuf>,
+
+        /// OPTIONAL, REQUIRES EVAL_EVERY File to write training progress to
+        #[arg(long)]
+        progress: Option<PathBuf>,
     },
     /// Evaluate a congestion control algorithm for a given network
     Evaluate {
-        /// Trainer config file (JSON)
+        /// Evaluation config file (JSON)
+        #[arg(short, long)]
+        config: PathBuf,
+
+        /// Flow mode
         #[arg(long)]
-        trainer: PathBuf,
+        mode: FlowAdders,
 
         /// Network config file (JSON)
         #[arg(long)]
-        network: PathBuf,
+        net: PathBuf,
 
         /// Utility function config file (JSON)
         #[arg(long)]
-        utility: PathBuf,
+        util: PathBuf,
 
         /// File to read congestion control algorithm DNA from
         #[arg(short, long)]
-        input: PathBuf,
+        dna: PathBuf,
     },
     /// Trace the execution of a particular sender
     Trace {
@@ -118,18 +130,29 @@ fn main() -> Result<()> {
     match args.command {
         Command::GenConfigs { output_folder } => create_all_configs(&output_folder),
         Command::Train {
-            trainer,
-            network,
-            utility,
+            config,
+            eval,
+            net,
+            util,
             dna,
-            output,
-        } => train(&trainer, &network, &utility, &dna, output.as_deref()),
+            progress,
+            eval_times,
+        } => train(
+            &config,
+            &net,
+            &util,
+            &dna,
+            eval_times,
+            eval.as_deref(),
+            progress.as_deref(),
+        ),
         Command::Evaluate {
-            trainer,
-            network,
-            utility,
-            input,
-        } => evaluate(&trainer, &network, &utility, &input),
+            config,
+            net,
+            util,
+            dna,
+            mode,
+        } => evaluate(&mode, &config, &net, &util, &dna),
         Command::Trace {
             mode,
             network,

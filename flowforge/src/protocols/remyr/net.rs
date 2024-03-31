@@ -127,8 +127,5 @@ mod tests {
         let n1 = dev1.build_module::<f32>(HiddenLayers(32, 32).policy_arch());
         let n2 = dev2.build_module::<f32>(HiddenLayers(32, 32).policy_arch());
         assert_eq!(n1.serialize(), n2.serialize());
-        dbg!(n1.0 .0.bias);
-        dbg!(n2.0 .0.bias);
-        panic!()
     }
 }

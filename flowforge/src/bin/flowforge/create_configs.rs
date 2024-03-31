@@ -2,8 +2,10 @@ use std::{fs::create_dir_all, path::Path};
 
 use anyhow::Result;
 use flowforge::{
+    evaluator::EvaluationConfig,
     flow::{AlphaFairness, UtilityConfig},
     network::config::NetworkConfig,
+    quantities::seconds,
     trainers::{
         delay_multiplier::DelayMultiplierConfig, remy::RemyConfig, remyr::RemyrConfig,
         TrainerConfig,
@@ -12,11 +14,24 @@ use flowforge::{
 };
 
 pub fn create_all_configs(folder: &Path) -> Result<()> {
+    create_dir_all(folder.join("eval"))?;
     create_dir_all(folder.join("network"))?;
     create_dir_all(folder.join("trainer/remy"))?;
     create_dir_all(folder.join("trainer/remyr"))?;
     create_dir_all(folder.join("trainer/delay_multiplier"))?;
     create_dir_all(folder.join("utility"))?;
+
+    EvaluationConfig::default().save(&folder.join("eval/default.json"))?;
+    EvaluationConfig {
+        network_samples: 100,
+        run_sim_for: seconds(60.),
+    }
+    .save(&folder.join("eval/short.json"))?;
+    EvaluationConfig {
+        network_samples: 30,
+        run_sim_for: seconds(60.),
+    }
+    .save(&folder.join("eval/very_short.json"))?;
 
     NetworkConfig::default().save(&folder.join("network/default.json"))?;
 

@@ -1,6 +1,5 @@
-use std::{cmp::Reverse, iter::repeat, marker::PhantomData, sync::Mutex};
+use std::{cmp::Reverse, iter::repeat, marker::PhantomData};
 
-use anyhow::Result;
 use itertools::Itertools;
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
@@ -9,9 +8,8 @@ use crate::{
     core::never::Never,
     core::rand::Rng,
     evaluator::EvaluationConfig,
-    flow::{FlowProperties, NoActiveFlows, UtilityFunction},
+    flow::UtilityFunction,
     network::{config::NetworkConfig, toggler::Toggle, AddFlows, EffectTypeGenerator, Packet},
-    quantities::Float,
     simulation::HasSubEffect,
     Dna, ProgressHandler, Trainer,
 };
@@ -36,7 +34,7 @@ impl Default for GeneticConfig {
 pub struct GeneticTrainer<A, G> {
     iters: u32,
     population_size: u32,
-    evaluation_config: EvaluationConfig,
+    child_eval_config: EvaluationConfig,
     effect: PhantomData<G>,
     flow_adder: PhantomData<A>,
 }
@@ -67,7 +65,7 @@ where
         GeneticTrainer {
             iters: config.iters,
             population_size: config.population_size,
-            evaluation_config: config.evaluation_config.clone(),
+            child_eval_config: config.evaluation_config.clone(),
             flow_adder: PhantomData,
             effect: PhantomData,
         }
@@ -91,42 +89,26 @@ where
         let mut population = (0..self.population_size)
             .map(|_| A::Dna::new_random(rng))
             .collect_vec();
-        let progress = Mutex::new((0, progress_handler));
-        let increment_progress = || {
-            let mut handle = progress.lock().unwrap();
-            handle.0 += 1;
-            #[allow(clippy::cast_precision_loss)]
-            let progress =
-                f64::from(handle.0) / (f64::from(self.population_size) * f64::from(self.iters));
-        };
-        let update_best = |best: &A::Dna| {
-            let mut handle = progress.lock().unwrap();
-            #[allow(clippy::cast_precision_loss)]
-            let progress =
-                f64::from(handle.0) / (f64::from(self.population_size) * f64::from(self.iters));
-            todo!()
-        };
-        let update_progress = &increment_progress;
-        for _ in 0..self.iters {
+        for i in 0..self.iters {
+            let frac = f64::from(i) / f64::from(self.iters);
             let mut scores = population
                 .into_iter()
                 .map(|d| (d, rng.create_child()))
                 .filter_map(|(d, mut rng)| {
-                    let score = self.evaluation_config.evaluate::<A, G>(
+                    let score = self.child_eval_config.evaluate::<A, G>(
                         &A::default(),
                         network_config,
                         &d,
                         utility_function,
                         &mut rng,
                     );
-                    update_progress();
                     score.map(|(s, p)| (d, s, p)).ok()
                 })
                 .collect_vec();
             scores.sort_by_key(|x| Reverse(NotNan::new(x.1).unwrap()));
 
             println!("Score: {}", scores.first().unwrap().1);
-            update_best(&scores.first().unwrap().0);
+            progress_handler.update_progress(frac, &scores.first().unwrap().0);
             scores.truncate(self.population_size as usize / 2);
             population = scores
                 .iter()
@@ -135,21 +117,5 @@ where
                 .collect();
         }
         population.into_iter().next().unwrap()
-    }
-
-    fn evaluate(
-        &self,
-        d: &A::Dna,
-        network_config: &NetworkConfig,
-        utility_function: &dyn UtilityFunction,
-        rng: &mut Rng,
-    ) -> Result<(Float, FlowProperties), NoActiveFlows> {
-        self.evaluation_config.evaluate::<A, G>(
-            &A::default(),
-            network_config,
-            d,
-            utility_function,
-            rng,
-        )
     }
 }

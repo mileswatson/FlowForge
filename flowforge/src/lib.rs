@@ -5,7 +5,8 @@
     clippy::missing_panics_doc,
     clippy::missing_errors_doc,
     clippy::suboptimal_flops,
-    clippy::too_many_arguments
+    clippy::too_many_arguments,
+    clippy::cast_possible_truncation
 )]
 
 use std::{
@@ -15,11 +16,12 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use core::rand::Rng;
-use flow::{FlowProperties, NoActiveFlows, UtilityFunction};
-use network::{config::NetworkConfig, AddFlows, EffectTypeGenerator};
-use quantities::{Float, InformationRate, TimeSpan};
 use serde::{de::DeserializeOwned, Serialize};
+
+use core::rand::Rng;
+use flow::UtilityFunction;
+use network::{config::NetworkConfig, AddFlows, EffectTypeGenerator};
+use quantities::Float;
 
 #[macro_use]
 pub mod core;
@@ -104,34 +106,20 @@ impl<D: Dna> Config<Custom> for D {
 }
 
 pub trait ProgressHandler<D: Dna>: Send {
-    fn update_progress(
-        &mut self,
-        top_scorer: Option<&D>,
-        utility: Float,
-        average_bandwidth: InformationRate,
-        average_rtt: TimeSpan,
-    );
+    fn update_progress(&mut self, frac_complete: Float, current: &D);
 }
 
-impl<D: Dna, F: FnMut(Option<&D>, Float, InformationRate, TimeSpan) + Send> ProgressHandler<D>
-    for F
-{
-    fn update_progress(
-        &mut self,
-        top_scorer: Option<&D>,
-        utility: Float,
-        average_bandwidth: InformationRate,
-        average_rtt: TimeSpan,
-    ) {
-        self(top_scorer, utility, average_bandwidth, average_rtt);
+impl<D: Dna, F: FnMut(Float, &D) + Send> ProgressHandler<D> for F {
+    fn update_progress(&mut self, frac_complete: Float, current: &D) {
+        self(frac_complete, current);
     }
 }
 
 pub trait Trainer {
     type Config: Config<Json>;
-    type Dna: Dna;
+    type Dna: Dna + Sync;
     type DefaultEffectGenerator: EffectTypeGenerator;
-    type DefaultFlowAdder: AddFlows<Self::DefaultEffectGenerator, Dna = Self::Dna>;
+    type DefaultFlowAdder: AddFlows<Self::DefaultEffectGenerator, Dna = Self::Dna> + Sync;
 
     fn new(config: &Self::Config) -> Self;
 
@@ -145,12 +133,4 @@ pub trait Trainer {
     ) -> Self::Dna
     where
         H: ProgressHandler<Self::Dna>;
-
-    fn evaluate(
-        &self,
-        d: &Self::Dna,
-        network_config: &NetworkConfig,
-        utility_function: &dyn UtilityFunction,
-        rng: &mut Rng,
-    ) -> Result<(Float, FlowProperties), NoActiveFlows>;
 }

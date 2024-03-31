@@ -2,19 +2,20 @@ use std::path::Path;
 
 use anyhow::Result;
 use flowforge::{
-    core::rand::Rng,
+    core::{never::Never, rand::Rng},
+    evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
-    network::config::NetworkConfig,
+    network::{config::NetworkConfig, toggler::Toggle, EffectTypeGenerator, Packet},
     quantities::Float,
-    trainers::{
-        delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
-        TrainerConfig,
-    },
+    simulation::HasSubEffect,
+    trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
     Config, Trainer,
 };
 
+use crate::FlowAdders;
+
 pub fn _evaluate<T>(
-    trainer_config: &T::Config,
+    evaluation_config: &EvaluationConfig,
     network_config: &NetworkConfig,
     utility_config: &UtilityConfig,
     input_path: &Path,
@@ -22,39 +23,58 @@ pub fn _evaluate<T>(
 ) -> (Float, FlowProperties)
 where
     T: Trainer,
+    for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>: HasSubEffect<Packet<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>>
+        + HasSubEffect<Toggle>
+        + HasSubEffect<Never>,
 {
     let dna = T::Dna::load(input_path).unwrap();
-    T::new(trainer_config)
-        .evaluate(&dna, network_config, utility_config, rng)
-        .unwrap()
+
+    evaluation_config
+        .evaluate::<T::DefaultFlowAdder, T::DefaultEffectGenerator>(
+            &T::DefaultFlowAdder::default(),
+            network_config,
+            &dna,
+            utility_config,
+            &mut rng.identical_child_factory()(),
+        )
+        .expect("Expected active flows!")
 }
 
 pub fn evaluate(
-    trainer_config: &Path,
+    mode: &FlowAdders,
+    evaluation_config: &Path,
     network_config: &Path,
     utility_config: &Path,
     input_path: &Path,
 ) -> Result<()> {
-    let trainer_config = TrainerConfig::load(trainer_config)?;
+    let evaluation_config = EvaluationConfig::load(evaluation_config)?;
     let network_config = NetworkConfig::load(network_config)?;
     let utility_config = UtilityConfig::load(utility_config)?;
 
     let mut rng = Rng::from_seed(534522);
 
-    let (score, flow_properties) = match trainer_config {
-        TrainerConfig::Remy(cfg) => {
-            _evaluate::<RemyTrainer>(&cfg, &network_config, &utility_config, input_path, &mut rng)
-        }
-        TrainerConfig::DelayMultiplier(cfg) => _evaluate::<DelayMultiplierTrainer>(
-            &cfg,
+    let (score, flow_properties) = match mode {
+        FlowAdders::Remy => _evaluate::<RemyTrainer>(
+            &evaluation_config,
             &network_config,
             &utility_config,
             input_path,
             &mut rng,
         ),
-        TrainerConfig::Remyr(cfg) => {
-            _evaluate::<RemyrTrainer>(&cfg, &network_config, &utility_config, input_path, &mut rng)
-        }
+        FlowAdders::DelayMultiplier => _evaluate::<DelayMultiplierTrainer>(
+            &evaluation_config,
+            &network_config,
+            &utility_config,
+            input_path,
+            &mut rng,
+        ),
+        FlowAdders::Remyr => _evaluate::<RemyrTrainer>(
+            &evaluation_config,
+            &network_config,
+            &utility_config,
+            input_path,
+            &mut rng,
+        ),
     };
 
     println!(

@@ -7,6 +7,12 @@ flamegraph.svg
 
 /configs/*
 
+!/configs/eval
+/configs/eval/*
+!/configs/eval/default.json
+!/configs/eval/short.json
+!/configs/eval/very_short.json
+
 !/configs/network
 /configs/network/*
 !/configs/network/default.json

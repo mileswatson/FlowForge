@@ -135,7 +135,7 @@ where
                 a
             }
         };
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        #[allow(clippy::cast_sign_loss)]
         let window = ((f64::from(current_settings.window) * window_multiplier) as i32
             + window_increment)
             .clamp(0, 1_000_000) as u32;

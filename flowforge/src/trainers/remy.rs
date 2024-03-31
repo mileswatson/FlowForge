@@ -1,6 +1,5 @@
-use std::{cell::RefCell, f64::NAN, marker::PhantomData};
+use std::marker::PhantomData;
 
-use anyhow::Result;
 use indicatif::{ParallelProgressIterator, ProgressBar};
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -10,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     core::{logging::NothingLogger, meters::FlowMeter, rand::Rng},
     evaluator::EvaluationConfig,
-    flow::{FlowProperties, NoActiveFlows, UtilityFunction},
+    flow::UtilityFunction,
     network::{
         config::NetworkConfig,
         senders::{
@@ -25,7 +24,7 @@ use crate::{
         dna::RemyDna,
         rule_tree::{AugmentedRuleTree, CountingRuleTree, LeafHandle, RuleTree},
     },
-    quantities::{milliseconds, seconds, Float},
+    quantities::{milliseconds, seconds},
     simulation::{Address, HasSubEffect, SimulatorBuilder},
     trainers::DefaultEffect,
     ProgressHandler, Trainer,
@@ -41,8 +40,8 @@ pub struct RemyConfig {
     pub max_action_change: Action,
     pub action_change_multiplier: i32,
     pub default_action: Action,
-    pub training_config: EvaluationConfig,
-    pub evaluation_config: EvaluationConfig,
+    pub change_eval_config: EvaluationConfig,
+    pub count_rule_usage_config: EvaluationConfig,
 }
 
 impl Default for RemyConfig {
@@ -76,11 +75,11 @@ impl Default for RemyConfig {
                 window_increment: 1,
                 intersend_delay: milliseconds(3.),
             },
-            training_config: EvaluationConfig {
+            change_eval_config: EvaluationConfig {
                 network_samples: 50,
                 run_sim_for: seconds(60.),
             },
-            evaluation_config: EvaluationConfig::default(),
+            count_rule_usage_config: EvaluationConfig::default(),
         }
     }
 }
@@ -179,32 +178,11 @@ impl Trainer for RemyTrainer {
         progress_handler: &mut H,
         rng: &mut Rng,
     ) -> RemyDna {
-        let prog_handler = RefCell::new(progress_handler);
         let new_eval_rng = rng.identical_child_factory();
-        let eval = |dna: &RemyDna| {
-            let (score, props) = self
-                .config
-                .evaluation_config
-                .evaluate::<RemyFlowAdder<RemyDna>, DefaultEffect>(
-                    &RemyFlowAdder::default(),
-                    network_config,
-                    dna,
-                    utility_function,
-                    &mut new_eval_rng(),
-                )
-                .expect("Simulation to have active flows");
-            prog_handler.borrow_mut().update_progress(
-                Some(dna),
-                score,
-                props.average_throughput,
-                props.average_rtt.unwrap_or(seconds(NAN)),
-            );
-        };
         let eval_and_count = coerce(|dna: &mut RemyDna| {
             let counting_tree = CountingRuleTree::new(&mut dna.tree);
-            let (score, props) = self
-                .config
-                .evaluation_config
+            self.config
+                .count_rule_usage_config
                 .evaluate::<RemyFlowAdder<CountingRuleTree>, DefaultEffect>(
                     &RemyFlowAdder::default(),
                     network_config,
@@ -213,12 +191,11 @@ impl Trainer for RemyTrainer {
                     &mut new_eval_rng(),
                 )
                 .expect("Simulation to have active flows");
-            println!("    Achieved eval score {score:.2} with {props}");
             counting_tree
         });
         let test_new_action = |leaf: &LeafHandle, new_action: Action, mut rng: Rng| {
             self.config
-                .training_config
+                .change_eval_config
                 .evaluate::<RemyFlowAdder<AugmentedRuleTree>, DefaultEffect>(
                     &RemyFlowAdder::default(),
                     network_config,
@@ -231,7 +208,8 @@ impl Trainer for RemyTrainer {
         let mut dna =
             starting_point.unwrap_or_else(|| RemyDna::default(self.config.default_action.clone()));
         for i in 0..=self.config.rule_splits {
-            eval(&dna);
+            let frac = f64::from(i) / f64::from(self.config.rule_splits + 1);
+            progress_handler.update_progress(frac, &dna);
             if i == 0 {
                 println!("Starting optimization");
             } else {
@@ -302,25 +280,6 @@ impl Trainer for RemyTrainer {
         eval_and_count(&mut dna);
         dna
     }
-
-    fn evaluate(
-        &self,
-        d: &RemyDna,
-        network_config: &NetworkConfig,
-        utility_function: &dyn UtilityFunction,
-        rng: &mut Rng,
-    ) -> Result<(Float, FlowProperties), NoActiveFlows> {
-        println!("Number of rule splits: {}", d.tree.num_parents());
-        self.config
-            .evaluation_config
-            .evaluate::<Self::DefaultFlowAdder, DefaultEffect>(
-                &RemyFlowAdder::default(),
-                network_config,
-                d,
-                utility_function,
-                rng,
-            )
-    }
 }
 
 #[cfg(test)]
@@ -342,7 +301,7 @@ mod tests {
         let remy_config = RemyConfig {
             rule_splits: 1,
             optimization_rounds_per_split: 1,
-            evaluation_config: EvaluationConfig {
+            count_rule_usage_config: EvaluationConfig {
                 network_samples: 32,
                 run_sim_for: seconds(120.),
             },
@@ -351,17 +310,11 @@ mod tests {
         let evaluate = || {
             let mut rng = new_identical_rng();
             let trainer = RemyTrainer::new(&remy_config);
-            let dna = trainer.train(
+            trainer.train(
                 None,
                 &NetworkConfig::default(),
                 &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
-                &mut |_: Option<&RemyDna>, _, _, _| {},
-                &mut rng,
-            );
-            trainer.evaluate(
-                &dna,
-                &NetworkConfig::default(),
-                &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
+                &mut |_, _: &RemyDna| {},
                 &mut rng,
             )
         };

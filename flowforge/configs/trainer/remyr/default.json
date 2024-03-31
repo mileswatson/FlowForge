@@ -36,12 +36,8 @@
     "half_life": "1s"
   },
   "bandwidth_half_life": "100ms",
-  "training_config": {
+  "rollout_config": {
     "network_samples": 8,
-    "run_sim_for": "60s"
-  },
-  "evaluation_config": {
-    "network_samples": 100,
     "run_sim_for": "60s"
   }
 }
