@@ -230,7 +230,7 @@ impl<D: Device<f32>> RolloutResult<D> {
 fn calculate_action_log_probs<S: Dim, D: Device<f32>, T: Tape<f32, D>>(
     actions: Tensor<(S, Const<ACTION>), f32, D>,
     means: Tensor<(S, Const<ACTION>), f32, D, T>,
-    stddevs: Tensor<(S, Const<ACTION>), f32, D, T>,
+    stddevs: Tensor<(S, Const<ACTION>), f32, D, NoneTape>,
 ) -> Tensor<(S,), f32, D, T> {
     (((means - actions) / stddevs.with_empty_tape()).square() + stddevs.ln() * 2. + (2. * PI).ln())
         .sum::<(S,), Axis<1>>()
@@ -242,6 +242,7 @@ pub struct RolloutWrapper<'a, F, S> {
     dna: &'a RemyrDna,
     rng: RefCell<&'a mut Rng>,
     prob_deterministic: Float,
+    stddev: &'a Tensor1D<ACTION>,
     f: F,
 }
 
@@ -261,7 +262,7 @@ where
     S: Fn() -> usize,
 {
     fn action(&self, point: &Point, time: Time) -> Option<Action> {
-        Some(self.dna.raw_action(point, |observation, (mean, stddev)| {
+        Some(self.dna.raw_action(point, |observation, mean| {
             let mut rng = self.rng.borrow_mut();
             if rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. })
                 <= self.prob_deterministic
@@ -277,11 +278,11 @@ where
                 };
                 let normal_samples =
                     dev.tensor([sample_normal(), sample_normal(), sample_normal()]);
-                let action = mean.clone() + normal_samples * stddev.clone();
+                let action = mean.clone() + normal_samples * self.stddev.clone();
                 let action_log_prob = calculate_action_log_probs::<Const<1>, _, _>(
                     action.clone().reshape(),
                     mean.reshape(),
-                    stddev.reshape(),
+                    self.stddev.clone().reshape(),
                 );
                 (self.f)(
                     Record {
@@ -300,6 +301,7 @@ where
 
 fn rollout(
     dna: &RemyrDna,
+    stddev: &Tensor1D<ACTION>,
     network_config: &NetworkConfig,
     utility_function: &dyn UtilityFunction,
     training_config: &EvaluationConfig,
@@ -334,6 +336,7 @@ fn rollout(
             };
             let mut policy_rng = rng.create_child();
             let dna = RolloutWrapper {
+                stddev,
                 dna,
                 f: |rec, time| {
                     let mut records = records.borrow_mut();
@@ -390,10 +393,13 @@ impl Trainer for RemyrTrainer {
     {
         assert!(
             starting_point.is_none(),
-            "Starting point not supported for genetic trainer!"
+            "Starting point not supported for remyr trainer!"
         );
         let dev = AutoDevice::default();
-        let mut policy = dev.build_module(self.config.hidden_layers.policy_arch());
+        let mut policy = dev.build_module((
+            self.config.hidden_layers.policy_arch(),
+            (Bias1DConfig(Const::<ACTION>), Sigmoid),
+        ));
         let mut critic = dev.build_module::<f32>(self.config.hidden_layers.critic_arch());
 
         let mut critic_gradients = critic.alloc_grads();
@@ -420,7 +426,7 @@ impl Trainer for RemyrTrainer {
         let sim_dev = Cpu::default();
 
         for i in 0..self.config.iters {
-            let dna = self.config.initial_dna(policy.copy_to(&sim_dev));
+            let dna = self.config.initial_dna(policy.0.copy_to(&sim_dev));
 
             let frac = f64::from(i) / f64::from(self.config.iters);
             progress_handler.update_progress(frac, &dna);
@@ -438,14 +444,18 @@ impl Trainer for RemyrTrainer {
 
             let trajectories: Vec<Trajectory> = rollout(
                 &dna,
+                &policy
+                    .1
+                    .forward(dev.zeros::<Rank1<OBSERVATION>>())
+                    .reshape(),
                 network_config,
                 utility_function,
                 &self.config.rollout_config,
                 self.config.bandwidth_half_life,
                 &self.config.discounting_mode,
                 2048,
-                frac * 0.99,
-                (100. * (1. - frac)).round() as usize,
+                0.,
+                100,
                 rng,
             );
             let RolloutResult {
@@ -476,8 +486,14 @@ impl Trainer for RemyrTrainer {
                         .slice((.., ..OBSERVATION))
                         .reshape_like(&(batch_len, Const::<OBSERVATION>));
 
-                    let (batch_means, batch_stddevs) =
-                        policy.forward(batch_observations.clone().trace(policy_gradients));
+                    let batch_means = policy
+                        .0
+                        .forward(batch_observations.clone().trace(policy_gradients));
+
+                    let batch_stddevs = policy
+                        .1
+                        .forward(dev.zeros::<Rank1<OBSERVATION>>())
+                        .broadcast_like(batch_means.shape());
 
                     let batch_action_log_probs = calculate_action_log_probs(
                         actions.clone().gather(batch_indices.clone()),
@@ -528,7 +544,7 @@ impl Trainer for RemyrTrainer {
                 }
             }
         }
-        let dna = self.config.initial_dna(policy.copy_to(&sim_dev));
+        let dna = self.config.initial_dna(policy.0.copy_to(&sim_dev));
         progress_handler.update_progress(1., &dna);
         dna
     }

@@ -1,5 +1,3 @@
-use std::f32::consts::PI;
-
 use dfdx::prelude::*;
 
 use crate::{
@@ -9,7 +7,7 @@ use crate::{
 
 use self::{
     dna::RemyrDna,
-    net::{AsPolicyNetRef, PolicyNet, ACTION, OBSERVATION},
+    net::{AsPolicyNetRef, ACTION, OBSERVATION},
 };
 
 use super::remy::{action::Action, point::Point, rule_tree::RuleTree};
@@ -43,28 +41,18 @@ fn tensor_to_action(tensor: &Tensor<(Const<ACTION>,), f32, Cpu>) -> Action {
     }
 }
 
-fn calculate_action_log_probs<S: Dim, D: Device<f32>, T: Tape<f32, D>>(
-    actions: Tensor<(S, Const<ACTION>), f32, D>,
-    means: Tensor<(S, Const<ACTION>), f32, D, T>,
-    stddevs: Tensor<(S, Const<ACTION>), f32, D, T>,
-) -> Tensor<(S,), f32, D, T> {
-    (((means - actions) / stddevs.with_empty_tape()).square() + stddevs.ln() * 2. + (2. * PI).ln())
-        .sum::<(S,), Axis<1>>()
-        * -0.5
-}
-
 impl RemyrDna {
     pub fn raw_action<F>(&self, point: &Point, f: F) -> Action
     where
-        F: FnOnce(Tensor1D<OBSERVATION>, (Tensor1D<ACTION>, Tensor1D<ACTION>)) -> Tensor1D<ACTION>,
+        F: FnOnce(Tensor1D<OBSERVATION>, Tensor1D<ACTION>) -> Tensor1D<ACTION>,
     {
         let dev = self.policy.as_policy_net_ref().0 .0.weight.dev();
         let point = point_to_tensor(dev, point);
         let min_point = point_to_tensor(dev, &self.min_point);
         let max_point = point_to_tensor(dev, &self.max_point);
         let input = ((point - min_point.clone()) / (max_point - min_point)).clamp(0., 1.) * 2. - 1.;
-        let (mean, stddev) = self.policy.as_policy_net_ref().forward(input.clone());
-        let action = f(input, (mean, stddev));
+        let mean = self.policy.as_policy_net_ref().forward(input.clone());
+        let action = f(input, mean);
 
         let max_action = action_to_tensor(dev, &self.max_action);
         let min_action = action_to_tensor(dev, &self.min_action);
@@ -76,28 +64,7 @@ impl RemyrDna {
     }
 
     fn deterministic_action(&self, point: &Point) -> Action {
-        self.raw_action(point, |_, (mean, _stddev)| mean)
-    }
-
-    pub fn probabilistic_action<F>(&self, point: &Point, f: F) -> Action
-    where
-        F: FnOnce([f32; OBSERVATION], [f32; ACTION], f32),
-    {
-        self.raw_action(point, |observation, (mean, stddev)| {
-            let action = mean.clone()
-                + self.policy.as_policy_net_ref().device().sample_normal() * stddev.clone();
-            let action_log_prob = calculate_action_log_probs::<Const<1>, _, _>(
-                action.clone().reshape(),
-                mean.reshape(),
-                stddev.reshape(),
-            );
-            f(
-                observation.array(),
-                action.array(),
-                action_log_prob.reshape::<()>().array(),
-            );
-            action
-        })
+        self.raw_action(point, |_, mean| mean)
     }
 }
 
