@@ -3,11 +3,12 @@ use serde::{Deserialize, Serialize};
 
 use super::dna::SerializeTensors;
 
-pub const STATE: usize = 3;
+pub const OBSERVATION: usize = 3;
+pub const STATE: usize = OBSERVATION + 1;
 pub const ACTION: usize = 3;
 
 pub type PolicyArchitecture = (
-    (LinearConfig<Const<STATE>, usize>, Tanh),
+    (LinearConfig<Const<OBSERVATION>, usize>, Tanh),
     (LinearConfig<usize, usize>, Tanh),
     SplitInto<(
         (LinearConfig<usize, Const<ACTION>>, Tanh),
@@ -50,7 +51,7 @@ impl HiddenLayers {
     #[must_use]
     pub fn policy_arch(self) -> PolicyArchitecture {
         (
-            (LinearConfig::new(Const::<STATE>, self.0), Tanh),
+            (LinearConfig::new(Const::<OBSERVATION>, self.0), Tanh),
             (LinearConfig::new(self.0, self.1), Tanh),
             SplitInto((
                 (LinearConfig::new(self.1, Const::<ACTION>), Tanh),

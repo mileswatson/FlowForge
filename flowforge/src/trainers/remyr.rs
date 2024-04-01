@@ -1,4 +1,4 @@
-use std::{cell::RefCell, f32::consts::PI};
+use std::{cell::RefCell, f32::consts::PI, iter::once};
 
 use dfdx::{data::IteratorBatchExt, prelude::*};
 use generativity::make_guard;
@@ -18,7 +18,9 @@ use crate::{
         remy::{action::Action, point::Point, rule_tree::RuleTree},
         remyr::{
             dna::RemyrDna,
-            net::{CopyToDevice, HiddenLayers, PolicyNet, PolicyNetwork, ACTION, STATE},
+            net::{
+                CopyToDevice, HiddenLayers, PolicyNet, PolicyNetwork, ACTION, OBSERVATION, STATE,
+            },
         },
     },
     quantities::{milliseconds, seconds, Float, Time, TimeSpan},
@@ -112,9 +114,10 @@ impl RemyrConfig {
 
 #[derive(Debug)]
 struct Record {
-    observation: [f32; STATE],
+    observation: [f32; OBSERVATION],
     action: [f32; ACTION],
     action_log_prob: f32,
+    num_senders: usize,
 }
 
 #[derive(Debug)]
@@ -181,7 +184,7 @@ impl DiscountingMode {
 }
 
 struct RolloutResult<D: Device<f32>> {
-    observations: Tensor<(usize, Const<STATE>), f32, D>,
+    states: Tensor<(usize, Const<STATE>), f32, D>,
     actions: Tensor<(usize, Const<ACTION>), f32, D>,
     action_log_probs: Tensor<(usize,), f32, D>,
     rewards_to_go_before_action: Tensor<(usize,), f32, D>,
@@ -193,7 +196,11 @@ impl<D: Device<f32>> RolloutResult<D> {
         let observations = trajectories
             .iter()
             .flat_map(|x| x.records.iter())
-            .flat_map(|x| x.observation)
+            .flat_map(|x| {
+                x.observation
+                    .into_iter()
+                    .chain(once(1. / x.num_senders as f32))
+            })
             .collect();
         let actions = trajectories
             .iter()
@@ -211,7 +218,7 @@ impl<D: Device<f32>> RolloutResult<D> {
             .copied()
             .collect();
         RolloutResult {
-            observations: dev.tensor_from_vec(observations, (num_timesteps, Const::<STATE>)),
+            states: dev.tensor_from_vec(observations, (num_timesteps, Const::<STATE>)),
             actions: dev.tensor_from_vec(actions, (num_timesteps, Const::<ACTION>)),
             action_log_probs: dev.tensor_from_vec(action_log_probs, (num_timesteps,)),
             rewards_to_go_before_action: dev
@@ -230,14 +237,15 @@ fn calculate_action_log_probs<S: Dim, D: Device<f32>, T: Tape<f32, D>>(
         * -0.5
 }
 
-pub struct RolloutWrapper<'a, F> {
+pub struct RolloutWrapper<'a, F, S> {
+    num_senders: S,
     dna: &'a RemyrDna,
     rng: RefCell<&'a mut Rng>,
     prob_deterministic: Float,
     f: F,
 }
 
-impl<'a, F> std::fmt::Debug for RolloutWrapper<'a, F> {
+impl<'a, F, S> std::fmt::Debug for RolloutWrapper<'a, F, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RolloutWrapper")
             .field("dna", &self.dna)
@@ -247,9 +255,10 @@ impl<'a, F> std::fmt::Debug for RolloutWrapper<'a, F> {
     }
 }
 
-impl<'a, F> RuleTree for RolloutWrapper<'a, F>
+impl<'a, F, S> RuleTree for RolloutWrapper<'a, F, S>
 where
     F: Fn(Record, Time),
+    S: Fn() -> usize,
 {
     fn action(&self, point: &Point, time: Time) -> Option<Action> {
         Some(self.dna.raw_action(point, |observation, (mean, stddev)| {
@@ -279,6 +288,7 @@ where
                         observation: observation.array(),
                         action: action.array(),
                         action_log_prob: action_log_prob.reshape::<()>().array(),
+                        num_senders: (self.num_senders)(),
                     },
                     time,
                 );
@@ -332,6 +342,7 @@ fn rollout(
                 },
                 rng: RefCell::new(&mut policy_rng),
                 prob_deterministic,
+                num_senders: || flows.iter().filter(|x| x.borrow().active()).count(),
             };
             let sim = n.to_sim::<_, DefaultEffect>(
                 &RemyFlowAdder::new(repeat),
@@ -438,12 +449,12 @@ impl Trainer for RemyrTrainer {
                 rng,
             );
             let RolloutResult {
-                observations,
+                states,
                 actions,
                 action_log_probs,
                 rewards_to_go_before_action,
             } = RolloutResult::new(&trajectories, &dev);
-            let estimated_values_k = critic.forward(observations.clone()); // V
+            let estimated_values_k = critic.forward(states.clone()); // V
 
             let advantages_k = {
                 let shape = (estimated_values_k.shape().0,);
@@ -451,13 +462,17 @@ impl Trainer for RemyrTrainer {
             };
 
             for _ in 0..self.config.updates_per_iter {
-                let mut all_indices = (0..observations.shape().0).collect_vec();
+                let mut all_indices = (0..states.shape().0).collect_vec();
                 rng.shuffle(&mut all_indices);
                 for batch_indices in all_indices.into_iter().batch_with_last(64) {
                     let batch_len = batch_indices.len();
                     let batch_indices = dev.tensor_from_vec(batch_indices, (batch_len,));
 
-                    let batch_observations = observations.clone().gather(batch_indices.clone());
+                    let batch_states = states.clone().gather(batch_indices.clone());
+                    let batch_observations = batch_states
+                        .clone()
+                        .slice((.., ..OBSERVATION))
+                        .reshape_like(&(batch_len, Const::<OBSERVATION>));
 
                     let (batch_means, batch_stddevs) =
                         policy.forward(batch_observations.clone().trace(policy_gradients));
@@ -492,7 +507,7 @@ impl Trainer for RemyrTrainer {
 
                     // critic
                     let batch_estimated_values =
-                        critic.forward(batch_observations.clone().traced(critic_gradients));
+                        critic.forward(batch_states.clone().traced(critic_gradients));
 
                     let batch_rewards_to_go_before_action =
                         rewards_to_go_before_action.clone().gather(batch_indices);

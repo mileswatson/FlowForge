@@ -9,7 +9,7 @@ use crate::{
 
 use self::{
     dna::RemyrDna,
-    net::{AsPolicyNetRef, PolicyNet, ACTION, STATE},
+    net::{AsPolicyNetRef, PolicyNet, ACTION, OBSERVATION},
 };
 
 use super::remy::{action::Action, point::Point, rule_tree::RuleTree};
@@ -17,7 +17,7 @@ use super::remy::{action::Action, point::Point, rule_tree::RuleTree};
 pub mod dna;
 pub mod net;
 
-fn point_to_tensor(dev: &Cpu, point: &Point) -> Tensor<(Const<STATE>,), f32, Cpu> {
+fn point_to_tensor(dev: &Cpu, point: &Point) -> Tensor<(Const<OBSERVATION>,), f32, Cpu> {
     dev.tensor([
         point.ack_ewma.to_underlying() as f32,
         point.send_ewma.to_underlying() as f32,
@@ -56,7 +56,7 @@ fn calculate_action_log_probs<S: Dim, D: Device<f32>, T: Tape<f32, D>>(
 impl RemyrDna {
     pub fn raw_action<F>(&self, point: &Point, f: F) -> Action
     where
-        F: FnOnce(Tensor1D<STATE>, (Tensor1D<ACTION>, Tensor1D<ACTION>)) -> Tensor1D<ACTION>,
+        F: FnOnce(Tensor1D<OBSERVATION>, (Tensor1D<ACTION>, Tensor1D<ACTION>)) -> Tensor1D<ACTION>,
     {
         let dev = self.policy.as_policy_net_ref().0 .0.weight.dev();
         let point = point_to_tensor(dev, point);
@@ -81,7 +81,7 @@ impl RemyrDna {
 
     pub fn probabilistic_action<F>(&self, point: &Point, f: F) -> Action
     where
-        F: FnOnce([f32; STATE], [f32; ACTION], f32),
+        F: FnOnce([f32; OBSERVATION], [f32; ACTION], f32),
     {
         self.raw_action(point, |observation, (mean, stddev)| {
             let action = mean.clone()

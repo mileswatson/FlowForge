@@ -143,7 +143,7 @@ mod tests {
         let cpu = Cpu::default();
         let critic = cpu.build_module::<f32>(HiddenLayers(32, 16).critic_arch());
         let mut new_critic = cpu.build_module::<f32>(HiddenLayers(32, 16).critic_arch());
-        let x = cpu.tensor([[1., 2., 3.]]);
+        let x = cpu.tensor([[1., 2., 3., 4.]]);
         assert!(critic.forward(x.clone()).array() != new_critic.forward(x.clone()).array());
         new_critic.deserialize(&critic.serialize());
         assert!(critic.forward(x.clone()).array() == new_critic.forward(x).array());
