@@ -307,7 +307,6 @@ fn rollout(
     training_config: &EvaluationConfig,
     half_life: TimeSpan,
     discounting_mode: &DiscountingMode,
-    steps: usize,
     prob_deterministic: Float,
     repeat: usize,
     rng: &mut Rng,
@@ -355,7 +354,8 @@ fn rollout(
                 &dna,
                 |_| {},
             );
-            let sim_end = sim.run_while(|_| records.borrow().0.len() < steps);
+            let sim_end = Time::from_sim_start(training_config.run_sim_for);
+            sim.run_while(|t| t < sim_end);
             let mut records = records.into_inner();
             records.1.push((current_utility(sim_end), sim_end));
             discounting_mode.create_trajectory(records.0, &records.1)
@@ -398,7 +398,7 @@ impl Trainer for RemyrTrainer {
         let dev = AutoDevice::default();
         let mut policy = dev.build_module((
             self.config.hidden_layers.policy_arch(),
-            (Bias1DConfig(Const::<ACTION>), Sigmoid),
+            (Bias1DConfig(Const::<OBSERVATION>), Sigmoid),
         ));
         let mut critic = dev.build_module::<f32>(self.config.hidden_layers.critic_arch());
 
@@ -442,18 +442,23 @@ impl Trainer for RemyrTrainer {
                 self.config.clip
             };
 
+            let sim_stddevs = (
+                Bias1D {
+                    bias: sim_dev.tensor(policy.1 .0.bias.array()),
+                },
+                Sigmoid,
+            );
+
             let trajectories: Vec<Trajectory> = rollout(
                 &dna,
-                &policy
-                    .1
-                    .forward(dev.zeros::<Rank1<OBSERVATION>>())
+                &sim_stddevs
+                    .forward(sim_dev.zeros::<Rank1<OBSERVATION>>())
                     .reshape(),
                 network_config,
                 utility_function,
                 &self.config.rollout_config,
                 self.config.bandwidth_half_life,
                 &self.config.discounting_mode,
-                2048,
                 0.,
                 100,
                 rng,
@@ -470,13 +475,13 @@ impl Trainer for RemyrTrainer {
                 let shape = (estimated_values_k.shape().0,);
                 rewards_to_go_before_action.clone() - estimated_values_k.reshape_like(&shape)
             };
+            let mut all_indices = (0..states.shape().0).collect_vec();
 
             for _ in 0..self.config.updates_per_iter {
-                let mut all_indices = (0..states.shape().0).collect_vec();
                 let num_batches = 4;
                 let batch_size = all_indices.len() / num_batches;
                 rng.shuffle(&mut all_indices);
-                for batch_indices in all_indices.into_iter().batch_with_last(batch_size) {
+                for batch_indices in all_indices.iter().copied().batch_with_last(batch_size) {
                     let batch_len = batch_indices.len();
                     let batch_indices = dev.tensor_from_vec(batch_indices, (batch_len,));
 
