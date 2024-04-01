@@ -119,7 +119,9 @@ pub trait Trainer {
     type Config: Config<Json>;
     type Dna: Dna + Sync;
     type DefaultEffectGenerator: EffectTypeGenerator;
-    type DefaultFlowAdder: AddFlows<Self::DefaultEffectGenerator, Dna = Self::Dna> + Sync;
+    type DefaultFlowAdder<'a>: AddFlows<&'a Self::Dna, Self::DefaultEffectGenerator> + Sync
+    where
+        <Self as Trainer>::Dna: 'a;
 
     fn new(config: &Self::Config) -> Self;
 

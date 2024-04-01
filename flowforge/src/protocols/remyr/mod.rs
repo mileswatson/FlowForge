@@ -102,8 +102,6 @@ impl RemyrDna {
 }
 
 impl RuleTree for RemyrDna {
-    type Action<'b> = Action where Self: 'b;
-
     fn action(&self, point: &Point, _time: Time) -> Option<Action> {
         Some(self.deterministic_action(point))
     }

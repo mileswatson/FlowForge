@@ -73,7 +73,7 @@ pub fn _train<T>(
                 print!("Evaluating... ");
                 io::stdout().flush().unwrap();
                 let (utility, props) = evaluation_config
-                    .evaluate::<T::DefaultFlowAdder, T::DefaultEffectGenerator>(
+                    .evaluate(
                         &T::DefaultFlowAdder::default(),
                         network_config,
                         dna,

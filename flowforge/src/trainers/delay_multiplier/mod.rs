@@ -34,7 +34,8 @@ pub struct DelayMultiplierConfig {
 }
 
 pub struct DelayMultiplierTrainer {
-    genetic_trainer: GeneticTrainer<DelayMultiplierFlowAdder, DefaultEffect<'static>>,
+    genetic_trainer:
+        GeneticTrainer<DelayMultiplierFlowAdder, DelayMultiplierDna, DefaultEffect<'static>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -57,15 +58,13 @@ impl Dna for DelayMultiplierDna {
 #[derive(Default)]
 pub struct DelayMultiplierFlowAdder;
 
-impl<G> AddFlows<G> for DelayMultiplierFlowAdder
+impl<'d, G> AddFlows<&'d DelayMultiplierDna, G> for DelayMultiplierFlowAdder
 where
     G: EffectTypeGenerator,
     for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>
         + HasSubEffect<LossyInternalSenderEffect<'sim, G::Type<'sim>>>
         + HasSubEffect<LossyInternalControllerEffect>,
 {
-    type Dna = DelayMultiplierDna;
-
     fn add_flows<'sim, 'a, F>(
         &self,
         dna: &DelayMultiplierDna,
@@ -127,7 +126,7 @@ impl Trainer for DelayMultiplierTrainer {
     type Config = DelayMultiplierConfig;
     type Dna = DelayMultiplierDna;
     type DefaultEffectGenerator = DefaultEffect<'static>;
-    type DefaultFlowAdder = DelayMultiplierFlowAdder;
+    type DefaultFlowAdder<'a> = DelayMultiplierFlowAdder;
 
     fn new(config: &Self::Config) -> Self {
         DelayMultiplierTrainer {

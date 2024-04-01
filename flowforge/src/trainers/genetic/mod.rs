@@ -31,12 +31,13 @@ impl Default for GeneticConfig {
     }
 }
 
-pub struct GeneticTrainer<A, G> {
+pub struct GeneticTrainer<A, D, G> {
     iters: u32,
     population_size: u32,
     child_eval_config: EvaluationConfig,
     effect: PhantomData<G>,
     flow_adder: PhantomData<A>,
+    dna: PhantomData<D>,
 }
 
 pub trait GeneticDna<G>: Dna + Sync {
@@ -46,20 +47,22 @@ pub trait GeneticDna<G>: Dna + Sync {
     fn spawn_child(&self, rng: &mut Rng) -> Self;
 }
 
-impl<A, G> Trainer for GeneticTrainer<A, G>
+impl<A, D, G> Trainer for GeneticTrainer<A, D, G>
 where
     G: EffectTypeGenerator,
-    A: AddFlows<G> + Sync,
-    A::Dna: GeneticDna<G>,
+    A: for<'a> AddFlows<&'a D, G> + Sync,
+    D: GeneticDna<G>,
     for<'sim> G::Type<'sim>: HasSubEffect<Packet<'sim, G::Type<'sim>>>
         + HasSubEffect<Toggle>
         + HasSubEffect<Never>
         + 'sim,
 {
     type Config = GeneticConfig;
-    type Dna = A::Dna;
+    type Dna = D;
     type DefaultEffectGenerator = G;
-    type DefaultFlowAdder = A;
+    type DefaultFlowAdder<'a> = A
+    where
+        D: 'a;
 
     fn new(config: &Self::Config) -> Self {
         GeneticTrainer {
@@ -68,26 +71,27 @@ where
             child_eval_config: config.evaluation_config.clone(),
             flow_adder: PhantomData,
             effect: PhantomData,
+            dna: PhantomData,
         }
     }
 
     fn train<H>(
         &self,
-        starting_point: Option<A::Dna>,
+        starting_point: Option<D>,
         network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
-    ) -> A::Dna
+    ) -> D
     where
-        H: ProgressHandler<A::Dna>,
+        H: ProgressHandler<D>,
     {
         assert!(
             starting_point.is_none(),
             "Starting point not supported for genetic trainer!"
         );
         let mut population = (0..self.population_size)
-            .map(|_| A::Dna::new_random(rng))
+            .map(|_| D::new_random(rng))
             .collect_vec();
         for i in 0..self.iters {
             let frac = f64::from(i) / f64::from(self.iters);
@@ -95,7 +99,7 @@ where
                 .into_iter()
                 .map(|d| (d, rng.create_child()))
                 .filter_map(|(d, mut rng)| {
-                    let score = self.child_eval_config.evaluate::<A, G>(
+                    let score = self.child_eval_config.evaluate::<&D, G>(
                         &A::default(),
                         network_config,
                         &d,

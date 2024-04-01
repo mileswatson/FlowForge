@@ -38,9 +38,7 @@ impl<const TESTING: bool> Dna for RemyDna<TESTING> {
 }
 
 impl RuleTree for RemyDna {
-    type Action<'b> = &'b Action where Self: 'b;
-
-    fn action(&self, point: &Point, time: Time) -> Option<&Action> {
+    fn action(&self, point: &Point, time: Time) -> Option<Action> {
         self.tree.action(point, time)
     }
 }

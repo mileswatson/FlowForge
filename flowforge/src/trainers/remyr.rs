@@ -251,10 +251,6 @@ impl<'a, F> RuleTree for RolloutWrapper<'a, F>
 where
     F: Fn(Record, Time),
 {
-    type Action<'b> = Action
-    where
-        Self: 'b;
-
     fn action(&self, point: &Point, time: Time) -> Option<Action> {
         Some(self.dna.raw_action(point, |observation, (mean, stddev)| {
             let mut rng = self.rng.borrow_mut();
@@ -337,7 +333,7 @@ fn rollout(
                 rng: RefCell::new(&mut policy_rng),
                 prob_deterministic,
             };
-            let sim = n.to_sim::<_, _, DefaultEffect>(
+            let sim = n.to_sim::<_, DefaultEffect>(
                 &RemyFlowAdder::new(repeat),
                 guard,
                 &mut rng,
@@ -361,7 +357,7 @@ impl Trainer for RemyrTrainer {
     type Config = RemyrConfig;
     type Dna = RemyrDna;
     type DefaultEffectGenerator = DefaultEffect<'static>;
-    type DefaultFlowAdder = RemyFlowAdder<RemyrDna>;
+    type DefaultFlowAdder<'a> = RemyFlowAdder;
 
     fn new(config: &Self::Config) -> Self {
         RemyrTrainer {

@@ -29,15 +29,17 @@ where
 {
     let dna = T::Dna::load(input_path).unwrap();
 
-    evaluation_config
-        .evaluate::<T::DefaultFlowAdder, T::DefaultEffectGenerator>(
+    let x = evaluation_config
+        .evaluate(
             &T::DefaultFlowAdder::default(),
             network_config,
             &dna,
             utility_config,
             &mut rng.identical_child_factory()(),
         )
-        .expect("Expected active flows!")
+        .expect("Expected active flows!");
+    #[allow(clippy::let_and_return)]
+    x
 }
 
 pub fn evaluate(

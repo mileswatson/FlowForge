@@ -64,21 +64,20 @@ pub trait EffectTypeGenerator {
     type Type<'a>;
 }
 
-pub trait AddFlows<G>: Default
+pub trait AddFlows<D, G>: Default
 where
     G: EffectTypeGenerator,
 {
-    type Dna;
-
     fn add_flows<'sim, 'a, F>(
         &self,
-        dna: &'a Self::Dna,
+        dna: D,
         flows: impl IntoIterator<Item = F>,
         simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
         sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
         rng: &mut Rng,
     ) -> Vec<Address<'sim, Toggle, G::Type<'sim>>>
     where
+        D: 'a,
         F: FlowMeter + 'a,
         G::Type<'sim>: 'sim,
         'sim: 'a;
@@ -97,18 +96,17 @@ impl<'sim, E, T> HasNetworkSubEffects<'sim, E> for T where
 impl Network {
     #[must_use]
     #[allow(clippy::type_complexity)]
-    pub fn to_sim<'sim, 'a, A, F, G>(
+    pub fn to_sim<'sim, 'a, D, G>(
         &self,
-        flow_adder: &A,
+        flow_adder: &impl AddFlows<D, G>,
         guard: Guard<'sim>,
         rng: &'a mut Rng,
-        flows: impl IntoIterator<Item = F>,
-        dna: &'a A::Dna,
+        flows: impl IntoIterator<Item = impl FlowMeter + 'a>,
+        dna: D,
         extra_components: impl FnOnce(&SimulatorBuilder<'sim, 'a, G::Type<'sim>>),
     ) -> Simulator<'sim, 'a, G::Type<'sim>, NothingLogger>
     where
-        A: AddFlows<G>,
-        F: FlowMeter + 'a,
+        D: 'a,
         G: EffectTypeGenerator,
         G::Type<'sim>: HasNetworkSubEffects<'sim, G::Type<'sim>>,
         'sim: 'a,

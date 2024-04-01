@@ -16,11 +16,20 @@ use super::{
 };
 
 pub trait RuleTree<const TESTING: bool = false>: Debug {
-    type Action<'a>: AsRef<Action<TESTING>> + 'a
-    where
-        Self: 'a;
+    fn action(&self, point: &Point, time: Time) -> Option<Action>;
+}
 
-    fn action<'a>(&'a self, point: &Point, time: Time) -> Option<Self::Action<'a>>;
+pub trait DynRuleTree: Clone {
+    fn as_ref(&self) -> &dyn RuleTree;
+}
+
+impl<T> DynRuleTree for &T
+where
+    T: RuleTree,
+{
+    fn as_ref(&self) -> &dyn RuleTree {
+        *self
+    }
 }
 
 #[derive(Debug)]
@@ -30,12 +39,10 @@ pub struct AugmentedRuleTree<'a> {
 }
 
 impl<'a> RuleTree for AugmentedRuleTree<'a> {
-    type Action<'b> = &'b Action where Self: 'b;
-
-    fn action(&self, point: &Point, _time: Time) -> Option<&Action> {
+    fn action(&self, point: &Point, _time: Time) -> Option<Action> {
         self.tree._action(self.tree.root, point, &|idx| {
             if idx == self.rule_override.0 {
-                Some(&self.rule_override.1)
+                Some(self.rule_override.1.clone())
             } else {
                 None
             }
@@ -50,9 +57,7 @@ pub struct CountingRuleTree<'a> {
 }
 
 impl<'a> RuleTree for CountingRuleTree<'a> {
-    type Action<'b> = &'b Action where Self: 'b;
-
-    fn action(&self, point: &Point, _time: Time) -> Option<&Action> {
+    fn action(&self, point: &Point, _time: Time) -> Option<Action> {
         self.tree._action(self.tree.root, point, &|idx| {
             self.counts[idx].fetch_add(1, Ordering::Relaxed);
             None
@@ -289,14 +294,14 @@ impl<const TESTING: bool> BaseRuleTree<TESTING> {
         BaseRuleTree { root, nodes }
     }
 
-    fn _action<'a, F>(
-        &'a self,
+    fn _action<F>(
+        &self,
         mut current_idx: usize,
         point: &Point,
         leaf_override: &F,
-    ) -> Option<&Action<TESTING>>
+    ) -> Option<Action<TESTING>>
     where
-        F: Fn(usize) -> Option<&'a Action<TESTING>>,
+        F: Fn(usize) -> Option<Action<TESTING>>,
     {
         if !self.nodes[current_idx].domain().contains(point) {
             return None;
@@ -311,7 +316,7 @@ impl<const TESTING: bool> BaseRuleTree<TESTING> {
                     if let Some(a) = leaf_override(current_idx) {
                         return Some(a);
                     }
-                    return Some(action);
+                    return Some(action.clone());
                 }
             };
         }
@@ -399,9 +404,7 @@ impl BaseRuleTree {
 }
 
 impl RuleTree for BaseRuleTree {
-    type Action<'b> = &'b Action where Self: 'b;
-
-    fn action(&self, point: &Point, _time: Time) -> Option<&Action> {
+    fn action(&self, point: &Point, _time: Time) -> Option<Action> {
         self._action(self.root, point, &|_| None)
     }
 }

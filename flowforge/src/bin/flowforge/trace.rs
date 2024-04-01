@@ -9,7 +9,11 @@ use flowforge::{
     protocols::{remy::dna::RemyDna, remyr::dna::RemyrDna},
     quantities::{milliseconds, seconds, Float, InformationRate, Time, TimeSpan},
     simulation::DynComponent,
-    trainers::{delay_multiplier::DelayMultiplierFlowAdder, remy::RemyFlowAdder, DefaultEffect},
+    trainers::{
+        delay_multiplier::{DelayMultiplierDna, DelayMultiplierFlowAdder},
+        remy::RemyFlowAdder,
+        DefaultEffect,
+    },
     Config, Dna,
 };
 use generativity::make_guard;
@@ -56,19 +60,19 @@ impl TraceResult {
     }
 }
 
-fn _trace<A, G>(
+fn _trace<A, D, G>(
     network_config: &NetworkConfig,
     utility_config: &UtilityConfig,
     input_path: &Path,
     rng: &mut Rng,
 ) -> TraceResult
 where
-    A: AddFlows<G>,
-    A::Dna: Dna + 'static,
+    A: for<'a> AddFlows<&'a D, G>,
+    D: Dna + 'static,
     G: EffectTypeGenerator,
     for<'sim> G::Type<'sim>: HasNetworkSubEffects<'sim, G::Type<'sim>>,
 {
-    let dna = A::Dna::load(input_path).unwrap();
+    let dna = D::load(input_path).unwrap();
     let n = rng.sample(network_config);
     let mut result = TraceResult::new(n.clone());
     make_guard!(guard);
@@ -80,7 +84,7 @@ where
             ))
         })
         .collect_vec();
-    let sim = n.to_sim::<A, _, _>(&A::default(), guard, rng, &flows, &dna, |builder| {
+    let sim = n.to_sim(&A::default(), guard, rng, &flows, &dna, |builder| {
         builder.insert(DynComponent::<Never, _>::new(Ticker::new(
             milliseconds(1.),
             |time| {
@@ -136,19 +140,20 @@ pub fn trace(
     let mut rng = Rng::from_seed(seed);
 
     let result = match mode {
-        FlowAdders::Remy => _trace::<RemyFlowAdder<RemyDna>, DefaultEffect>(
+        FlowAdders::Remy => _trace::<RemyFlowAdder, RemyDna, DefaultEffect>(
             &network_config,
             &utility_config,
             input_path,
             &mut rng,
         ),
-        FlowAdders::DelayMultiplier => _trace::<DelayMultiplierFlowAdder, DefaultEffect>(
-            &network_config,
-            &utility_config,
-            input_path,
-            &mut rng,
+        FlowAdders::DelayMultiplier => _trace::<
+            DelayMultiplierFlowAdder,
+            DelayMultiplierDna,
+            DefaultEffect,
+        >(
+            &network_config, &utility_config, input_path, &mut rng
         ),
-        FlowAdders::Remyr => _trace::<RemyFlowAdder<RemyrDna>, DefaultEffect>(
+        FlowAdders::Remyr => _trace::<RemyFlowAdder, RemyrDna, DefaultEffect>(
             &network_config,
             &utility_config,
             input_path,

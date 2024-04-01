@@ -6,7 +6,7 @@ use crate::{
         meters::{FlowMeter, EWMA},
     },
     network::PacketAddress,
-    protocols::remy::{action::Action, point::Point, rule_tree::RuleTree},
+    protocols::remy::{action::Action, point::Point, rule_tree::DynRuleTree},
     quantities::{Time, TimeSpan},
     simulation::{HasSubEffect, SimulatorBuilder},
 };
@@ -22,9 +22,8 @@ struct Rtt {
     current: TimeSpan,
 }
 
-#[derive(Debug)]
-struct Behavior<'a, T> {
-    rule_tree: &'a T,
+struct Behavior<T> {
+    rule_tree: T,
     last_ack: Option<Time>,
     last_send: Option<Time>,
     ack_ewma: EWMA<TimeSpan>,
@@ -34,11 +33,26 @@ struct Behavior<'a, T> {
     repeat_updates: usize,
 }
 
-impl<T> Behavior<'_, T>
+impl<T> Debug for Behavior<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Behavior")
+            .field("rule_tree", &"")
+            .field("last_ack", &self.last_ack)
+            .field("last_send", &self.last_send)
+            .field("ack_ewma", &self.ack_ewma)
+            .field("send_ewma", &self.send_ewma)
+            .field("rtt", &self.rtt)
+            .field("next_change", &self.next_change)
+            .field("repeat_updates", &self.repeat_updates)
+            .finish()
+    }
+}
+
+impl<T> Behavior<T>
 where
-    T: RuleTree,
+    T: DynRuleTree,
 {
-    fn new(rule_tree: &T, repeat_updates: usize) -> Behavior<T> {
+    fn new(rule_tree: T, repeat_updates: usize) -> Behavior<T> {
         Behavior {
             rule_tree,
             ack_ewma: EWMA::new(1. / 8.),
@@ -59,16 +73,17 @@ where
         }
     }
 
-    fn action(&self, time: Time) -> T::Action<'_> {
+    fn action(&self, time: Time) -> Action {
         self.rule_tree
+            .as_ref()
             .action(&self.point(), time)
             .unwrap_or_else(|| panic!("Expected {} to map to an action", self.point()))
     }
 }
 
-impl<'a, T> LossyWindowBehavior for Behavior<'a, T>
+impl<T> LossyWindowBehavior for Behavior<T>
 where
-    T: RuleTree,
+    T: DynRuleTree,
 {
     fn initial_settings(&self) -> LossyWindowSettings {
         LossyWindowSettings {
@@ -167,21 +182,21 @@ where
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         destination: PacketAddress<'sim, E>,
-        rule_tree: &'a T,
+        rule_tree: T,
         wait_for_enable: bool,
         flow_meter: F,
         repeat_updates: usize,
         logger: impl Logger + Clone + 'a,
     ) -> LossySenderAddress<'sim, E>
     where
-        T: RuleTree,
+        T: DynRuleTree + 'a,
         F: FlowMeter + 'a,
     {
         self.0.set(
             id,
             link,
             destination,
-            Box::new(move || Behavior::<'a>::new(rule_tree, repeat_updates)),
+            Box::new(move || Behavior::new(rule_tree.clone(), repeat_updates)),
             wait_for_enable,
             flow_meter,
             logger,
@@ -208,14 +223,14 @@ impl LossyRemySender {
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         destination: PacketAddress<'sim, E>,
-        rule_tree: &'a T,
+        rule_tree: T,
         wait_for_enable: bool,
         flow_meter: F,
         repeat_updates: usize,
         logger: L,
     ) -> LossySenderAddress<'sim, E>
     where
-        T: RuleTree,
+        T: DynRuleTree + 'a,
         L: Logger + Clone + 'a,
         E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
             + HasSubEffect<LossyInternalControllerEffect>
