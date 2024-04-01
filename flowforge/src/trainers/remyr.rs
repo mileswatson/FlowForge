@@ -463,8 +463,10 @@ impl Trainer for RemyrTrainer {
 
             for _ in 0..self.config.updates_per_iter {
                 let mut all_indices = (0..states.shape().0).collect_vec();
+                let num_batches = 4;
+                let batch_size = all_indices.len() / num_batches;
                 rng.shuffle(&mut all_indices);
-                for batch_indices in all_indices.into_iter().batch_with_last(64) {
+                for batch_indices in all_indices.into_iter().batch_with_last(batch_size) {
                     let batch_len = batch_indices.len();
                     let batch_indices = dev.tensor_from_vec(batch_indices, (batch_len,));
 
