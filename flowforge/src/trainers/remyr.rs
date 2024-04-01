@@ -1,5 +1,6 @@
-use std::{cell::RefCell, f32::consts::PI, iter::once};
+use std::{cell::RefCell, collections::VecDeque, f32::consts::PI, iter::once, ops::DerefMut};
 
+use derive_where::derive_where;
 use dfdx::{data::IteratorBatchExt, prelude::*};
 use generativity::make_guard;
 use itertools::Itertools;
@@ -15,7 +16,11 @@ use crate::{
     flow::UtilityFunction,
     network::config::NetworkConfig,
     protocols::{
-        remy::{action::Action, point::Point, rule_tree::RuleTree},
+        remy::{
+            action::Action,
+            point::Point,
+            rule_tree::{DynRuleTree, RuleTree},
+        },
         remyr::{
             dna::RemyrDna,
             net::{
@@ -237,13 +242,25 @@ fn calculate_action_log_probs<S: Dim, D: Device<f32>, T: Tape<f32, D>>(
         * -0.5
 }
 
+#[derive_where(Clone)]
 pub struct RolloutWrapper<'a, F, S> {
-    num_senders: S,
+    num_senders: &'a S,
     dna: &'a RemyrDna,
-    rng: RefCell<&'a mut Rng>,
+    rng: &'a RefCell<&'a mut Rng>,
     prob_deterministic: Float,
     stddev: &'a Tensor1D<ACTION>,
-    f: F,
+    samples: RefCell<(Tensor1D<ACTION>, VecDeque<Tensor1D<ACTION>>)>,
+    f: &'a F,
+}
+
+impl<'a, F, S> DynRuleTree for RolloutWrapper<'a, F, S>
+where
+    F: Fn(Record, Time),
+    S: Fn() -> usize,
+{
+    fn as_ref(&self) -> &dyn RuleTree {
+        self
+    }
 }
 
 impl<'a, F, S> std::fmt::Debug for RolloutWrapper<'a, F, S> {
@@ -263,22 +280,32 @@ where
 {
     fn action(&self, point: &Point, time: Time) -> Option<Action> {
         Some(self.dna.raw_action(point, |observation, mean| {
+            let mut samples = self.samples.borrow_mut();
+            let (total, samples) = &mut *samples;
+            if let Some(s) = samples.pop_back() {
+                *total = total.clone() - s;
+            }
+            let dev = self.dna.policy.device();
             let mut rng = self.rng.borrow_mut();
+            let mut sample_normal = || {
+                rng.sample(&ContinuousDistribution::Normal {
+                    mean: 0.,
+                    std_dev: 1.,
+                }) as f32
+            };
+            let window_size = 100;
+            while samples.len() < window_size {
+                let s = dev.tensor([sample_normal(), sample_normal(), sample_normal()]);
+                *total = total.clone() + s.clone();
+                samples.push_back(s);
+            }
             if rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. })
                 <= self.prob_deterministic
             {
                 mean
             } else {
-                let dev = self.dna.policy.device();
-                let mut sample_normal = || {
-                    rng.sample(&ContinuousDistribution::Normal {
-                        mean: 0.,
-                        std_dev: 1.,
-                    }) as f32
-                };
-                let normal_samples =
-                    dev.tensor([sample_normal(), sample_normal(), sample_normal()]);
-                let action = mean.clone() + normal_samples * self.stddev.clone();
+                let action: Tensor1D<ACTION> = mean.clone()
+                    + (total.clone() / (window_size as f32).sqrt()) * self.stddev.clone();
                 let action_log_prob = calculate_action_log_probs::<Const<1>, _, _>(
                     action.clone().reshape(),
                     mean.reshape(),
@@ -337,21 +364,22 @@ fn rollout(
             let dna = RolloutWrapper {
                 stddev,
                 dna,
-                f: |rec, time| {
+                f: &|rec, time| {
                     let mut records = records.borrow_mut();
                     records.0.push(rec);
                     records.1.push((current_utility(time), time));
                 },
-                rng: RefCell::new(&mut policy_rng),
+                rng: &RefCell::new(&mut policy_rng),
                 prob_deterministic,
-                num_senders: || flows.iter().filter(|x| x.borrow().active()).count(),
+                samples: RefCell::new((stddev.clone() * 0_f32, VecDeque::new())),
+                num_senders: &|| flows.iter().filter(|x| x.borrow().active()).count(),
             };
             let sim = n.to_sim::<_, DefaultEffect>(
                 &RemyFlowAdder::new(repeat),
                 guard,
                 &mut rng,
                 &flows,
-                &dna,
+                dna,
                 |_| {},
             );
             let sim_end = Time::from_sim_start(training_config.run_sim_for);
@@ -398,7 +426,7 @@ impl Trainer for RemyrTrainer {
         let dev = AutoDevice::default();
         let mut policy = dev.build_module((
             self.config.hidden_layers.policy_arch(),
-            (Bias1DConfig(Const::<OBSERVATION>), Sigmoid),
+            (Bias1DConfig(Const::<ACTION>), Sigmoid),
         ));
         let mut critic = dev.build_module::<f32>(self.config.hidden_layers.critic_arch());
 
@@ -460,7 +488,7 @@ impl Trainer for RemyrTrainer {
                 self.config.bandwidth_half_life,
                 &self.config.discounting_mode,
                 0.,
-                100,
+                0,
                 rng,
             );
             let RolloutResult {
