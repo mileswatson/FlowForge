@@ -10,10 +10,7 @@ pub const ACTION: usize = 3;
 pub type PolicyArchitecture = (
     (LinearConfig<Const<OBSERVATION>, usize>, Tanh),
     (LinearConfig<usize, usize>, Tanh),
-    SplitInto<(
-        (LinearConfig<usize, Const<ACTION>>, Tanh),
-        (LinearConfig<usize, Const<ACTION>>, Sigmoid),
-    )>,
+    (LinearConfig<usize, Const<ACTION>>, Tanh),
 );
 
 pub type CriticArchitecture = (
@@ -53,10 +50,7 @@ impl HiddenLayers {
         (
             (LinearConfig::new(Const::<OBSERVATION>, self.0), Tanh),
             (LinearConfig::new(self.0, self.1), Tanh),
-            SplitInto((
-                (LinearConfig::new(self.1, Const::<ACTION>), Tanh),
-                (LinearConfig::new(self.1, Const::<ACTION>), Sigmoid),
-            )),
+            (LinearConfig::new(self.1, Const::<ACTION>), Tanh),
         )
     }
 
