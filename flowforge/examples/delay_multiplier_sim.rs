@@ -42,6 +42,7 @@ fn main() {
         2.0,
         false,
         &mut flow_meter,
+        rng.create_child(),
         table.logger(1),
     );
     let mut link1 = Link::create(

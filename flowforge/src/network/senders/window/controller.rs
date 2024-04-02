@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use itertools::Itertools;
 
 use crate::{
-    core::logging::Logger,
+    core::{logging::Logger, rand::Rng},
     network::toggler::Toggle,
     quantities::Time,
     simulation::{Address, Component, EffectContext, Message},
@@ -23,6 +23,7 @@ pub struct LossyWindowController<'sim, 'a, B, E, L> {
     sender: Address<'sim, LossyInternalSenderEffect<'sim, E>, E>,
     new_behavior: Box<dyn (Fn() -> B) + 'a>,
     state: LossyWindowControllerState<B>,
+    rng: Rng,
     logger: L,
 }
 
@@ -41,12 +42,14 @@ impl<'sim, 'a, B, E, L> LossyWindowController<'sim, 'a, B, E, L> {
         sender: Address<'sim, LossyInternalSenderEffect<'sim, E>, E>,
         new_behavior: Box<dyn (Fn() -> B) + 'a>,
         wait_for_enable: bool,
+        rng: Rng,
         logger: L,
     ) -> LossyWindowController<'sim, 'a, B, E, L> {
         LossyWindowController {
             sender,
             new_behavior,
             state: LossyWindowControllerState::Disabled { wait_for_enable },
+            rng,
             logger,
         }
     }
@@ -112,7 +115,7 @@ where
                 LossyWindowControllerState::Enabled(behavior),
                 LossyInternalControllerEffect::AckReceived(context),
             ) => behavior
-                .ack_received(context, &mut self.logger)
+                .ack_received(context, &mut self.rng, &mut self.logger)
                 .map(SettingsUpdate::Enable),
             (
                 LossyWindowControllerState::Disabled { .. },

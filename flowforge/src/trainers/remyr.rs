@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::VecDeque, f32::consts::PI, iter::once, ops::DerefMut};
+use std::{cell::RefCell, collections::VecDeque, f32::consts::PI, iter::once};
 
 use derive_where::derive_where;
 use dfdx::{data::IteratorBatchExt, prelude::*};
@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     core::{
         meters::CurrentFlowMeter,
-        rand::{ContinuousDistribution, Rng},
+        rand::{ContinuousDistribution, DiscreteDistribution, Rng},
     },
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
@@ -60,12 +60,13 @@ pub struct RemyrConfig {
     pub discounting_mode: DiscountingMode,
     pub bandwidth_half_life: TimeSpan,
     pub rollout_config: EvaluationConfig,
+    pub repeat_actions: Option<DiscreteDistribution<u32>>,
 }
 
 impl Default for RemyrConfig {
     fn default() -> Self {
         Self {
-            iters: 1500,
+            iters: 500,
             updates_per_iter: 5,
             min_point: Point {
                 ack_ewma: milliseconds(0.),
@@ -88,7 +89,7 @@ impl Default for RemyrConfig {
                 intersend_delay: milliseconds(3.),
             },
             rollout_config: EvaluationConfig {
-                network_samples: 8,
+                network_samples: 100,
                 run_sim_for: seconds(60.),
             },
             hidden_layers: HiddenLayers(64, 32),
@@ -101,6 +102,7 @@ impl Default for RemyrConfig {
             discounting_mode: DiscountingMode::ContinuousRate {
                 half_life: seconds(1.),
             },
+            repeat_actions: Some(DiscreteDistribution::Uniform { min: 0, max: 200 }),
         }
     }
 }
@@ -198,6 +200,7 @@ struct RolloutResult<D: Device<f32>> {
 impl<D: Device<f32>> RolloutResult<D> {
     pub fn new(trajectories: &[Trajectory], dev: &D) -> Self {
         let num_timesteps = trajectories.iter().map(|x| x.records.len()).sum();
+        #[allow(clippy::cast_precision_loss)]
         let observations = trajectories
             .iter()
             .flat_map(|x| x.records.iter())
@@ -237,9 +240,8 @@ fn calculate_action_log_probs<S: Dim, D: Device<f32>, T: Tape<f32, D>>(
     means: Tensor<(S, Const<ACTION>), f32, D, T>,
     stddevs: Tensor<(S, Const<ACTION>), f32, D, NoneTape>,
 ) -> Tensor<(S,), f32, D, T> {
-    (((means - actions) / stddevs.with_empty_tape()).square() + stddevs.ln() * 2. + (2. * PI).ln())
-        .sum::<(S,), Axis<1>>()
-        * -0.5
+    let (x, tape) = ((means - actions) / stddevs.clone()).square().split_tape();
+    (stddevs.put_tape(tape).ln() * 2. + x + (2. * PI).ln()).sum::<(S,), Axis<1>>() * -0.5
 }
 
 #[derive_where(Clone)]
@@ -293,7 +295,7 @@ where
                     std_dev: 1.,
                 }) as f32
             };
-            let window_size = 100;
+            let window_size = 1;
             while samples.len() < window_size {
                 let s = dev.tensor([sample_normal(), sample_normal(), sample_normal()]);
                 *total = total.clone() + s.clone();
@@ -304,6 +306,7 @@ where
             {
                 mean
             } else {
+                #[allow(clippy::cast_precision_loss)]
                 let action: Tensor1D<ACTION> = mean.clone()
                     + (total.clone() / (window_size as f32).sqrt()) * self.stddev.clone();
                 let action_log_prob = calculate_action_log_probs::<Const<1>, _, _>(
@@ -335,7 +338,7 @@ fn rollout(
     half_life: TimeSpan,
     discounting_mode: &DiscountingMode,
     prob_deterministic: Float,
-    repeat: usize,
+    repeat_actions: &Option<DiscreteDistribution<u32>>,
     rng: &mut Rng,
 ) -> Vec<Trajectory> {
     let networks = (0..training_config.network_samples)
@@ -375,7 +378,7 @@ fn rollout(
                 num_senders: &|| flows.iter().filter(|x| x.borrow().active()).count(),
             };
             let sim = n.to_sim::<_, DefaultEffect>(
-                &RemyFlowAdder::new(repeat),
+                &RemyFlowAdder::new(repeat_actions.clone()),
                 guard,
                 &mut rng,
                 &flows,
@@ -426,8 +429,9 @@ impl Trainer for RemyrTrainer {
         let dev = AutoDevice::default();
         let mut policy = dev.build_module((
             self.config.hidden_layers.policy_arch(),
-            (Bias1DConfig(Const::<ACTION>), Sigmoid),
+            Bias1DConfig(Const::<ACTION>),
         ));
+        policy.1.bias = policy.1.bias + 0.5;
         let mut critic = dev.build_module::<f32>(self.config.hidden_layers.critic_arch());
 
         let mut critic_gradients = critic.alloc_grads();
@@ -470,25 +474,22 @@ impl Trainer for RemyrTrainer {
                 self.config.clip
             };
 
-            let sim_stddevs = (
-                Bias1D {
-                    bias: sim_dev.tensor(policy.1 .0.bias.array()),
-                },
-                Sigmoid,
-            );
+            let sim_stddevs = Bias1D {
+                bias: sim_dev.tensor(policy.1.bias.array()),
+            }
+            .forward(sim_dev.zeros::<Rank1<OBSERVATION>>())
+            .reshape();
 
             let trajectories: Vec<Trajectory> = rollout(
                 &dna,
-                &sim_stddevs
-                    .forward(sim_dev.zeros::<Rank1<OBSERVATION>>())
-                    .reshape(),
+                &sim_stddevs,
                 network_config,
                 utility_function,
                 &self.config.rollout_config,
                 self.config.bandwidth_half_life,
                 &self.config.discounting_mode,
                 0.,
-                0,
+                &self.config.repeat_actions,
                 rng,
             );
             let RolloutResult {
@@ -497,11 +498,12 @@ impl Trainer for RemyrTrainer {
                 action_log_probs,
                 rewards_to_go_before_action,
             } = RolloutResult::new(&trajectories, &dev);
-            let estimated_values_k = critic.forward(states.clone()); // V
 
-            let advantages_k = {
-                let shape = (estimated_values_k.shape().0,);
-                rewards_to_go_before_action.clone() - estimated_values_k.reshape_like(&shape)
+            let estimated_values = critic.forward(states.clone()); // V
+
+            let advantages = {
+                let shape = (estimated_values.shape().0,);
+                rewards_to_go_before_action.clone() - estimated_values.reshape_like(&shape)
             };
             let mut all_indices = (0..states.shape().0).collect_vec();
 
@@ -519,33 +521,41 @@ impl Trainer for RemyrTrainer {
                         .slice((.., ..OBSERVATION))
                         .reshape_like(&(batch_len, Const::<OBSERVATION>));
 
-                    let batch_means = policy
+                    let (batch_means, tape) = policy
                         .0
-                        .forward(batch_observations.clone().trace(policy_gradients));
+                        .forward(batch_observations.clone().trace(policy_gradients))
+                        .split_tape();
 
-                    let batch_stddevs = policy
+                    let (batch_stddevs, tape) = policy
                         .1
-                        .forward(dev.zeros::<Rank1<OBSERVATION>>())
-                        .broadcast_like(batch_means.shape());
+                        .forward(dev.zeros::<Rank1<OBSERVATION>>().put_tape(tape))
+                        .broadcast_like(batch_means.shape())
+                        .split_tape();
 
                     let batch_action_log_probs = calculate_action_log_probs(
                         actions.clone().gather(batch_indices.clone()),
-                        batch_means,
+                        batch_means.put_tape(tape),
                         batch_stddevs,
                     );
 
-                    let batch_ratios = (batch_action_log_probs
+                    let (batch_ratios, tape) = (batch_action_log_probs
                         - action_log_probs.clone().gather(batch_indices.clone()))
-                    .exp();
+                    .exp()
+                    .split_tape();
 
-                    let batch_advantages = advantages_k.clone().gather(batch_indices.clone());
+                    let batch_advantages = advantages.clone().gather(batch_indices.clone());
                     let batch_advantages = (batch_advantages.clone()
                         - batch_advantages.clone().mean().array())
                         / (batch_advantages.stddev(0.).array() + 1e-10);
 
+                    let (unclamped, tape) = (batch_ratios.clone().put_tape(tape)
+                        * batch_advantages.clone())
+                    .split_tape();
+
                     let policy_loss = (-minimum(
-                        batch_ratios.with_empty_tape() * batch_advantages.clone(),
-                        clamp(batch_ratios, 1. - clip, 1. + clip) * batch_advantages.clone(),
+                        clamp(batch_ratios.put_tape(tape), 1. - clip, 1. + clip)
+                            * batch_advantages.clone(),
+                        unclamped,
                     ))
                     .sum();
 

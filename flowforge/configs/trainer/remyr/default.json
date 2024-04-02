@@ -1,6 +1,6 @@
 {
   "type": "remyr",
-  "iters": 1500,
+  "iters": 500,
   "updates_per_iter": 5,
   "min_point": {
     "ack_ewma": "0ms",
@@ -37,7 +37,12 @@
   },
   "bandwidth_half_life": "100ms",
   "rollout_config": {
-    "network_samples": 8,
+    "network_samples": 100,
     "run_sim_for": "60s"
+  },
+  "repeat_actions": {
+    "type": "uniform",
+    "min": 0,
+    "max": 200
   }
 }

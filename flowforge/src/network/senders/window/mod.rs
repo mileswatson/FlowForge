@@ -3,7 +3,7 @@ use std::{cell::RefCell, fmt::Debug, rc::Rc};
 use derive_more::{From, TryInto};
 
 use crate::{
-    core::{logging::Logger, meters::FlowMeter},
+    core::{logging::Logger, meters::FlowMeter, rand::Rng},
     network::{toggler::Toggle, Packet, PacketAddress},
     quantities::{Time, TimeSpan},
     simulation::{Address, Component, ComponentSlot, DynComponent, HasSubEffect, SimulatorBuilder},
@@ -29,7 +29,8 @@ pub trait LossyWindowBehavior: Debug {
     fn initial_settings(&self) -> LossyWindowSettings;
     fn ack_received<L: Logger>(
         &mut self,
-        context: AckReceived,
+        ack: AckReceived,
+        rng: &mut Rng,
         logger: &mut L,
     ) -> Option<LossyWindowSettings>;
 }
@@ -86,6 +87,7 @@ where
         new_behavior: Box<dyn (Fn() -> B) + 'a>,
         wait_for_enable: bool,
         flow_meter: F,
+        rng: Rng,
         logger: impl Logger + Clone + 'a,
     ) -> LossySenderAddress<'sim, E>
     where
@@ -114,6 +116,7 @@ where
             sender_address,
             new_behavior,
             wait_for_enable,
+            rng,
             logger,
         )));
         address
@@ -157,6 +160,7 @@ impl LossyWindowSender {
         new_behavior: Box<dyn (Fn() -> B) + 'a>,
         wait_for_enable: bool,
         flow_meter: F,
+        rng: Rng,
         logger: L,
     ) -> LossySenderAddress<'sim, E>
     where
@@ -176,6 +180,7 @@ impl LossyWindowSender {
             new_behavior,
             wait_for_enable,
             flow_meter,
+            rng,
             logger,
         )
     }

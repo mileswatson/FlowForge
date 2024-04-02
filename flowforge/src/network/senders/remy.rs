@@ -4,6 +4,7 @@ use crate::{
     core::{
         logging::Logger,
         meters::{FlowMeter, EWMA},
+        rand::{DiscreteDistribution, Rng},
     },
     network::PacketAddress,
     protocols::remy::{action::Action, point::Point, rule_tree::DynRuleTree},
@@ -29,8 +30,8 @@ struct Behavior<T> {
     ack_ewma: EWMA<TimeSpan>,
     send_ewma: EWMA<TimeSpan>,
     rtt: Option<Rtt>,
-    next_change: Option<(usize, Action)>,
-    repeat_updates: usize,
+    next_change: Option<(u32, Action)>,
+    repeat_actions: Option<DiscreteDistribution<u32>>,
 }
 
 impl<T> Debug for Behavior<T> {
@@ -43,7 +44,7 @@ impl<T> Debug for Behavior<T> {
             .field("send_ewma", &self.send_ewma)
             .field("rtt", &self.rtt)
             .field("next_change", &self.next_change)
-            .field("repeat_updates", &self.repeat_updates)
+            .field("repeat_updates", &self.repeat_actions)
             .finish()
     }
 }
@@ -52,7 +53,7 @@ impl<T> Behavior<T>
 where
     T: DynRuleTree,
 {
-    fn new(rule_tree: T, repeat_updates: usize) -> Behavior<T> {
+    fn new(rule_tree: T, repeat_actions: Option<DiscreteDistribution<u32>>) -> Behavior<T> {
         Behavior {
             rule_tree,
             ack_ewma: EWMA::new(1. / 8.),
@@ -61,7 +62,7 @@ where
             last_send: None,
             rtt: None,
             next_change: None,
-            repeat_updates,
+            repeat_actions,
         }
     }
 
@@ -99,6 +100,7 @@ where
             sent_time,
             received_time,
         }: AckReceived,
+        rng: &mut Rng,
         logger: &mut L,
     ) -> Option<LossyWindowSettings>
     where
@@ -131,22 +133,21 @@ where
             intersend_delay,
         } = match &mut self.next_change {
             Some((remaining, a)) => {
-                *remaining -= 1;
                 let a = a.clone();
                 if *remaining == 0 {
                     self.next_change = None;
+                } else {
+                    *remaining -= 1;
                 }
                 a
             }
             None => {
                 let action = self.action(received_time);
                 let a = action.as_ref().clone();
-                drop(action);
-                self.next_change = if self.repeat_updates == 0 {
-                    None
-                } else {
-                    Some((self.repeat_updates, a.clone()))
-                };
+                self.next_change = self
+                    .repeat_actions
+                    .as_ref()
+                    .map(|dist| (rng.sample(dist), a.clone()));
                 a
             }
         };
@@ -185,7 +186,8 @@ where
         rule_tree: T,
         wait_for_enable: bool,
         flow_meter: F,
-        repeat_updates: usize,
+        repeat_actions: Option<DiscreteDistribution<u32>>,
+        rng: Rng,
         logger: impl Logger + Clone + 'a,
     ) -> LossySenderAddress<'sim, E>
     where
@@ -196,9 +198,10 @@ where
             id,
             link,
             destination,
-            Box::new(move || Behavior::new(rule_tree.clone(), repeat_updates)),
+            Box::new(move || Behavior::new(rule_tree.clone(), repeat_actions.clone())),
             wait_for_enable,
             flow_meter,
+            rng,
             logger,
         )
     }
@@ -226,7 +229,8 @@ impl LossyRemySender {
         rule_tree: T,
         wait_for_enable: bool,
         flow_meter: F,
-        repeat_updates: usize,
+        repeat_actions: Option<DiscreteDistribution<u32>>,
+        rng: Rng,
         logger: L,
     ) -> LossySenderAddress<'sim, E>
     where
@@ -246,7 +250,8 @@ impl LossyRemySender {
             rule_tree,
             wait_for_enable,
             flow_meter,
-            repeat_updates,
+            repeat_actions,
+            rng,
             logger,
         )
     }

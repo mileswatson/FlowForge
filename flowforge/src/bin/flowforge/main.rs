@@ -50,6 +50,10 @@ enum Command {
         /// OPTIONAL, REQUIRES EVAL_EVERY File to write training progress to
         #[arg(long)]
         progress: Option<PathBuf>,
+
+        /// OPTIONAL Force overwrite the DNA file if it exists
+        #[arg(short, long)]
+        force: bool,
     },
     /// Evaluate a congestion control algorithm for a given network
     Evaluate {
@@ -137,6 +141,7 @@ fn main() -> Result<()> {
             dna,
             progress,
             eval_times,
+            force,
         } => train(
             &config,
             &net,
@@ -145,6 +150,7 @@ fn main() -> Result<()> {
             eval_times,
             eval.as_deref(),
             progress.as_deref(),
+            force,
         ),
         Command::Evaluate {
             config,

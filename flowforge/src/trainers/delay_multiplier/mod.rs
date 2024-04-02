@@ -71,7 +71,7 @@ where
         flows: impl IntoIterator<Item = F>,
         simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
         sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
-        _rng: &mut Rng,
+        rng: &mut Rng,
     ) -> Vec<Address<'sim, Toggle, G::Type<'sim>>>
     where
         F: FlowMeter + 'a,
@@ -92,6 +92,7 @@ where
                     dna.multiplier,
                     true,
                     flow,
+                    rng.create_child(),
                     NothingLogger,
                 );
                 address.cast()
