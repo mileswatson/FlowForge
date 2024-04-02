@@ -31,6 +31,7 @@ pub fn _train<T>(
     utility_config: &UtilityConfig,
     dna_path: &Path,
     rng: &mut Rng,
+    force: bool,
 ) where
     T: Trainer,
     for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>: HasSubEffect<Packet<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>>
@@ -38,7 +39,10 @@ pub fn _train<T>(
         + HasSubEffect<Never>,
 {
     assert!(T::Dna::valid_path(dna_path));
-    let starting_point = T::Dna::load(dna_path).ok().and_then(|d| loop {
+    let starting_point = if force {
+        None
+    } else {
+        T::Dna::load(dna_path).ok().and_then(|d| loop {
         let mut buf = String::new();
         println!("There is already valid DNA in the output path. Would you like to use it as a starting point? Y/N");
         std::io::stdin().read_line(&mut buf).unwrap();
@@ -47,7 +51,8 @@ pub fn _train<T>(
         } else if buf.to_lowercase().trim() == "n" { 
             return None
         }
-    });
+    })
+    };
     let mut output_file = evaluation_config
         .as_ref()
         .and_then(|x| x.2)
@@ -116,6 +121,7 @@ struct TrainResult {
     utility: Vec<Float>,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn train(
     trainer_config: &Path,
     network_config: &Path,
@@ -124,6 +130,7 @@ pub fn train(
     eval_times: Option<u32>,
     evaluation_config: Option<&Path>,
     output_path: Option<&Path>,
+    force: bool,
 ) -> Result<()> {
     if output_path.is_some() {
         assert!(evaluation_config.is_some());
@@ -151,6 +158,7 @@ pub fn train(
             &utility_config,
             dna_path,
             &mut rng,
+            force,
         ),
         TrainerConfig::Remyr(cfg) => _train::<RemyrTrainer>(
             &cfg,
@@ -159,6 +167,7 @@ pub fn train(
             &utility_config,
             dna_path,
             &mut rng,
+            force,
         ),
         TrainerConfig::DelayMultiplier(cfg) => _train::<DelayMultiplierTrainer>(
             &cfg,
@@ -167,6 +176,7 @@ pub fn train(
             &utility_config,
             dna_path,
             &mut rng,
+            force,
         ),
     };
 

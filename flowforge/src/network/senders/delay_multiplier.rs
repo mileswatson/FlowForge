@@ -4,6 +4,7 @@ use crate::{
     core::{
         logging::Logger,
         meters::{FlowMeter, EWMA},
+        rand::Rng,
     },
     network::PacketAddress,
     quantities::{Float, TimeSpan},
@@ -36,6 +37,7 @@ impl LossyWindowBehavior for Behavior {
             sent_time,
             received_time,
         }: AckReceived,
+        _rng: &mut Rng,
         logger: &mut L,
     ) -> Option<LossyWindowSettings>
     where
@@ -75,6 +77,7 @@ where
         multiplier: Float,
         wait_for_enable: bool,
         flow_meter: F,
+        rng: Rng,
         logger: impl Logger + Clone + 'a,
     ) -> LossySenderAddress<'sim, E>
     where
@@ -90,6 +93,7 @@ where
             }),
             wait_for_enable,
             flow_meter,
+            rng,
             logger,
         )
     }
@@ -116,6 +120,7 @@ impl LossyDelayMultiplierSender {
         multiplier: Float,
         wait_for_enable: bool,
         flow_meter: F,
+        rng: Rng,
         logger: L,
     ) -> LossySenderAddress<'sim, E>
     where
@@ -134,6 +139,7 @@ impl LossyDelayMultiplierSender {
             multiplier,
             wait_for_enable,
             flow_meter,
+            rng,
             logger,
         )
     }
