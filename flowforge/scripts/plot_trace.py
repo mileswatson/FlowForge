@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import json
 import argparse
-import scipy
 
 parser = argparse.ArgumentParser("plot_trace")
 parser.add_argument("input", help="JSON trace file to plot.", type=str)
@@ -23,7 +22,7 @@ active_senders = np.array(input["active_senders"])
 fig, axes = plt.subplots(len(input["flows"])+2,3)
 
 axes[0][0].plot(timestamps, sum(map(lambda f: np.array(f["bandwidth_kbps"]), input["flows"])))
-axes[0][1].plot(timestamps, scipy.stats.norm.cdf(norm_utilities))
+axes[0][1].plot(timestamps, np.nanmean(list(map(lambda f: np.array(f["rtt_ms"], dtype=float), input["flows"])), axis=0))
 axes[0][2].plot(timestamps, utilities)
 axes[1][2].plot(timestamps, active_senders)
 
