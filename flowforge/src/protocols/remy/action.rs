@@ -120,6 +120,13 @@ impl<const TESTING: bool> Action<TESTING> {
             },
         }
     }
+
+    #[must_use]
+    pub fn apply_to(&self, window: u32) -> u32 {
+        #[allow(clippy::cast_sign_loss)]
+        return ((f64::from(window) * self.window_multiplier) as i32 + self.window_increment)
+            .clamp(0, 1_000_000) as u32;
+    }
 }
 
 impl Whisker {
