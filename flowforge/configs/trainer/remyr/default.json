@@ -1,7 +1,8 @@
 {
   "type": "remyr",
-  "iters": 500,
+  "iters": 1000,
   "updates_per_iter": 5,
+  "num_minibatches": 4,
   "min_point": {
     "ack_ewma": "0ms",
     "send_ewma": "0ms",
@@ -26,11 +27,13 @@
     64,
     32
   ],
+  "entropy_coefficient": 0.01,
+  "value_function_coefficient": 0.5,
   "learning_rate": 0.0003,
   "learning_rate_annealing": true,
   "clip": 0.2,
   "clip_annealing": true,
-  "weight_decay": 0.001,
+  "weight_decay": null,
   "discounting_mode": {
     "type": "continuous_rate",
     "half_life": "1s"
