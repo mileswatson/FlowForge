@@ -1,4 +1,9 @@
-use std::{cell::RefCell, collections::VecDeque, f32::consts::PI, iter::once};
+use std::{
+    cell::RefCell,
+    collections::VecDeque,
+    f32::consts::{E, PI},
+    iter::once,
+};
 
 use derive_where::derive_where;
 use dfdx::{data::IteratorBatchExt, prelude::*};
@@ -47,11 +52,14 @@ use super::{remy::RemyFlowAdder, DefaultEffect};
 pub struct RemyrConfig {
     pub iters: u32,
     pub updates_per_iter: u32,
+    pub num_minibatches: usize,
     pub min_point: Point,
     pub max_point: Point,
     pub min_action: Action,
     pub max_action: Action,
     pub hidden_layers: HiddenLayers,
+    pub entropy_coefficient: f32,
+    pub value_function_coefficient: f32,
     pub learning_rate: f64,
     pub learning_rate_annealing: bool,
     pub clip: f32,
@@ -66,8 +74,9 @@ pub struct RemyrConfig {
 impl Default for RemyrConfig {
     fn default() -> Self {
         Self {
-            iters: 500,
+            iters: 1000,
             updates_per_iter: 5,
+            num_minibatches: 4,
             min_point: Point {
                 ack_ewma: milliseconds(0.),
                 send_ewma: milliseconds(0.),
@@ -95,7 +104,7 @@ impl Default for RemyrConfig {
             hidden_layers: HiddenLayers(64, 32),
             learning_rate: 0.0003,
             learning_rate_annealing: true,
-            weight_decay: Some(0.001),
+            weight_decay: None,
             bandwidth_half_life: milliseconds(100.),
             clip: 0.2,
             clip_annealing: true,
@@ -103,6 +112,8 @@ impl Default for RemyrConfig {
                 half_life: seconds(1.),
             },
             repeat_actions: Some(DiscreteDistribution::Uniform { min: 0, max: 200 }),
+            entropy_coefficient: 0.01,
+            value_function_coefficient: 0.5,
         }
     }
 }
@@ -427,26 +438,16 @@ impl Trainer for RemyrTrainer {
             "Starting point not supported for remyr trainer!"
         );
         let dev = AutoDevice::default();
-        let mut policy = dev.build_module((
+        let mut nets = dev.build_module((
             self.config.hidden_layers.policy_arch(),
             Bias1DConfig(Const::<ACTION>),
+            self.config.hidden_layers.critic_arch(),
         ));
-        policy.1.bias = policy.1.bias + 0.5;
-        let mut critic = dev.build_module::<f32>(self.config.hidden_layers.critic_arch());
+        nets.1.bias = nets.1.bias + 0.5;
 
-        let mut critic_gradients = critic.alloc_grads();
-        let mut critic_optimizer = Adam::new(
-            &critic,
-            AdamConfig {
-                lr: self.config.learning_rate,
-                weight_decay: self.config.weight_decay.map(WeightDecay::Decoupled),
-                eps: 1e-5,
-                ..Default::default()
-            },
-        );
-        let mut policy_gradients = policy.alloc_grads();
-        let mut policy_optimizer = Adam::new(
-            &policy,
+        let mut gradients = nets.alloc_grads();
+        let mut optimizer = Adam::new(
+            &nets,
             AdamConfig {
                 lr: self.config.learning_rate,
                 weight_decay: self.config.weight_decay.map(WeightDecay::Decoupled),
@@ -458,14 +459,13 @@ impl Trainer for RemyrTrainer {
         let sim_dev = Cpu::default();
 
         for i in 0..self.config.iters {
-            let dna = self.config.initial_dna(policy.0.copy_to(&sim_dev));
+            let dna = self.config.initial_dna(nets.0.copy_to(&sim_dev));
 
             let frac = f64::from(i) / f64::from(self.config.iters);
             progress_handler.update_progress(frac, &dna);
 
             if self.config.learning_rate_annealing {
-                policy_optimizer.cfg.lr = (1.0 - frac) * self.config.learning_rate;
-                critic_optimizer.cfg.lr = (1.0 - frac) * self.config.learning_rate;
+                optimizer.cfg.lr = (1.0 - frac) * self.config.learning_rate;
             }
 
             let clip = if self.config.clip_annealing {
@@ -475,7 +475,7 @@ impl Trainer for RemyrTrainer {
             };
 
             let sim_stddevs = Bias1D {
-                bias: sim_dev.tensor(policy.1.bias.array()),
+                bias: sim_dev.tensor(nets.1.bias.array()),
             }
             .forward(sim_dev.zeros::<Rank1<OBSERVATION>>())
             .reshape();
@@ -499,7 +499,7 @@ impl Trainer for RemyrTrainer {
                 rewards_to_go_before_action,
             } = RolloutResult::new(&trajectories, &dev);
 
-            let estimated_values = critic.forward(states.clone()); // V
+            let estimated_values = nets.2.forward(states.clone()); // V
 
             let advantages = {
                 let shape = (estimated_values.shape().0,);
@@ -508,8 +508,7 @@ impl Trainer for RemyrTrainer {
             let mut all_indices = (0..states.shape().0).collect_vec();
 
             for _ in 0..self.config.updates_per_iter {
-                let num_batches = 4;
-                let batch_size = all_indices.len() / num_batches;
+                let batch_size = all_indices.len() / self.config.num_minibatches;
                 rng.shuffle(&mut all_indices);
                 for batch_indices in all_indices.iter().copied().batch_with_last(batch_size) {
                     let batch_len = batch_indices.len();
@@ -521,14 +520,19 @@ impl Trainer for RemyrTrainer {
                         .slice((.., ..OBSERVATION))
                         .reshape_like(&(batch_len, Const::<OBSERVATION>));
 
-                    let (batch_means, tape) = policy
+                    let (batch_means, tape) = nets
                         .0
-                        .forward(batch_observations.clone().trace(policy_gradients))
+                        .forward(batch_observations.clone().trace(gradients))
                         .split_tape();
 
-                    let (batch_stddevs, tape) = policy
+                    let (stddevs, tape) = nets
                         .1
                         .forward(dev.zeros::<Rank1<OBSERVATION>>().put_tape(tape))
+                        .split_tape();
+
+                    let (batch_stddevs, tape) = stddevs
+                        .clone()
+                        .put_tape(tape)
                         .broadcast_like(batch_means.shape())
                         .split_tape();
 
@@ -552,42 +556,42 @@ impl Trainer for RemyrTrainer {
                         * batch_advantages.clone())
                     .split_tape();
 
-                    let policy_loss = (-minimum(
+                    let (policy_loss, tape) = ((-minimum(
                         clamp(batch_ratios.put_tape(tape), 1. - clip, 1. + clip)
                             * batch_advantages.clone(),
                         unclamped,
                     ))
-                    .sum();
-
-                    policy_gradients = policy_loss.backward();
-
-                    policy_optimizer
-                        .update(&mut policy, &policy_gradients)
-                        .unwrap();
-                    policy.zero_grads(&mut policy_gradients);
+                    .sum()
+                        * self.config.value_function_coefficient)
+                        .split_tape();
 
                     // critic
                     let batch_estimated_values =
-                        critic.forward(batch_states.clone().traced(critic_gradients));
+                        nets.2.forward(batch_states.clone().put_tape(tape));
 
                     let batch_rewards_to_go_before_action =
                         rewards_to_go_before_action.clone().gather(batch_indices);
 
-                    let critic_loss = mse_loss(
+                    let (critic_loss, tape) = mse_loss(
                         batch_estimated_values
                             .reshape_like(batch_rewards_to_go_before_action.shape()),
                         batch_rewards_to_go_before_action.clone(),
-                    );
+                    )
+                    .split_tape();
 
-                    critic_gradients = critic_loss.backward();
-                    critic_optimizer
-                        .update(&mut critic, &critic_gradients)
-                        .unwrap();
-                    critic.zero_grads(&mut critic_gradients);
+                    let entropy_loss = -((stddevs.put_tape(tape).square() * 2. * PI * E).ln() / 2.)
+                        .sum()
+                        * self.config.entropy_coefficient;
+
+                    let loss = entropy_loss + critic_loss + policy_loss;
+
+                    gradients = loss.backward();
+                    optimizer.update(&mut nets, &gradients).unwrap();
+                    nets.zero_grads(&mut gradients);
                 }
             }
         }
-        let dna = self.config.initial_dna(policy.0.copy_to(&sim_dev));
+        let dna = self.config.initial_dna(nets.0.copy_to(&sim_dev));
         progress_handler.update_progress(1., &dna);
         dna
     }
