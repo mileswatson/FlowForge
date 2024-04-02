@@ -5,7 +5,11 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::{logging::NothingLogger, meters::FlowMeter, rand::Rng},
+    core::{
+        logging::NothingLogger,
+        meters::FlowMeter,
+        rand::{DiscreteDistribution, Rng},
+    },
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
     network::{
@@ -88,13 +92,13 @@ pub struct RemyTrainer {
 
 #[derive(Default)]
 pub struct RemyFlowAdder {
-    repeat_updates: usize,
+    repeat_actions: Option<DiscreteDistribution<u32>>,
 }
 
 impl RemyFlowAdder {
     #[must_use]
-    pub const fn new(repeat_updates: usize) -> RemyFlowAdder {
-        RemyFlowAdder { repeat_updates }
+    pub const fn new(repeat_actions: Option<DiscreteDistribution<u32>>) -> RemyFlowAdder {
+        RemyFlowAdder { repeat_actions }
     }
 }
 
@@ -112,7 +116,7 @@ where
         flows: impl IntoIterator<Item = F>,
         simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
         sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
-        _rng: &mut Rng,
+        rng: &mut Rng,
     ) -> Vec<Address<'sim, Toggle, G::Type<'sim>>>
     where
         T: Clone + 'a,
@@ -133,7 +137,8 @@ where
                     dna.clone(),
                     true,
                     flow,
-                    self.repeat_updates,
+                    self.repeat_actions.clone(),
+                    rng.create_child(),
                     NothingLogger,
                 );
                 address.cast()

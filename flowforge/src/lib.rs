@@ -6,7 +6,8 @@
     clippy::missing_errors_doc,
     clippy::suboptimal_flops,
     clippy::too_many_arguments,
-    clippy::cast_possible_truncation
+    clippy::cast_possible_truncation,
+    clippy::too_many_arguments
 )]
 
 use std::{
