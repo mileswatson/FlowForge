@@ -2,15 +2,12 @@ use std::{
     fs::File,
     io::{self, Seek, Write},
     path::Path,
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use anyhow::Result;
 use flowforge::{
-    core::{
-        never::Never,
-        rand::{Rng, Wrapper},
-    },
+    core::{never::Never, rand::Rng},
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
     network::{config::NetworkConfig, toggler::Toggle, EffectTypeGenerator, Packet},
@@ -24,6 +21,35 @@ use flowforge::{
 };
 use serde::Serialize;
 
+#[derive(Serialize)]
+struct TrainResult<'a, T> {
+    timestamps: Vec<Float>,
+    bandwidth: Vec<Float>,
+    rtt: Vec<Float>,
+    utility: Vec<Float>,
+    trainer_config: &'a T,
+    network_config: &'a NetworkConfig,
+    utility_config: &'a UtilityConfig,
+}
+
+impl<'a, T> TrainResult<'a, T> {
+    pub fn new(
+        trainer_config: &'a T,
+        network_config: &'a NetworkConfig,
+        utility_config: &'a UtilityConfig,
+    ) -> TrainResult<'a, T> {
+        TrainResult {
+            timestamps: Vec::new(),
+            bandwidth: Vec::new(),
+            rtt: Vec::new(),
+            utility: Vec::new(),
+            trainer_config,
+            network_config,
+            utility_config,
+        }
+    }
+}
+
 pub fn _train<T>(
     trainer_config: &T::Config,
     evaluation_config: Option<(u32, EvaluationConfig, Option<&Path>)>,
@@ -34,6 +60,7 @@ pub fn _train<T>(
     force: bool,
 ) where
     T: Trainer,
+    T::Config: Serialize + Sync,
     for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>: HasSubEffect<Packet<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>>
         + HasSubEffect<Toggle>
         + HasSubEffect<Never>,
@@ -57,8 +84,10 @@ pub fn _train<T>(
         .as_ref()
         .and_then(|x| x.2)
         .map(|x| File::create(x).unwrap());
-    let mut result = TrainResult::default();
-    let start = Instant::now();
+    let mut result = TrainResult::new(trainer_config, network_config, utility_config);
+
+    let mut last_resumed = Instant::now();
+    let mut total_training_time = Duration::ZERO;
 
     let new_eval_rng = rng.identical_child_factory();
     let mut last_percent = -1;
@@ -75,6 +104,10 @@ pub fn _train<T>(
                     return;
                 }
                 last_percent = percent_completed;
+
+                let now = Instant::now();
+                total_training_time += now - last_resumed;
+
                 print!("Evaluating... ");
                 io::stdout().flush().unwrap();
                 let (utility, props) = evaluation_config
@@ -91,11 +124,9 @@ pub fn _train<T>(
                     average_rtt,
                 } = props.clone();
                 if let Some(output_file) = &mut output_file {
-                    result
-                        .timestamps
-                        .push((Instant::now() - start).as_secs_f64());
-                    result.bandwidth.push(average_throughput.to_underlying());
-                    result.rtt.push(average_rtt.unwrap().to_underlying());
+                    result.timestamps.push(total_training_time.as_secs_f64());
+                    result.bandwidth.push(average_throughput.bits_per_second());
+                    result.rtt.push(average_rtt.unwrap().seconds());
                     result.utility.push(utility);
                     output_file.rewind().unwrap();
                     serde_json::to_writer(output_file, &result).unwrap();
@@ -107,18 +138,12 @@ pub fn _train<T>(
                 } else {
                     println!("Achieved eval score {utility:.2} with {props}.");
                 }
+
+                last_resumed = Instant::now();
             }
         },
         rng,
     );
-}
-
-#[derive(Default, Serialize)]
-struct TrainResult {
-    timestamps: Vec<Float>,
-    bandwidth: Vec<Float>,
-    rtt: Vec<Float>,
-    utility: Vec<Float>,
 }
 
 #[allow(clippy::too_many_arguments)]
