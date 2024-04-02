@@ -127,11 +127,7 @@ where
         });
         log!(logger, "Updated state to {:?}", self);
 
-        let Action {
-            window_multiplier,
-            window_increment,
-            intersend_delay,
-        } = match &mut self.next_change {
+        let action = match &mut self.next_change {
             Some((remaining, a)) => {
                 let a = a.clone();
                 if *remaining == 0 {
@@ -151,13 +147,10 @@ where
                 a
             }
         };
-        #[allow(clippy::cast_sign_loss)]
-        let window = ((f64::from(current_settings.window) * window_multiplier) as i32
-            + window_increment)
-            .clamp(0, 1_000_000) as u32;
+        let window = action.apply_to(current_settings.window);
         Some(LossyWindowSettings {
             window,
-            intersend_delay,
+            intersend_delay: action.intersend_delay,
         })
     }
 }
