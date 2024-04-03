@@ -249,10 +249,11 @@ impl<D: Device<f32>> RolloutResult<D> {
 fn calculate_action_log_probs<S: Dim, D: Device<f32>, T: Tape<f32, D>>(
     actions: Tensor<(S, Const<ACTION>), f32, D>,
     means: Tensor<(S, Const<ACTION>), f32, D, T>,
-    stddevs: Tensor<(S, Const<ACTION>), f32, D, NoneTape>,
+    stddevs: Tensor<(S, Const<ACTION>), f32, D, T>,
 ) -> Tensor<(S,), f32, D, T> {
-    let (x, tape) = ((means - actions) / stddevs.clone()).square().split_tape();
-    (stddevs.put_tape(tape).ln() * 2. + x + (2. * PI).ln()).sum::<(S,), Axis<1>>() * -0.5
+    (((means - actions) / stddevs.with_empty_tape()).square() + stddevs.ln() * 2. + (2. * PI).ln())
+        .sum::<(S,), Axis<1>>()
+        * -0.5
 }
 
 #[derive_where(Clone)]
@@ -520,70 +521,53 @@ impl Trainer for RemyrTrainer {
                         .slice((.., ..OBSERVATION))
                         .reshape_like(&(batch_len, Const::<OBSERVATION>));
 
-                    let (batch_means, tape) = nets
-                        .0
-                        .forward(batch_observations.clone().trace(gradients))
-                        .split_tape();
+                    let batch_means = nets.0.forward(batch_observations.traced(gradients));
 
-                    let (stddevs, tape) = nets
-                        .1
-                        .forward(dev.zeros::<Rank1<OBSERVATION>>().put_tape(tape))
-                        .split_tape();
+                    let stddevs = nets.1.forward(dev.zeros::<Rank1<OBSERVATION>>().retaped());
 
-                    let (batch_stddevs, tape) = stddevs
-                        .clone()
-                        .put_tape(tape)
-                        .broadcast_like(batch_means.shape())
-                        .split_tape();
+                    let batch_stddevs = stddevs
+                        .with_empty_tape()
+                        .broadcast_like(batch_means.shape());
 
                     let batch_action_log_probs = calculate_action_log_probs(
                         actions.clone().gather(batch_indices.clone()),
-                        batch_means.put_tape(tape),
+                        batch_means,
                         batch_stddevs,
                     );
 
-                    let (batch_ratios, tape) = (batch_action_log_probs
+                    let batch_ratios = (batch_action_log_probs
                         - action_log_probs.clone().gather(batch_indices.clone()))
-                    .exp()
-                    .split_tape();
+                    .exp();
 
                     let batch_advantages = advantages.clone().gather(batch_indices.clone());
                     let batch_advantages = (batch_advantages.clone()
                         - batch_advantages.clone().mean().array())
                         / (batch_advantages.stddev(0.).array() + 1e-10);
 
-                    let (unclamped, tape) = (batch_ratios.clone().put_tape(tape)
-                        * batch_advantages.clone())
-                    .split_tape();
-
-                    let (policy_loss, tape) = ((-minimum(
-                        clamp(batch_ratios.put_tape(tape), 1. - clip, 1. + clip)
-                            * batch_advantages.clone(),
-                        unclamped,
+                    let policy_loss = (-minimum(
+                        batch_ratios.with_empty_tape() * batch_advantages.clone(),
+                        clamp(batch_ratios, 1. - clip, 1. + clip) * batch_advantages.clone(),
                     ))
                     .sum()
-                        * self.config.value_function_coefficient)
-                        .split_tape();
+                        * self.config.value_function_coefficient;
 
                     // critic
                     let batch_estimated_values =
-                        nets.2.forward(batch_states.clone().put_tape(tape));
+                        nets.2.forward(batch_states.retaped::<OwnedTape<_, _>>());
 
                     let batch_rewards_to_go_before_action =
                         rewards_to_go_before_action.clone().gather(batch_indices);
 
-                    let (critic_loss, tape) = mse_loss(
+                    let critic_loss = mse_loss(
                         batch_estimated_values
                             .reshape_like(batch_rewards_to_go_before_action.shape()),
                         batch_rewards_to_go_before_action.clone(),
-                    )
-                    .split_tape();
+                    );
 
-                    let entropy_loss = -((stddevs.put_tape(tape).square() * 2. * PI * E).ln() / 2.)
-                        .sum()
-                        * self.config.entropy_coefficient;
+                    let entropy = ((stddevs.square() * 2. * PI * E).ln() / 2.).sum();
 
-                    let loss = entropy_loss + critic_loss + policy_loss;
+                    let loss = policy_loss + critic_loss * self.config.value_function_coefficient
+                        - entropy * self.config.entropy_coefficient;
 
                     gradients = loss.backward();
                     optimizer.update(&mut nets, &gradients).unwrap();
