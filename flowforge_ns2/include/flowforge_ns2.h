@@ -13,12 +13,12 @@ extern "C"
         double intersend_seconds;
     };
 
-    extern void free_dna(RemyDna *);
-
     extern const RemyDna *load_dna(const char *path);
 
+    extern void free_dna(const RemyDna *dna);
+
     extern CAction get_action(
-        RemyDna *dna,
+        const RemyDna *dna,
         double ack_ewma_ms,
         double send_ewma_ms,
         double rtt_ratio,
