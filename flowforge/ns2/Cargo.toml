@@ -15,4 +15,4 @@ crate-type = ["cdylib"]
 dfdx = { git = "https://github.com/coreylowman/dfdx.git", features = ["cpu"] }
 
 [dependencies.flowforge]
-path = "../flowforge"
+path = ".."
