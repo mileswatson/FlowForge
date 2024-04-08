@@ -5,11 +5,13 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 use create_configs::create_all_configs;
 use evaluate::evaluate;
+use inspect::inspect;
 use trace::trace;
 use train::train;
 
 mod create_configs;
 mod evaluate;
+mod inspect;
 mod trace;
 mod train;
 
@@ -95,13 +97,26 @@ enum Command {
         #[arg(short, long)]
         input: PathBuf,
 
-        /// File to output trace to (JSON)
+        /// OPTIONAL File to output trace to (JSON)
         #[arg(short, long)]
         output: Option<PathBuf>,
 
         /// Random seed to use
         #[arg(long, default_value_t = 12345)]
         seed: u64,
+    },
+    Inspect {
+        /// Flow mode
+        #[arg(long)]
+        mode: FlowAdders,
+
+        /// File to read congestion control algorithm DNA from
+        #[arg(short, long)]
+        dna: PathBuf,
+
+        /// OPTIONAL File to output result to (JSON)
+        #[arg(short, long)]
+        output: Option<PathBuf>,
     },
 }
 
@@ -167,5 +182,9 @@ fn main() -> Result<()> {
             output,
             seed,
         } => trace(&mode, &network, &utility, &input, output.as_deref(), seed),
+        Command::Inspect { mode, dna, output } => {
+            inspect(&dna, &mode, output.as_deref());
+            Ok(())
+        }
     }
 }
