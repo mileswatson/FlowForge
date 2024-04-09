@@ -92,58 +92,61 @@ pub fn _train<T>(
     let new_eval_rng = rng.identical_child_factory();
     let mut last_percent = -1;
     let mut best_score: Float = Float::MIN;
-    T::new(trainer_config).train(
-        starting_point,
-        network_config,
-        utility_config,
-        &mut |frac: Float, dna: &T::Dna| {
-            println!("{frac}");
-            if let Some((eval_times, evaluation_config, _)) = evaluation_config.as_ref() {
-                let percent_completed = (frac * *eval_times as f64).floor() as i32;
-                if percent_completed <= last_percent {
-                    return;
-                }
-                last_percent = percent_completed;
+    T::new(trainer_config)
+        .train(
+            starting_point,
+            network_config,
+            utility_config,
+            &mut |frac: Float, dna: &T::Dna| {
+                println!("{frac}");
+                if let Some((eval_times, evaluation_config, _)) = evaluation_config.as_ref() {
+                    let percent_completed = (frac * *eval_times as f64).floor() as i32;
+                    if percent_completed <= last_percent {
+                        return;
+                    }
+                    last_percent = percent_completed;
 
-                let now = Instant::now();
-                total_training_time += now - last_resumed;
+                    let now = Instant::now();
+                    total_training_time += now - last_resumed;
 
-                print!("Evaluating... ");
-                io::stdout().flush().unwrap();
-                let (utility, props) = evaluation_config
-                    .evaluate(
-                        &T::DefaultFlowAdder::default(),
-                        network_config,
-                        dna,
-                        utility_config,
-                        &mut new_eval_rng(),
-                    )
-                    .expect("Simulation to have active flows");
-                let FlowProperties {
-                    average_throughput,
-                    average_rtt,
-                } = props.clone();
-                if let Some(output_file) = &mut output_file {
-                    result.timestamps.push(total_training_time.as_secs_f64());
-                    result.bandwidth.push(average_throughput.bits_per_second());
-                    result.rtt.push(average_rtt.unwrap().seconds());
-                    result.utility.push(utility);
-                    output_file.rewind().unwrap();
-                    serde_json::to_writer(output_file, &result).unwrap();
-                }
-                if utility >= best_score {
+                    print!("Evaluating... ");
+                    io::stdout().flush().unwrap();
+                    let (utility, props) = evaluation_config
+                        .evaluate(
+                            &T::DefaultFlowAdder::default(),
+                            network_config,
+                            dna,
+                            utility_config,
+                            &mut new_eval_rng(),
+                        )
+                        .expect("Simulation to have active flows");
+                    let FlowProperties {
+                        average_throughput,
+                        average_rtt,
+                    } = props.clone();
+                    if let Some(output_file) = &mut output_file {
+                        result.timestamps.push(total_training_time.as_secs_f64());
+                        result.bandwidth.push(average_throughput.bits_per_second());
+                        result.rtt.push(average_rtt.unwrap().seconds());
+                        result.utility.push(utility);
+                        output_file.rewind().unwrap();
+                        serde_json::to_writer(output_file, &result).unwrap();
+                    }
                     dna.save(dna_path).unwrap();
-                    best_score = utility;
-                    println!("Achieved eval score {utility:.2} with {props}. Best so far, saved.");
-                } else {
-                    println!("Achieved eval score {utility:.2} with {props}.");
-                }
+                    if utility >= best_score {
+                        best_score = utility;
+                        println!("Achieved eval score {utility:.2} with {props}. Best so far.");
+                    } else {
+                        println!("Achieved eval score {utility:.2} with {props}.");
+                    }
 
-                last_resumed = Instant::now();
-            }
-        },
-        rng,
-    );
+                    last_resumed = Instant::now();
+                }
+            },
+            rng,
+        )
+        .save(dna_path)
+        .unwrap();
 }
 
 #[allow(clippy::too_many_arguments)]
