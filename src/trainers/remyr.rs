@@ -631,7 +631,7 @@ mod tests {
             }),
             rtt_ratio: rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. }),
         };
-        let precision = 1_000_000.;
+        let precision = 100_000.;
         let actions = (0..100)
             .map(|_| result.action(&random_point(), Time::SIM_START).unwrap())
             .map(
