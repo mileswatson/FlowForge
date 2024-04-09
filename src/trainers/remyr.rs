@@ -631,7 +631,7 @@ mod tests {
             }),
             rtt_ratio: rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. }),
         };
-        let precision = 100_000.;
+        let precision = 10_000.;
         let actions = (0..100)
             .map(|_| result.action(&random_point(), Time::SIM_START).unwrap())
             .map(
@@ -642,8 +642,8 @@ mod tests {
                  }| Action::<false> {
                     window_multiplier: (window_multiplier * precision).round() / precision,
                     window_increment,
-                    intersend_delay: TimeSpan::from_underlying(
-                        (intersend_delay.to_underlying() * precision).round() / precision,
+                    intersend_delay: milliseconds(
+                        (intersend_delay.milliseconds() * precision).round() / precision,
                     ),
                 },
             )

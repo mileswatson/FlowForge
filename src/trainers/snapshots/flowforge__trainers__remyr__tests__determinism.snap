@@ -2,303 +2,303 @@
 source: src/trainers/remyr.rs
 expression: actions
 ---
-- window_multiplier: 0.58794
+- window_multiplier: 0.5879
   window_increment: 128
-  intersend_delay: 1.63ms
+  intersend_delay: 1.626ms
 - window_multiplier: 0.5587
   window_increment: 119
-  intersend_delay: 1.77ms
-- window_multiplier: 0.50512
+  intersend_delay: 1.7724ms
+- window_multiplier: 0.5051
   window_increment: 116
-  intersend_delay: 1.77ms
-- window_multiplier: 0.62006
+  intersend_delay: 1.7699ms
+- window_multiplier: 0.6201
   window_increment: 131
-  intersend_delay: 1.61ms
+  intersend_delay: 1.6084ms
 - window_multiplier: 0.5945
   window_increment: 126
-  intersend_delay: 1.6900000000000002ms
-- window_multiplier: 0.59015
+  intersend_delay: 1.6933ms
+- window_multiplier: 0.5902
   window_increment: 124
-  intersend_delay: 1.73ms
-- window_multiplier: 0.56754
+  intersend_delay: 1.7288ms
+- window_multiplier: 0.5675
   window_increment: 125
-  intersend_delay: 1.6700000000000002ms
-- window_multiplier: 0.64152
+  intersend_delay: 1.6659ms
+- window_multiplier: 0.6415
   window_increment: 135
-  intersend_delay: 1.57ms
-- window_multiplier: 0.66962
+  intersend_delay: 1.5729ms
+- window_multiplier: 0.6696
   window_increment: 141
-  intersend_delay: 1.55ms
-- window_multiplier: 0.57063
+  intersend_delay: 1.5546ms
+- window_multiplier: 0.5706
   window_increment: 125
-  intersend_delay: 1.6700000000000002ms
-- window_multiplier: 0.57373
-  window_increment: 122
-  intersend_delay: 1.73ms
-- window_multiplier: 0.51229
-  window_increment: 116
-  intersend_delay: 1.77ms
+  intersend_delay: 1.6681ms
 - window_multiplier: 0.5737
   window_increment: 122
-  intersend_delay: 1.74ms
-- window_multiplier: 0.60926
-  window_increment: 128
-  intersend_delay: 1.6800000000000002ms
-- window_multiplier: 0.51931
-  window_increment: 115
-  intersend_delay: 1.79ms
-- window_multiplier: 0.63901
-  window_increment: 135
-  intersend_delay: 1.61ms
-- window_multiplier: 0.52138
+  intersend_delay: 1.7289ms
+- window_multiplier: 0.5123
   window_increment: 116
-  intersend_delay: 1.77ms
-- window_multiplier: 0.50703
+  intersend_delay: 1.7681ms
+- window_multiplier: 0.5737
+  window_increment: 122
+  intersend_delay: 1.7371ms
+- window_multiplier: 0.6093
+  window_increment: 128
+  intersend_delay: 1.6845ms
+- window_multiplier: 0.5193
+  window_increment: 115
+  intersend_delay: 1.7879ms
+- window_multiplier: 0.639
+  window_increment: 135
+  intersend_delay: 1.6149ms
+- window_multiplier: 0.5214
+  window_increment: 116
+  intersend_delay: 1.7669ms
+- window_multiplier: 0.507
   window_increment: 118
-  intersend_delay: 1.75ms
-- window_multiplier: 0.51065
+  intersend_delay: 1.7495ms
+- window_multiplier: 0.5106
   window_increment: 119
-  intersend_delay: 1.74ms
-- window_multiplier: 0.56165
+  intersend_delay: 1.7447ms
+- window_multiplier: 0.5616
   window_increment: 120
-  intersend_delay: 1.75ms
+  intersend_delay: 1.7458ms
 - window_multiplier: 0.5971
   window_increment: 127
-  intersend_delay: 1.66ms
-- window_multiplier: 0.56355
+  intersend_delay: 1.6567ms
+- window_multiplier: 0.5636
   window_increment: 124
-  intersend_delay: 1.6800000000000002ms
-- window_multiplier: 0.51963
+  intersend_delay: 1.6816ms
+- window_multiplier: 0.5196
   window_increment: 120
-  intersend_delay: 1.73ms
-- window_multiplier: 0.50822
+  intersend_delay: 1.7278ms
+- window_multiplier: 0.5082
   window_increment: 114
-  intersend_delay: 1.8ms
-- window_multiplier: 0.61646
+  intersend_delay: 1.7952ms
+- window_multiplier: 0.6165
   window_increment: 130
-  intersend_delay: 1.64ms
-- window_multiplier: 0.56868
+  intersend_delay: 1.6428ms
+- window_multiplier: 0.5687
   window_increment: 120
-  intersend_delay: 1.76ms
-- window_multiplier: 0.58217
+  intersend_delay: 1.7623ms
+- window_multiplier: 0.5822
   window_increment: 124
-  intersend_delay: 1.71ms
-- window_multiplier: 0.62949
+  intersend_delay: 1.7116ms
+- window_multiplier: 0.6295
   window_increment: 133
-  intersend_delay: 1.59ms
-- window_multiplier: 0.65348
+  intersend_delay: 1.5937ms
+- window_multiplier: 0.6535
   window_increment: 137
-  intersend_delay: 1.56ms
-- window_multiplier: 0.54875
+  intersend_delay: 1.5572ms
+- window_multiplier: 0.5487
   window_increment: 122
-  intersend_delay: 1.71ms
-- window_multiplier: 0.54636
+  intersend_delay: 1.7129ms
+- window_multiplier: 0.5464
   window_increment: 123
-  intersend_delay: 1.7ms
-- window_multiplier: 0.67297
+  intersend_delay: 1.6981ms
+- window_multiplier: 0.673
   window_increment: 142
-  intersend_delay: 1.55ms
-- window_multiplier: 0.64005
+  intersend_delay: 1.5496ms
+- window_multiplier: 0.64
   window_increment: 134
-  intersend_delay: 1.56ms
-- window_multiplier: 0.67039
+  intersend_delay: 1.5591ms
+- window_multiplier: 0.6704
   window_increment: 141
-  intersend_delay: 1.56ms
-- window_multiplier: 0.53186
+  intersend_delay: 1.562ms
+- window_multiplier: 0.5319
   window_increment: 118
-  intersend_delay: 1.75ms
-- window_multiplier: 0.65055
+  intersend_delay: 1.7454ms
+- window_multiplier: 0.6505
   window_increment: 137
-  intersend_delay: 1.61ms
-- window_multiplier: 0.58072
+  intersend_delay: 1.6136ms
+- window_multiplier: 0.5807
   window_increment: 127
-  intersend_delay: 1.64ms
-- window_multiplier: 0.65127
+  intersend_delay: 1.6411ms
+- window_multiplier: 0.6513
   window_increment: 136
-  intersend_delay: 1.56ms
-- window_multiplier: 0.52401
+  intersend_delay: 1.5608ms
+- window_multiplier: 0.524
   window_increment: 118
-  intersend_delay: 1.75ms
-- window_multiplier: 0.55941
+  intersend_delay: 1.7489ms
+- window_multiplier: 0.5594
   window_increment: 119
-  intersend_delay: 1.77ms
+  intersend_delay: 1.7654ms
 - window_multiplier: 0.5732
   window_increment: 127
-  intersend_delay: 1.65ms
-- window_multiplier: 0.64333
+  intersend_delay: 1.6453ms
+- window_multiplier: 0.6433
   window_increment: 135
-  intersend_delay: 1.5399999999999998ms
-- window_multiplier: 0.60591
+  intersend_delay: 1.5382ms
+- window_multiplier: 0.6059
   window_increment: 128
-  intersend_delay: 1.6900000000000002ms
-- window_multiplier: 0.62481
+  intersend_delay: 1.691ms
+- window_multiplier: 0.6248
   window_increment: 131
-  intersend_delay: 1.6700000000000002ms
-- window_multiplier: 0.56705
+  intersend_delay: 1.671ms
+- window_multiplier: 0.5671
   window_increment: 123
-  intersend_delay: 1.71ms
-- window_multiplier: 0.55243
+  intersend_delay: 1.7115ms
+- window_multiplier: 0.5524
   window_increment: 118
-  intersend_delay: 1.77ms
-- window_multiplier: 0.60585
+  intersend_delay: 1.7657ms
+- window_multiplier: 0.6059
   window_increment: 128
-  intersend_delay: 1.6700000000000002ms
-- window_multiplier: 0.67609
+  intersend_delay: 1.6714ms
+- window_multiplier: 0.6761
   window_increment: 142
-  intersend_delay: 1.55ms
-- window_multiplier: 0.52569
+  intersend_delay: 1.5474ms
+- window_multiplier: 0.5257
   window_increment: 118
-  intersend_delay: 1.75ms
-- window_multiplier: 0.50044
+  intersend_delay: 1.7548ms
+- window_multiplier: 0.5004
   window_increment: 119
-  intersend_delay: 1.75ms
-- window_multiplier: 0.55026
+  intersend_delay: 1.7455ms
+- window_multiplier: 0.5503
   window_increment: 119
-  intersend_delay: 1.75ms
-- window_multiplier: 0.64534
+  intersend_delay: 1.7536ms
+- window_multiplier: 0.6453
   window_increment: 136
-  intersend_delay: 1.59ms
-- window_multiplier: 0.62537
+  intersend_delay: 1.5943ms
+- window_multiplier: 0.6254
   window_increment: 131
-  intersend_delay: 1.6700000000000002ms
-- window_multiplier: 0.63089
+  intersend_delay: 1.6708ms
+- window_multiplier: 0.6309
   window_increment: 133
-  intersend_delay: 1.65ms
+  intersend_delay: 1.6492ms
 - window_multiplier: 0.5487
   window_increment: 116
-  intersend_delay: 1.8ms
-- window_multiplier: 0.58751
+  intersend_delay: 1.796ms
+- window_multiplier: 0.5875
   window_increment: 127
-  intersend_delay: 1.65ms
-- window_multiplier: 0.65734
+  intersend_delay: 1.6461ms
+- window_multiplier: 0.6573
   window_increment: 138
-  intersend_delay: 1.56ms
-- window_multiplier: 0.64734
+  intersend_delay: 1.5561ms
+- window_multiplier: 0.6473
   window_increment: 136
-  intersend_delay: 1.63ms
+  intersend_delay: 1.6302ms
 - window_multiplier: 0.6185
   window_increment: 131
   intersend_delay: 1.64ms
-- window_multiplier: 0.64711
+- window_multiplier: 0.6471
   window_increment: 136
-  intersend_delay: 1.57ms
+  intersend_delay: 1.5697ms
 - window_multiplier: 0.565
   window_increment: 122
-  intersend_delay: 1.71ms
-- window_multiplier: 0.60144
+  intersend_delay: 1.7089ms
+- window_multiplier: 0.6014
   window_increment: 127
-  intersend_delay: 1.6800000000000002ms
-- window_multiplier: 0.63366
+  intersend_delay: 1.6813ms
+- window_multiplier: 0.6337
   window_increment: 133
-  intersend_delay: 1.56ms
-- window_multiplier: 0.65425
+  intersend_delay: 1.5586ms
+- window_multiplier: 0.6542
   window_increment: 137
-  intersend_delay: 1.6ms
-- window_multiplier: 0.61364
+  intersend_delay: 1.6043ms
+- window_multiplier: 0.6136
   window_increment: 130
-  intersend_delay: 1.65ms
-- window_multiplier: 0.59106
+  intersend_delay: 1.6538ms
+- window_multiplier: 0.5911
   window_increment: 128
-  intersend_delay: 1.6199999999999999ms
-- window_multiplier: 0.54826
+  intersend_delay: 1.6248ms
+- window_multiplier: 0.5483
   window_increment: 117
-  intersend_delay: 1.7799999999999998ms
-- window_multiplier: 0.53204
+  intersend_delay: 1.7804ms
+- window_multiplier: 0.532
   window_increment: 119
-  intersend_delay: 1.74ms
-- window_multiplier: 0.54892
+  intersend_delay: 1.7372ms
+- window_multiplier: 0.5489
   window_increment: 119
-  intersend_delay: 1.74ms
-- window_multiplier: 0.64674
+  intersend_delay: 1.7421ms
+- window_multiplier: 0.6467
   window_increment: 136
-  intersend_delay: 1.56ms
-- window_multiplier: 0.53343
+  intersend_delay: 1.5623ms
+- window_multiplier: 0.5334
   window_increment: 122
-  intersend_delay: 1.71ms
-- window_multiplier: 0.63205
+  intersend_delay: 1.7053ms
+- window_multiplier: 0.632
   window_increment: 133
-  intersend_delay: 1.6199999999999999ms
-- window_multiplier: 0.50046
+  intersend_delay: 1.6212ms
+- window_multiplier: 0.5005
   window_increment: 117
-  intersend_delay: 1.77ms
-- window_multiplier: 0.57106
+  intersend_delay: 1.7657ms
+- window_multiplier: 0.5711
   window_increment: 121
-  intersend_delay: 1.75ms
+  intersend_delay: 1.7529ms
 - window_multiplier: 0.5462
   window_increment: 121
-  intersend_delay: 1.72ms
-- window_multiplier: 0.52657
+  intersend_delay: 1.723ms
+- window_multiplier: 0.5266
   window_increment: 121
-  intersend_delay: 1.72ms
-- window_multiplier: 0.62311
+  intersend_delay: 1.7213ms
+- window_multiplier: 0.6231
   window_increment: 131
-  intersend_delay: 1.66ms
-- window_multiplier: 0.62817
+  intersend_delay: 1.6585ms
+- window_multiplier: 0.6282
   window_increment: 132
-  intersend_delay: 1.63ms
-- window_multiplier: 0.55955
+  intersend_delay: 1.6267ms
+- window_multiplier: 0.5596
   window_increment: 125
-  intersend_delay: 1.6700000000000002ms
-- window_multiplier: 0.63434
+  intersend_delay: 1.6651ms
+- window_multiplier: 0.6343
   window_increment: 133
-  intersend_delay: 1.6ms
-- window_multiplier: 0.62805
+  intersend_delay: 1.5958ms
+- window_multiplier: 0.6281
   window_increment: 132
-  intersend_delay: 1.61ms
-- window_multiplier: 0.63827
+  intersend_delay: 1.6116ms
+- window_multiplier: 0.6383
   window_increment: 134
-  intersend_delay: 1.57ms
-- window_multiplier: 0.53388
+  intersend_delay: 1.5703ms
+- window_multiplier: 0.5339
   window_increment: 121
-  intersend_delay: 1.72ms
-- window_multiplier: 0.66584
+  intersend_delay: 1.7216ms
+- window_multiplier: 0.6658
   window_increment: 140
-  intersend_delay: 1.5399999999999998ms
-- window_multiplier: 0.61152
+  intersend_delay: 1.5403ms
+- window_multiplier: 0.6115
   window_increment: 129
-  intersend_delay: 1.65ms
-- window_multiplier: 0.60891
+  intersend_delay: 1.6489ms
+- window_multiplier: 0.6089
   window_increment: 129
-  intersend_delay: 1.65ms
-- window_multiplier: 0.54927
+  intersend_delay: 1.6548ms
+- window_multiplier: 0.5493
   window_increment: 124
-  intersend_delay: 1.6800000000000002ms
-- window_multiplier: 0.67212
+  intersend_delay: 1.6826ms
+- window_multiplier: 0.6721
   window_increment: 141
-  intersend_delay: 1.57ms
-- window_multiplier: 0.51653
+  intersend_delay: 1.5659ms
+- window_multiplier: 0.5165
   window_increment: 114
-  intersend_delay: 1.8ms
-- window_multiplier: 0.58842
+  intersend_delay: 1.7991ms
+- window_multiplier: 0.5884
   window_increment: 125
-  intersend_delay: 1.71ms
-- window_multiplier: 0.60716
+  intersend_delay: 1.709ms
+- window_multiplier: 0.6072
   window_increment: 128
-  intersend_delay: 1.7ms
-- window_multiplier: 0.54002
+  intersend_delay: 1.6992ms
+- window_multiplier: 0.54
   window_increment: 124
-  intersend_delay: 1.6900000000000002ms
-- window_multiplier: 0.55018
+  intersend_delay: 1.6888ms
+- window_multiplier: 0.5502
   window_increment: 120
-  intersend_delay: 1.73ms
-- window_multiplier: 0.54016
+  intersend_delay: 1.7301ms
+- window_multiplier: 0.5402
   window_increment: 116
-  intersend_delay: 1.79ms
-- window_multiplier: 0.54582
+  intersend_delay: 1.7906ms
+- window_multiplier: 0.5458
   window_increment: 120
-  intersend_delay: 1.73ms
-- window_multiplier: 0.61255
+  intersend_delay: 1.7338ms
+- window_multiplier: 0.6126
   window_increment: 131
-  intersend_delay: 1.59ms
+  intersend_delay: 1.5909ms
 - window_multiplier: 0.6123
   window_increment: 131
-  intersend_delay: 1.59ms
-- window_multiplier: 0.61496
+  intersend_delay: 1.5897ms
+- window_multiplier: 0.615
   window_increment: 131
-  intersend_delay: 1.6ms
-- window_multiplier: 0.52377
+  intersend_delay: 1.6038ms
+- window_multiplier: 0.5238
   window_increment: 116
-  intersend_delay: 1.7799999999999998ms
-- window_multiplier: 0.63292
+  intersend_delay: 1.7752ms
+- window_multiplier: 0.6329
   window_increment: 133
-  intersend_delay: 1.65ms
+  intersend_delay: 1.6504ms
