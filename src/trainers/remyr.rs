@@ -586,7 +586,7 @@ mod tests {
     use itertools::Itertools;
 
     use crate::{
-        core::rand::{ContinuousDistribution, Rng, Wrapper},
+        core::rand::{ContinuousDistribution, Rng},
         evaluator::EvaluationConfig,
         flow::AlphaFairness,
         network::config::NetworkConfig,
@@ -594,7 +594,7 @@ mod tests {
             remy::{action::Action, point::Point, rule_tree::RuleTree},
             remyr::dna::RemyrDna,
         },
-        quantities::{milliseconds, seconds, Float, Time, TimeSpan},
+        quantities::{milliseconds, seconds, Float, Time},
         Trainer,
     };
 
