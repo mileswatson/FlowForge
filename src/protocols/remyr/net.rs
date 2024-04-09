@@ -122,5 +122,6 @@ mod tests {
         let n1 = dev1.build_module::<f32>(HiddenLayers(32, 32).policy_arch());
         let n2 = dev2.build_module::<f32>(HiddenLayers(32, 32).policy_arch());
         assert_eq!(n1.serialize(), n2.serialize());
+        insta::assert_yaml_snapshot!(n1.serialize());
     }
 }
