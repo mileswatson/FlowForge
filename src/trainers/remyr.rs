@@ -580,3 +580,41 @@ impl Trainer for RemyrTrainer {
         dna
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        core::rand::Rng,
+        evaluator::EvaluationConfig,
+        flow::AlphaFairness,
+        network::config::NetworkConfig,
+        protocols::remyr::dna::RemyrDna,
+        quantities::{seconds, Float},
+        Trainer,
+    };
+
+    use super::{RemyrConfig, RemyrTrainer};
+
+    #[test]
+    fn test_determinism() {
+        let trainer = RemyrTrainer::new(&RemyrConfig {
+            iters: 10,
+            updates_per_iter: 3,
+            num_minibatches: 2,
+            rollout_config: EvaluationConfig {
+                network_samples: 1,
+                run_sim_for: seconds(30.),
+            },
+            ..RemyrConfig::default()
+        });
+        let mut rng = Rng::from_seed(5_243_533);
+        let result = trainer.train(
+            None,
+            &NetworkConfig::default(),
+            &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
+            &mut |_: Float, _: &RemyrDna| {},
+            &mut rng,
+        );
+        insta::assert_yaml_snapshot!(result);
+    }
+}

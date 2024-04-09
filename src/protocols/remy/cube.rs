@@ -1,8 +1,10 @@
+use serde::Serialize;
+
 use super::point::Point;
 
 use std::fmt::{Debug, Display};
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize)]
 pub struct Cube<const TESTING: bool = false> {
     pub min: Point<TESTING>,
     pub max: Point<TESTING>,

@@ -5,6 +5,7 @@ use std::{
 
 use itertools::Itertools;
 use protobuf::MessageField;
+use serde::Serialize;
 
 use crate::quantities::{Float, Time};
 
@@ -165,7 +166,7 @@ impl<'a> LeafHandle<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub enum RuleTreeNode<const TESTING: bool = false> {
     Node {
         domain: Cube<TESTING>,
@@ -229,7 +230,7 @@ impl<const TESTING: bool> RuleTreeNode<TESTING> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 pub struct BaseRuleTree<const TESTING: bool = false> {
     root: usize,
     nodes: Vec<RuleTreeNode<TESTING>>,

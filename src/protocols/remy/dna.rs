@@ -1,5 +1,6 @@
 use anyhow::Result;
 use protobuf::Message;
+use serde::Serialize;
 
 use crate::{quantities::Time, Dna};
 
@@ -10,7 +11,7 @@ use super::{
     rule_tree::{BaseRuleTree, RuleTree},
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct RemyDna<const TESTING: bool = false> {
     pub tree: BaseRuleTree<TESTING>,
 }

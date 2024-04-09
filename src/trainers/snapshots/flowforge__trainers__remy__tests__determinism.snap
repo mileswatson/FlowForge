@@ -1,0 +1,146 @@
+---
+source: src/trainers/remy.rs
+expression: result
+---
+tree:
+  root: 0
+  nodes:
+    - Node:
+        domain:
+          min:
+            ack_ewma: 0ms
+            send_ewma: 0ms
+            rtt_ratio: 0
+          max:
+            ack_ewma: 600s
+            send_ewma: 600s
+            rtt_ratio: 1000
+        children:
+          - 1
+          - 2
+          - 3
+          - 4
+          - 5
+          - 6
+          - 7
+          - 8
+    - Leaf:
+        domain:
+          min:
+            ack_ewma: 0ms
+            send_ewma: 0ms
+            rtt_ratio: 0
+          max:
+            ack_ewma: 300s
+            send_ewma: 300s
+            rtt_ratio: 500
+        action:
+          window_multiplier: 0.96
+          window_increment: 3
+          intersend_delay: 1.4000000000000001ms
+        optimized: false
+    - Leaf:
+        domain:
+          min:
+            ack_ewma: 0ms
+            send_ewma: 0ms
+            rtt_ratio: 500
+          max:
+            ack_ewma: 300s
+            send_ewma: 300s
+            rtt_ratio: 1000
+        action:
+          window_multiplier: 0.96
+          window_increment: 3
+          intersend_delay: 1.4000000000000001ms
+        optimized: false
+    - Leaf:
+        domain:
+          min:
+            ack_ewma: 0ms
+            send_ewma: 300s
+            rtt_ratio: 0
+          max:
+            ack_ewma: 300s
+            send_ewma: 600s
+            rtt_ratio: 500
+        action:
+          window_multiplier: 0.96
+          window_increment: 3
+          intersend_delay: 1.4000000000000001ms
+        optimized: false
+    - Leaf:
+        domain:
+          min:
+            ack_ewma: 0ms
+            send_ewma: 300s
+            rtt_ratio: 500
+          max:
+            ack_ewma: 300s
+            send_ewma: 600s
+            rtt_ratio: 1000
+        action:
+          window_multiplier: 0.96
+          window_increment: 3
+          intersend_delay: 1.4000000000000001ms
+        optimized: false
+    - Leaf:
+        domain:
+          min:
+            ack_ewma: 300s
+            send_ewma: 0ms
+            rtt_ratio: 0
+          max:
+            ack_ewma: 600s
+            send_ewma: 300s
+            rtt_ratio: 500
+        action:
+          window_multiplier: 0.96
+          window_increment: 3
+          intersend_delay: 1.4000000000000001ms
+        optimized: false
+    - Leaf:
+        domain:
+          min:
+            ack_ewma: 300s
+            send_ewma: 0ms
+            rtt_ratio: 500
+          max:
+            ack_ewma: 600s
+            send_ewma: 300s
+            rtt_ratio: 1000
+        action:
+          window_multiplier: 0.96
+          window_increment: 3
+          intersend_delay: 1.4000000000000001ms
+        optimized: false
+    - Leaf:
+        domain:
+          min:
+            ack_ewma: 300s
+            send_ewma: 300s
+            rtt_ratio: 0
+          max:
+            ack_ewma: 600s
+            send_ewma: 600s
+            rtt_ratio: 500
+        action:
+          window_multiplier: 0.96
+          window_increment: 3
+          intersend_delay: 1.4000000000000001ms
+        optimized: false
+    - Leaf:
+        domain:
+          min:
+            ack_ewma: 300s
+            send_ewma: 300s
+            rtt_ratio: 500
+          max:
+            ack_ewma: 600s
+            send_ewma: 600s
+            rtt_ratio: 1000
+        action:
+          window_multiplier: 0.96
+          window_increment: 3
+          intersend_delay: 1.4000000000000001ms
+        optimized: false

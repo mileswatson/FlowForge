@@ -283,8 +283,6 @@ impl Trainer for RemyTrainer {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
-
     use crate::{
         core::rand::Rng, evaluator::EvaluationConfig, flow::AlphaFairness,
         network::config::NetworkConfig, quantities::seconds, trainers::remy::RemyDna, Trainer,
@@ -296,28 +294,24 @@ mod tests {
     #[ignore = "long runtime"]
     fn determinism() {
         let mut rng = Rng::from_seed(123_456);
-        let new_identical_rng = rng.identical_child_factory();
         let remy_config = RemyConfig {
             rule_splits: 1,
             optimization_rounds_per_split: 1,
+            action_change_multiplier: 16,
             count_rule_usage_config: EvaluationConfig {
-                network_samples: 32,
-                run_sim_for: seconds(120.),
+                network_samples: 100,
+                run_sim_for: seconds(10.),
             },
             ..RemyConfig::default()
         };
-        let evaluate = || {
-            let mut rng = new_identical_rng();
-            let trainer = RemyTrainer::new(&remy_config);
-            trainer.train(
-                None,
-                &NetworkConfig::default(),
-                &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
-                &mut |_, _: &RemyDna| {},
-                &mut rng,
-            )
-        };
-
-        assert_eq!(evaluate(), evaluate());
+        let trainer = RemyTrainer::new(&remy_config);
+        let result = trainer.train(
+            None,
+            &NetworkConfig::default(),
+            &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
+            &mut |_, _: &RemyDna| {},
+            &mut rng,
+        );
+        insta::assert_yaml_snapshot!(result);
     }
 }
