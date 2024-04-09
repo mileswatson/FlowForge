@@ -583,13 +583,18 @@ impl Trainer for RemyrTrainer {
 
 #[cfg(test)]
 mod tests {
+    use itertools::Itertools;
+
     use crate::{
-        core::rand::Rng,
+        core::rand::{ContinuousDistribution, Rng, Wrapper},
         evaluator::EvaluationConfig,
         flow::AlphaFairness,
         network::config::NetworkConfig,
-        protocols::remyr::dna::RemyrDna,
-        quantities::{seconds, Float},
+        protocols::{
+            remy::{action::Action, point::Point, rule_tree::RuleTree},
+            remyr::dna::RemyrDna,
+        },
+        quantities::{milliseconds, seconds, Float, Time, TimeSpan},
         Trainer,
     };
 
@@ -615,6 +620,35 @@ mod tests {
             &mut |_: Float, _: &RemyrDna| {},
             &mut rng,
         );
-        insta::assert_yaml_snapshot!(result);
+        let mut random_point = || Point::<false> {
+            ack_ewma: rng.sample(&ContinuousDistribution::Uniform {
+                min: seconds(0.),
+                max: milliseconds(125.),
+            }),
+            send_ewma: rng.sample(&ContinuousDistribution::Uniform {
+                min: seconds(0.),
+                max: milliseconds(125.),
+            }),
+            rtt_ratio: rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. }),
+        };
+        let precision = 10_000_000.;
+        let actions = (0..100)
+            .map(|_| result.action(&random_point(), Time::SIM_START).unwrap())
+            .map(
+                |Action {
+                     window_multiplier,
+                     window_increment,
+                     intersend_delay,
+                 }| Action::<false> {
+                    window_multiplier: (window_multiplier * precision).round() / precision,
+                    window_increment,
+                    intersend_delay: TimeSpan::from_underlying(
+                        (intersend_delay.to_underlying() * precision).round() / precision,
+                    ),
+                },
+            )
+            .collect_vec();
+
+        insta::assert_yaml_snapshot!(actions);
     }
 }
