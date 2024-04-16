@@ -25,7 +25,7 @@ pub struct LossyWindowSettings {
     pub intersend_delay: TimeSpan,
 }
 
-pub trait CCA: Debug {
+pub trait Cca: Debug {
     fn initial_settings(&self) -> LossyWindowSettings;
     fn ack_received<L: Logger>(
         &mut self,
@@ -92,7 +92,7 @@ where
     ) -> LossySenderAddress<'sim, E>
     where
         F: FlowMeter + Debug + 'a,
-        C: CCA + 'a,
+        C: Cca + 'a,
         'sim: 'a,
     {
         let LossySenderSlot {
@@ -168,7 +168,7 @@ impl LossyWindowSender {
             + HasSubEffect<LossyInternalControllerEffect>
             + 'sim,
         L: Logger + Clone + 'a,
-        C: CCA + 'a,
+        C: Cca + 'a,
         F: FlowMeter + Debug + 'a,
         'sim: 'a,
     {

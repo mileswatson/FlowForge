@@ -12,17 +12,17 @@ use crate::{
 };
 
 use super::window::{
-    AckReceived, LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderAddress,
-    LossySenderSlot, LossyWindowSender, LossyWindowSettings, CCA,
+    AckReceived, Cca, LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderAddress,
+    LossySenderSlot, LossyWindowSender, LossyWindowSettings,
 };
 
 #[derive(Debug)]
-struct DelayMultiplierCCA {
+struct DelayMultiplierCca {
     multiplier: Float,
     rtt: EWMA<TimeSpan>,
 }
 
-impl CCA for DelayMultiplierCCA {
+impl Cca for DelayMultiplierCca {
     fn initial_settings(&self) -> LossyWindowSettings {
         LossyWindowSettings {
             window: 1,
@@ -87,7 +87,7 @@ where
             id,
             link,
             destination,
-            Box::new(move || DelayMultiplierCCA {
+            Box::new(move || DelayMultiplierCca {
                 multiplier,
                 rtt: EWMA::new(1. / 8.),
             }),

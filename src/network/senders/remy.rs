@@ -13,8 +13,8 @@ use crate::{
 };
 
 use super::window::{
-    AckReceived, LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderAddress,
-    LossySenderSlot, LossyWindowSender, LossyWindowSettings, CCA,
+    AckReceived, Cca, LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderAddress,
+    LossySenderSlot, LossyWindowSender, LossyWindowSettings,
 };
 
 #[derive(Debug, Clone)]
@@ -23,7 +23,7 @@ struct Rtt {
     current: TimeSpan,
 }
 
-struct RemyCCA<T> {
+struct RemyCca<T> {
     rule_tree: T,
     last_ack: Option<Time>,
     last_send: Option<Time>,
@@ -34,9 +34,9 @@ struct RemyCCA<T> {
     repeat_actions: Option<DiscreteDistribution<u32>>,
 }
 
-impl<T> Debug for RemyCCA<T> {
+impl<T> Debug for RemyCca<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("RemyCCA")
+        f.debug_struct("RemyCca")
             .field("rule_tree", &"")
             .field("last_ack", &self.last_ack)
             .field("last_send", &self.last_send)
@@ -49,12 +49,12 @@ impl<T> Debug for RemyCCA<T> {
     }
 }
 
-impl<T> RemyCCA<T>
+impl<T> RemyCca<T>
 where
     T: DynRuleTree,
 {
-    fn new(rule_tree: T, repeat_actions: Option<DiscreteDistribution<u32>>) -> RemyCCA<T> {
-        RemyCCA {
+    fn new(rule_tree: T, repeat_actions: Option<DiscreteDistribution<u32>>) -> RemyCca<T> {
+        RemyCca {
             rule_tree,
             ack_ewma: EWMA::new(1. / 8.),
             send_ewma: EWMA::new(1. / 8.),
@@ -82,7 +82,7 @@ where
     }
 }
 
-impl<T> CCA for RemyCCA<T>
+impl<T> Cca for RemyCca<T>
 where
     T: DynRuleTree,
 {
@@ -191,7 +191,7 @@ where
             id,
             link,
             destination,
-            Box::new(move || RemyCCA::new(rule_tree.clone(), repeat_actions.clone())),
+            Box::new(move || RemyCca::new(rule_tree.clone(), repeat_actions.clone())),
             wait_for_enable,
             flow_meter,
             rng,

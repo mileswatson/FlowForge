@@ -9,7 +9,7 @@ use crate::{
     simulation::{Address, Component, EffectContext, Message},
 };
 
-use super::{LossyInternalControllerEffect, LossyInternalSenderEffect, SettingsUpdate, CCA};
+use super::{Cca, LossyInternalControllerEffect, LossyInternalSenderEffect, SettingsUpdate};
 
 #[derive(Debug)]
 enum LossyWindowControllerState<C> {
@@ -55,7 +55,7 @@ impl<'sim, 'a, C, E, L> LossyWindowController<'sim, 'a, C, E, L> {
 
 impl<'sim, 'a, C, E, L> Component<'sim, E> for LossyWindowController<'sim, 'a, C, E, L>
 where
-    C: CCA,
+    C: Cca,
     L: Logger,
 {
     type Receive = LossyInternalControllerEffect;
