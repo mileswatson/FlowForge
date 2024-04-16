@@ -9,25 +9,23 @@ use crate::{
     simulation::{Address, Component, EffectContext, Message},
 };
 
-use super::{
-    LossyInternalControllerEffect, LossyInternalSenderEffect, LossyWindowBehavior, SettingsUpdate,
-};
+use super::{LossyInternalControllerEffect, LossyInternalSenderEffect, SettingsUpdate, CCA};
 
 #[derive(Debug)]
-enum LossyWindowControllerState<B> {
-    Enabled(B),
+enum LossyWindowControllerState<C> {
+    Enabled(C),
     Disabled { wait_for_enable: bool },
 }
 
-pub struct LossyWindowController<'sim, 'a, B, E, L> {
+pub struct LossyWindowController<'sim, 'a, C, E, L> {
     sender: Address<'sim, LossyInternalSenderEffect<'sim, E>, E>,
-    new_behavior: Box<dyn (Fn() -> B) + 'a>,
-    state: LossyWindowControllerState<B>,
+    new_cca: Box<dyn (Fn() -> C) + 'a>,
+    state: LossyWindowControllerState<C>,
     rng: Rng,
     logger: L,
 }
 
-impl<'sim, 'a, B: Debug, E, L: Debug> Debug for LossyWindowController<'sim, 'a, B, E, L> {
+impl<'sim, 'a, C: Debug, E, L: Debug> Debug for LossyWindowController<'sim, 'a, C, E, L> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LossyWindowController")
             .field("sender", &self.sender)
@@ -37,17 +35,17 @@ impl<'sim, 'a, B: Debug, E, L: Debug> Debug for LossyWindowController<'sim, 'a, 
     }
 }
 
-impl<'sim, 'a, B, E, L> LossyWindowController<'sim, 'a, B, E, L> {
+impl<'sim, 'a, C, E, L> LossyWindowController<'sim, 'a, C, E, L> {
     pub fn new(
         sender: Address<'sim, LossyInternalSenderEffect<'sim, E>, E>,
-        new_behavior: Box<dyn (Fn() -> B) + 'a>,
+        new_cca: Box<dyn (Fn() -> C) + 'a>,
         wait_for_enable: bool,
         rng: Rng,
         logger: L,
-    ) -> LossyWindowController<'sim, 'a, B, E, L> {
+    ) -> LossyWindowController<'sim, 'a, C, E, L> {
         LossyWindowController {
             sender,
-            new_behavior,
+            new_cca,
             state: LossyWindowControllerState::Disabled { wait_for_enable },
             rng,
             logger,
@@ -55,9 +53,9 @@ impl<'sim, 'a, B, E, L> LossyWindowController<'sim, 'a, B, E, L> {
     }
 }
 
-impl<'sim, 'a, B, E, L> Component<'sim, E> for LossyWindowController<'sim, 'a, B, E, L>
+impl<'sim, 'a, C, E, L> Component<'sim, E> for LossyWindowController<'sim, 'a, C, E, L>
 where
-    B: LossyWindowBehavior,
+    C: CCA,
     L: Logger,
 {
     type Receive = LossyInternalControllerEffect;
@@ -97,9 +95,9 @@ where
                 LossyWindowControllerState::Disabled { .. },
                 LossyInternalControllerEffect::Toggle(Toggle::Enable),
             ) => {
-                let behavior = (self.new_behavior)();
-                let initial_settings = behavior.initial_settings();
-                self.state = LossyWindowControllerState::Enabled(behavior);
+                let cca = (self.new_cca)();
+                let initial_settings = cca.initial_settings();
+                self.state = LossyWindowControllerState::Enabled(cca);
                 Some(SettingsUpdate::Enable(initial_settings))
             }
             (
@@ -112,9 +110,9 @@ where
                 Some(SettingsUpdate::Disable)
             }
             (
-                LossyWindowControllerState::Enabled(behavior),
+                LossyWindowControllerState::Enabled(cca),
                 LossyInternalControllerEffect::AckReceived(context),
-            ) => behavior
+            ) => cca
                 .ack_received(context, &mut self.rng, &mut self.logger)
                 .map(SettingsUpdate::Enable),
             (

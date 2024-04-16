@@ -25,7 +25,7 @@ pub struct LossyWindowSettings {
     pub intersend_delay: TimeSpan,
 }
 
-pub trait LossyWindowBehavior: Debug {
+pub trait CCA: Debug {
     fn initial_settings(&self) -> LossyWindowSettings;
     fn ack_received<L: Logger>(
         &mut self,
@@ -79,12 +79,12 @@ where
         self.address.clone()
     }
 
-    pub fn set<B, F>(
+    pub fn set<C, F>(
         self,
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         dest: PacketAddress<'sim, E>,
-        new_behavior: Box<dyn (Fn() -> B) + 'a>,
+        new_cca: Box<dyn (Fn() -> C) + 'a>,
         wait_for_enable: bool,
         flow_meter: F,
         rng: Rng,
@@ -92,7 +92,7 @@ where
     ) -> LossySenderAddress<'sim, E>
     where
         F: FlowMeter + Debug + 'a,
-        B: LossyWindowBehavior + 'a,
+        C: CCA + 'a,
         'sim: 'a,
     {
         let LossySenderSlot {
@@ -114,7 +114,7 @@ where
             >));
         controller_slot.set(DynComponent::new(LossyWindowController::new(
             sender_address,
-            new_behavior,
+            new_cca,
             wait_for_enable,
             rng,
             logger,
@@ -152,12 +152,12 @@ impl LossyWindowSender {
         }
     }
 
-    pub fn insert<'sim, 'a, 'b, B, F, E, L>(
+    pub fn insert<'sim, 'a, 'b, C, F, E, L>(
         builder: &SimulatorBuilder<'sim, 'a, E>,
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         destination: PacketAddress<'sim, E>,
-        new_behavior: Box<dyn (Fn() -> B) + 'a>,
+        new_cca: Box<dyn (Fn() -> C) + 'a>,
         wait_for_enable: bool,
         flow_meter: F,
         rng: Rng,
@@ -168,7 +168,7 @@ impl LossyWindowSender {
             + HasSubEffect<LossyInternalControllerEffect>
             + 'sim,
         L: Logger + Clone + 'a,
-        B: LossyWindowBehavior + 'a,
+        C: CCA + 'a,
         F: FlowMeter + Debug + 'a,
         'sim: 'a,
     {
@@ -177,7 +177,7 @@ impl LossyWindowSender {
             id,
             link,
             destination,
-            new_behavior,
+            new_cca,
             wait_for_enable,
             flow_meter,
             rng,
