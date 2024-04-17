@@ -11,7 +11,7 @@ use flowforge::{
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
     network::{
-        config::NetworkConfig, senders::window::CcaTemplateSync, EffectTypeGenerator,
+        config::NetworkConfig, senders::window::CcaTemplate, EffectTypeGenerator,
         HasNetworkSubEffects,
     },
     quantities::Float,
@@ -114,7 +114,7 @@ pub fn _train<T>(
                     io::stdout().flush().unwrap();
                     let (utility, props) = evaluation_config
                         .evaluate::<_, T::DefaultEffectGenerator>(
-                            &T::CcaTemplate::default().with_sync(dna),
+                            &T::CcaTemplate::default().with(dna),
                             network_config,
                             utility_config,
                             &mut new_eval_rng(),

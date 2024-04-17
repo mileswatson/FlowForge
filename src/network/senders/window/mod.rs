@@ -38,23 +38,7 @@ pub trait Cca: Debug {
 pub trait CcaTemplate<'a>: Default + Debug {
     type Policy: 'a + ?Sized;
     type CCA: Cca + 'a;
-
-    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA;
-}
-
-pub trait CcaTemplateSync<'a>:
-    CcaTemplate<
-    'a,
-    Policy = <Self as CcaTemplateSync<'a>>::Policy,
-    CCA = <Self as CcaTemplateSync<'a>>::CCA,
->
-{
-    type Policy: 'a + ?Sized;
-    type CCA: Cca + 'a;
-    fn with_sync(
-        &self,
-        policy: <Self as CcaTemplateSync<'a>>::Policy,
-    ) -> impl Fn() -> <Self as CcaTemplateSync<'a>>::CCA + Sync;
+    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA + Sync;
 }
 
 pub struct AckReceived {

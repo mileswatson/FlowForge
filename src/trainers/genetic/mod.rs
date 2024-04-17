@@ -9,7 +9,7 @@ use crate::{
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
     network::{
-        config::NetworkConfig, senders::window::CcaTemplateSync, EffectTypeGenerator,
+        config::NetworkConfig, senders::window::CcaTemplate, EffectTypeGenerator,
         HasNetworkSubEffects,
     },
     Dna, ProgressHandler, Trainer,
@@ -94,7 +94,7 @@ where
                     let score = self
                         .child_eval_config
                         .evaluate::<_, T::DefaultEffectGenerator>(
-                            T::CcaTemplate::default().with_sync(&d),
+                            T::CcaTemplate::default().with(&d),
                             network_config,
                             utility_function,
                             &mut rng,
