@@ -40,13 +40,14 @@ pub struct RemyConfig {
     pub default_action: Action,
     pub change_eval_config: EvaluationConfig,
     pub count_rule_usage_config: EvaluationConfig,
+    pub drill_down: bool,
 }
 
 impl Default for RemyConfig {
     fn default() -> Self {
         Self {
             rule_splits: 100,
-            optimization_rounds_per_split: 5,
+            optimization_rounds_per_split: 2,
             min_action: Action {
                 window_multiplier: 0.,
                 window_increment: 0,
@@ -78,6 +79,7 @@ impl Default for RemyConfig {
                 run_sim_for: seconds(60.),
             },
             count_rule_usage_config: EvaluationConfig::default(),
+            drill_down: true,
         }
     }
 }
@@ -212,13 +214,30 @@ impl Trainer for RemyTrainer {
             if i == 0 {
                 println!("Starting optimization");
             } else {
-                let (fraction_used, leaf) = eval_and_count(&mut dna).most_used_rule();
-                println!(
-                    "Split rule {} with usage {:.2}%",
-                    leaf.domain(),
-                    fraction_used * 100.
-                );
-                leaf.split();
+                let mut counts = eval_and_count(&mut dna);
+                if self.config.drill_down && counts.num_used_rules() <= 1 {
+                    loop {
+                        let (fraction_used, leaf) = counts.most_used_rule();
+                        println!(
+                            "Split rule {} with usage {:.2}%",
+                            leaf.domain(),
+                            fraction_used * 100.
+                        );
+                        leaf.split();
+                        counts = eval_and_count(&mut dna);
+                        if counts.num_used_rules() > 1 {
+                            break;
+                        }
+                    }
+                } else {
+                    let (fraction_used, leaf) = counts.most_used_rule();
+                    println!(
+                        "Split rule {} with usage {:.2}%",
+                        leaf.domain(),
+                        fraction_used * 100.
+                    );
+                    leaf.split();
+                }
             }
             for optimization_round in 0..self.config.optimization_rounds_per_split {
                 println!(

@@ -1,7 +1,7 @@
 {
   "type": "remy",
   "rule_splits": 100,
-  "optimization_rounds_per_split": 5,
+  "optimization_rounds_per_split": 2,
   "min_action": {
     "window_multiplier": 0.0,
     "window_increment": 0,
@@ -35,5 +35,6 @@
   "count_rule_usage_config": {
     "network_samples": 500,
     "run_sim_for": "60s"
-  }
+  },
+  "drill_down": true
 }
