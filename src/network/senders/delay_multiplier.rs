@@ -1,25 +1,16 @@
 use std::fmt::Debug;
 
 use crate::{
-    core::{
-        logging::Logger,
-        meters::{FlowMeter, EWMA},
-        rand::Rng,
-    },
-    network::PacketAddress,
+    core::{logging::Logger, meters::EWMA, rand::Rng},
     quantities::{Float, TimeSpan},
-    simulation::{HasSubEffect, SimulatorBuilder},
 };
 
-use super::window::{
-    AckReceived, Cca, LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderAddress,
-    LossySenderSlot, LossyWindowSender, LossyWindowSettings,
-};
+use super::window::{AckReceived, Cca, LossyWindowSettings};
 
 #[derive(Debug)]
-struct DelayMultiplierCca {
-    multiplier: Float,
-    rtt: EWMA<TimeSpan>,
+pub struct DelayMultiplierCca {
+    pub multiplier: Float,
+    pub rtt: EWMA<TimeSpan>,
 }
 
 impl Cca for DelayMultiplierCca {
@@ -50,97 +41,5 @@ impl Cca for DelayMultiplierCca {
             intersend_delay,
             ..current_settings
         })
-    }
-}
-
-pub struct LossyDelayMultiplierSender;
-
-pub struct LossyDelayMultiplierSenderSlot<'sim, 'a, 'b, E>(LossySenderSlot<'sim, 'a, 'b, E>);
-
-impl<'sim, 'a, 'b, E> LossyDelayMultiplierSenderSlot<'sim, 'a, 'b, E>
-where
-    E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
-        + HasSubEffect<LossyInternalControllerEffect>
-        + 'sim,
-    'sim: 'a,
-{
-    #[must_use]
-    pub fn address(&self) -> LossySenderAddress<'sim, E> {
-        self.0.address()
-    }
-
-    pub fn set<F>(
-        self,
-        id: PacketAddress<'sim, E>,
-        link: PacketAddress<'sim, E>,
-        destination: PacketAddress<'sim, E>,
-        multiplier: Float,
-        wait_for_enable: bool,
-        flow_meter: F,
-        rng: Rng,
-        logger: impl Logger + Clone + 'a,
-    ) -> LossySenderAddress<'sim, E>
-    where
-        F: FlowMeter + 'a,
-    {
-        self.0.set(
-            id,
-            link,
-            destination,
-            Box::new(move || DelayMultiplierCca {
-                multiplier,
-                rtt: EWMA::new(1. / 8.),
-            }),
-            wait_for_enable,
-            flow_meter,
-            rng,
-            logger,
-        )
-    }
-}
-
-impl LossyDelayMultiplierSender {
-    pub fn reserve_slot<'sim, 'a, 'b, E, L>(
-        builder: &'b SimulatorBuilder<'sim, 'a, E>,
-    ) -> LossyDelayMultiplierSenderSlot<'sim, 'a, 'b, E>
-    where
-        L: Logger + Clone + 'a,
-        E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
-            + HasSubEffect<LossyInternalControllerEffect>
-            + 'sim,
-    {
-        LossyDelayMultiplierSenderSlot(LossyWindowSender::reserve_slot(builder))
-    }
-
-    pub fn insert<'sim, 'a, 'b, T, F, E, L>(
-        builder: &SimulatorBuilder<'sim, 'a, E>,
-        id: PacketAddress<'sim, E>,
-        link: PacketAddress<'sim, E>,
-        destination: PacketAddress<'sim, E>,
-        multiplier: Float,
-        wait_for_enable: bool,
-        flow_meter: F,
-        rng: Rng,
-        logger: L,
-    ) -> LossySenderAddress<'sim, E>
-    where
-        L: Logger + Clone + 'sim,
-        E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
-            + HasSubEffect<LossyInternalControllerEffect>
-            + 'sim,
-        F: FlowMeter + 'a,
-        'sim: 'a,
-    {
-        let slot = Self::reserve_slot::<E, L>(builder);
-        slot.set(
-            id,
-            link,
-            destination,
-            multiplier,
-            wait_for_enable,
-            flow_meter,
-            rng,
-            logger,
-        )
     }
 }

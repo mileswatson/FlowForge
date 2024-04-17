@@ -7,12 +7,14 @@ use std::{
 
 use anyhow::Result;
 use flowforge::{
-    core::{never::Never, rand::Rng},
+    core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
-    network::{config::NetworkConfig, toggler::Toggle, EffectTypeGenerator, Packet},
+    network::{
+        config::NetworkConfig, senders::window::CcaTemplateSync, EffectTypeGenerator,
+        HasNetworkSubEffects,
+    },
     quantities::Float,
-    simulation::HasSubEffect,
     trainers::{
         delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
         TrainerConfig,
@@ -61,9 +63,8 @@ pub fn _train<T>(
 ) where
     T: Trainer,
     T::Config: Serialize + Sync,
-    for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>: HasSubEffect<Packet<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>>
-        + HasSubEffect<Toggle>
-        + HasSubEffect<Never>,
+    for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>:
+        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>,
 {
     assert!(T::Dna::valid_path(dna_path));
     let starting_point = if force {
@@ -112,10 +113,9 @@ pub fn _train<T>(
                     print!("Evaluating... ");
                     io::stdout().flush().unwrap();
                     let (utility, props) = evaluation_config
-                        .evaluate(
-                            &T::DefaultFlowAdder::default(),
+                        .evaluate::<_, T::DefaultEffectGenerator>(
+                            &T::CcaTemplate::default().with_sync(dna),
                             network_config,
-                            dna,
                             utility_config,
                             &mut new_eval_rng(),
                         )

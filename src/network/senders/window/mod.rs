@@ -35,6 +35,28 @@ pub trait Cca: Debug {
     ) -> Option<LossyWindowSettings>;
 }
 
+pub trait CcaTemplate<'a>: Default + Debug {
+    type Policy: 'a + ?Sized;
+    type CCA: Cca + 'a;
+
+    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA;
+}
+
+pub trait CcaTemplateSync<'a>:
+    CcaTemplate<
+    'a,
+    Policy = <Self as CcaTemplateSync<'a>>::Policy,
+    CCA = <Self as CcaTemplateSync<'a>>::CCA,
+>
+{
+    type Policy: 'a + ?Sized;
+    type CCA: Cca + 'a;
+    fn with_sync(
+        &self,
+        policy: <Self as CcaTemplateSync<'a>>::Policy,
+    ) -> impl Fn() -> <Self as CcaTemplateSync<'a>>::CCA + Sync;
+}
+
 pub struct AckReceived {
     pub current_settings: LossyWindowSettings,
     pub sent_time: Time,
@@ -79,19 +101,18 @@ where
         self.address.clone()
     }
 
-    pub fn set<C, F>(
+    pub fn set<C>(
         self,
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         dest: PacketAddress<'sim, E>,
-        new_cca: Box<dyn (Fn() -> C) + 'a>,
+        cca_generator: impl Fn() -> C + 'a,
         wait_for_enable: bool,
-        flow_meter: F,
+        flow_meter: impl FlowMeter + Debug + 'a,
         rng: Rng,
         logger: impl Logger + Clone + 'a,
     ) -> LossySenderAddress<'sim, E>
     where
-        F: FlowMeter + Debug + 'a,
         C: Cca + 'a,
         'sim: 'a,
     {
@@ -114,7 +135,7 @@ where
             >));
         controller_slot.set(DynComponent::new(LossyWindowController::new(
             sender_address,
-            new_cca,
+            cca_generator,
             wait_for_enable,
             rng,
             logger,
@@ -157,19 +178,17 @@ impl LossyWindowSender {
         id: PacketAddress<'sim, E>,
         link: PacketAddress<'sim, E>,
         destination: PacketAddress<'sim, E>,
-        new_cca: Box<dyn (Fn() -> C) + 'a>,
+        cca_generator: impl Fn() -> C + 'a,
         wait_for_enable: bool,
-        flow_meter: F,
+        flow_meter: impl FlowMeter + Debug + 'a,
         rng: Rng,
-        logger: L,
+        logger: impl Logger + Clone + 'a,
     ) -> LossySenderAddress<'sim, E>
     where
         E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
             + HasSubEffect<LossyInternalControllerEffect>
             + 'sim,
-        L: Logger + Clone + 'a,
         C: Cca + 'a,
-        F: FlowMeter + Debug + 'a,
         'sim: 'a,
     {
         let slot = Self::reserve_slot(builder);
@@ -177,7 +196,7 @@ impl LossyWindowSender {
             id,
             link,
             destination,
-            new_cca,
+            cca_generator,
             wait_for_enable,
             flow_meter,
             rng,

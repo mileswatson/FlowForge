@@ -19,7 +19,13 @@ use crate::{
     },
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    network::config::NetworkConfig,
+    network::{
+        config::NetworkConfig,
+        senders::{
+            remy::RemyCca,
+            window::{CcaTemplate, CcaTemplateSync},
+        },
+    },
     protocols::{
         remy::{
             action::Action,
@@ -34,8 +40,11 @@ use crate::{
         },
     },
     quantities::{milliseconds, seconds, Float, Time, TimeSpan},
+    trainers::DefaultEffect,
     Trainer,
 };
+
+use super::remy::RuleTreeCcaTemplate;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -45,8 +54,6 @@ pub enum DiscountingMode {
     DiscreteRate { gamma: f32 },
     ContinuousRate { half_life: TimeSpan },
 }
-
-use super::{remy::RemyFlowAdder, DefaultEffect};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RemyrConfig {
@@ -361,49 +368,71 @@ fn rollout(
         .into_par_iter()
         .map(|(n, mut rng)| {
             let records = RefCell::new((Vec::new(), Vec::new()));
-            make_guard!(guard);
-            let flows = (0..n.num_senders)
-                .map(|_| RefCell::new(CurrentFlowMeter::new_disabled(Time::SIM_START, half_life)))
-                .collect_vec();
-            let current_utility = |time| {
-                let flow_stats = flows
-                    .iter()
-                    .filter_map(|x| x.borrow().current_properties(time).ok())
+            let x = {
+                make_guard!(guard);
+
+                let flows = (0..n.num_senders)
+                    .map(|_| {
+                        RefCell::new(CurrentFlowMeter::new_disabled(Time::SIM_START, half_life))
+                    })
                     .collect_vec();
-                utility_function
-                    .total_utility(&flow_stats)
-                    .map(|(u, _)| u)
-                    .unwrap_or(0.) as f32
+                let current_utility = |time| {
+                    let flow_stats = flows
+                        .iter()
+                        .filter_map(|x| x.borrow().current_properties(time).ok())
+                        .collect_vec();
+                    utility_function
+                        .total_utility(&flow_stats)
+                        .map(|(u, _)| u)
+                        .unwrap_or(0.) as f32
+                };
+                let mut policy_rng = rng.create_child();
+                let dna = RolloutWrapper {
+                    stddev,
+                    dna,
+                    f: &|rec, time| {
+                        let mut records = records.borrow_mut();
+                        records.0.push(rec);
+                        records.1.push((current_utility(time), time));
+                    },
+                    rng: &RefCell::new(&mut policy_rng),
+                    prob_deterministic,
+                    samples: RefCell::new((stddev.clone() * 0_f32, VecDeque::new())),
+                    num_senders: &|| flows.iter().filter(|x| x.borrow().active()).count(),
+                };
+                let cca_template = RuleTreeCcaTemplate::new(repeat_actions.clone());
+                let cca_gen = cca_template.with(dna);
+                let sim = n.to_sim::<_, DefaultEffect>(&cca_gen, guard, &mut rng, &flows, |_| {});
+                let sim_end = Time::from_sim_start(training_config.run_sim_for);
+                sim.run_while(|t| t < sim_end);
+                (current_utility(sim_end), sim_end)
             };
-            let mut policy_rng = rng.create_child();
-            let dna = RolloutWrapper {
-                stddev,
-                dna,
-                f: &|rec, time| {
-                    let mut records = records.borrow_mut();
-                    records.0.push(rec);
-                    records.1.push((current_utility(time), time));
-                },
-                rng: &RefCell::new(&mut policy_rng),
-                prob_deterministic,
-                samples: RefCell::new((stddev.clone() * 0_f32, VecDeque::new())),
-                num_senders: &|| flows.iter().filter(|x| x.borrow().active()).count(),
-            };
-            let sim = n.to_sim::<_, DefaultEffect>(
-                &RemyFlowAdder::new(repeat_actions.clone()),
-                guard,
-                &mut rng,
-                &flows,
-                dna,
-                |_| {},
-            );
-            let sim_end = Time::from_sim_start(training_config.run_sim_for);
-            sim.run_while(|t| t < sim_end);
             let mut records = records.into_inner();
-            records.1.push((current_utility(sim_end), sim_end));
+            records.1.push(x);
             discounting_mode.create_trajectory(records.0, &records.1)
         })
         .collect()
+}
+
+#[derive(Default, Debug)]
+pub struct RemyrCcaTemplate<'a>(RuleTreeCcaTemplate<&'a RemyrDna>);
+
+impl<'a> CcaTemplate<'a> for RemyrCcaTemplate<'a> {
+    type Policy = &'a RemyrDna;
+    type CCA = RemyCca<&'a RemyrDna>;
+
+    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA {
+        self.0.with(policy)
+    }
+}
+
+impl<'a> CcaTemplateSync<'a> for RemyrCcaTemplate<'a> {
+    type Policy = &'a RemyrDna;
+    type CCA = RemyCca<&'a RemyrDna>;
+
+    fn with_sync(&self, policy: &'a RemyrDna) -> impl Fn() -> RemyCca<&'a RemyrDna> + Sync {
+        self.0.with(policy)
+    }
 }
 
 pub struct RemyrTrainer {
@@ -413,8 +442,8 @@ pub struct RemyrTrainer {
 impl Trainer for RemyrTrainer {
     type Config = RemyrConfig;
     type Dna = RemyrDna;
+    type CcaTemplate<'a> = RemyrCcaTemplate<'a>;
     type DefaultEffectGenerator = DefaultEffect<'static>;
-    type DefaultFlowAdder<'a> = RemyFlowAdder;
 
     fn new(config: &Self::Config) -> Self {
         RemyrTrainer {

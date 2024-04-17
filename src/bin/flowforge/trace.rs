@@ -3,18 +3,13 @@ use flowforge::{
     core::{meters::CurrentFlowMeter, never::Never, rand::Rng},
     flow::{UtilityConfig, UtilityFunction},
     network::{
-        config::NetworkConfig, ticker::Ticker, AddFlows, EffectTypeGenerator, HasNetworkSubEffects,
-        Network,
+        config::NetworkConfig, senders::window::CcaTemplateSync, ticker::Ticker,
+        EffectTypeGenerator, HasNetworkSubEffects, Network,
     },
-    protocols::{remy::dna::RemyDna, remyr::dna::RemyrDna},
     quantities::{milliseconds, seconds, Float, InformationRate, Time, TimeSpan},
     simulation::DynComponent,
-    trainers::{
-        delay_multiplier::{DelayMultiplierDna, DelayMultiplierFlowAdder},
-        remy::RemyFlowAdder,
-        DefaultEffect,
-    },
-    Config, Dna,
+    trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
+    Config, Trainer,
 };
 use generativity::make_guard;
 use itertools::Itertools;
@@ -60,19 +55,18 @@ impl TraceResult {
     }
 }
 
-fn _trace<A, D, G>(
+fn _trace<T>(
     network_config: &NetworkConfig,
     utility_config: &UtilityConfig,
     input_path: &Path,
     rng: &mut Rng,
 ) -> TraceResult
 where
-    A: for<'a> AddFlows<&'a D, G>,
-    D: Dna + 'static,
-    G: EffectTypeGenerator,
-    for<'sim> G::Type<'sim>: HasNetworkSubEffects<'sim, G::Type<'sim>>,
+    T: Trainer,
+    for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>:
+        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>,
 {
-    let dna = D::load(input_path).unwrap();
+    let dna = T::Dna::load(input_path).unwrap();
     let n = rng.sample(network_config);
     let mut result = TraceResult::new(n.clone());
     make_guard!(guard);
@@ -84,7 +78,9 @@ where
             ))
         })
         .collect_vec();
-    let sim = n.to_sim(&A::default(), guard, rng, &flows, &dna, |builder| {
+    let cca_template = T::CcaTemplate::default();
+    let cca_gen = cca_template.with_sync(&dna);
+    let sim = n.to_sim::<_, T::DefaultEffectGenerator>(&cca_gen, guard, rng, &flows, |builder| {
         builder.insert(DynComponent::<Never, _>::new(Ticker::new(
             milliseconds(1.),
             |time| {
@@ -140,25 +136,15 @@ pub fn trace(
     let mut rng = Rng::from_seed(seed);
 
     let result = match mode {
-        FlowAdders::Remy => _trace::<RemyFlowAdder, RemyDna, DefaultEffect>(
-            &network_config,
-            &utility_config,
-            input_path,
-            &mut rng,
-        ),
-        FlowAdders::DelayMultiplier => _trace::<
-            DelayMultiplierFlowAdder,
-            DelayMultiplierDna,
-            DefaultEffect,
-        >(
-            &network_config, &utility_config, input_path, &mut rng
-        ),
-        FlowAdders::Remyr => _trace::<RemyFlowAdder, RemyrDna, DefaultEffect>(
-            &network_config,
-            &utility_config,
-            input_path,
-            &mut rng,
-        ),
+        FlowAdders::Remy => {
+            _trace::<RemyTrainer>(&network_config, &utility_config, input_path, &mut rng)
+        }
+        FlowAdders::DelayMultiplier => {
+            _trace::<DelayMultiplierTrainer>(&network_config, &utility_config, input_path, &mut rng)
+        }
+        FlowAdders::Remyr => {
+            _trace::<RemyrTrainer>(&network_config, &utility_config, input_path, &mut rng)
+        }
     };
 
     if let Some(output_path) = output_path {

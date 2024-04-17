@@ -2,20 +2,27 @@ use std::{mem::ManuallyDrop, ops::Deref};
 
 use flowforge::{
     core::{
-        logging::{LogTable, NothingLogger},
+        logging::LogTable,
         meters::{AverageFlowMeter, CurrentFlowMeter},
         rand::Rng,
     },
     network::{
-        bouncer::LossyBouncer, link::Link, senders::delay_multiplier::LossyDelayMultiplierSender,
+        bouncer::LossyBouncer,
+        link::Link,
+        senders::window::{CcaTemplate, LossyWindowSender},
     },
     quantities::{packets, packets_per_second, seconds, Time},
     simulation::{DynComponent, SimulatorBuilder},
-    trainers::DefaultEffect,
+    trainers::{
+        delay_multiplier::{DelayMultiplierCcaTemplate, DelayMultiplierDna},
+        DefaultEffect,
+    },
 };
 use generativity::make_guard;
 
 fn main() {
+    let dna = DelayMultiplierDna { multiplier: 2.0 };
+    let cca_template = DelayMultiplierCcaTemplate;
     let mut rng = Rng::from_seed(1_234_987_348);
     let table = LogTable::new(5);
     // ManuallyDrop is used to re-order drop(builder) to before drop(sender),
@@ -23,7 +30,7 @@ fn main() {
     make_guard!(guard);
     let builder = ManuallyDrop::new(SimulatorBuilder::<DefaultEffect>::new(guard));
 
-    let sender_slot = LossyDelayMultiplierSender::reserve_slot::<_, NothingLogger>(builder.deref());
+    let sender_slot = LossyWindowSender::reserve_slot(builder.deref());
     let link1_slot = builder.reserve_slot();
     let receiver_slot = builder.reserve_slot();
     let link2_slot = builder.reserve_slot();
@@ -39,7 +46,7 @@ fn main() {
         sender_address,
         link1_slot.address().cast(),
         receiver_slot.address().cast(),
-        2.0,
+        cca_template.with(&dna),
         false,
         &mut flow_meter,
         rng.create_child(),

@@ -17,35 +17,46 @@ enum LossyWindowControllerState<C> {
     Disabled { wait_for_enable: bool },
 }
 
-pub struct LossyWindowController<'sim, 'a, C, E, L> {
+pub struct LossyWindowController<'sim, C, G, E, L>
+where
+    G: Fn() -> C,
+{
     sender: Address<'sim, LossyInternalSenderEffect<'sim, E>, E>,
-    new_cca: Box<dyn (Fn() -> C) + 'a>,
+    cca_generator: G,
     state: LossyWindowControllerState<C>,
     rng: Rng,
     logger: L,
 }
 
-impl<'sim, 'a, C: Debug, E, L: Debug> Debug for LossyWindowController<'sim, 'a, C, E, L> {
+impl<'sim, C, G, E, L: Debug> Debug for LossyWindowController<'sim, C, G, E, L>
+where
+    G: Fn() -> C,
+    C: Cca,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LossyWindowController")
             .field("sender", &self.sender)
             .field("state", &self.state)
+            .field("rng", &self.rng)
             .field("logger", &self.logger)
             .finish()
     }
 }
 
-impl<'sim, 'a, C, E, L> LossyWindowController<'sim, 'a, C, E, L> {
-    pub fn new(
+impl<'sim, C, G, E, L> LossyWindowController<'sim, C, G, E, L>
+where
+    G: Fn() -> C,
+{
+    pub const fn new(
         sender: Address<'sim, LossyInternalSenderEffect<'sim, E>, E>,
-        new_cca: Box<dyn (Fn() -> C) + 'a>,
+        cca_generator: G,
         wait_for_enable: bool,
         rng: Rng,
         logger: L,
-    ) -> LossyWindowController<'sim, 'a, C, E, L> {
+    ) -> Self {
         LossyWindowController {
             sender,
-            new_cca,
+            cca_generator,
             state: LossyWindowControllerState::Disabled { wait_for_enable },
             rng,
             logger,
@@ -53,8 +64,9 @@ impl<'sim, 'a, C, E, L> LossyWindowController<'sim, 'a, C, E, L> {
     }
 }
 
-impl<'sim, 'a, C, E, L> Component<'sim, E> for LossyWindowController<'sim, 'a, C, E, L>
+impl<'sim, C, G, E, L> Component<'sim, E> for LossyWindowController<'sim, C, G, E, L>
 where
+    G: Fn() -> C,
     C: Cca,
     L: Logger,
 {
@@ -95,7 +107,7 @@ where
                 LossyWindowControllerState::Disabled { .. },
                 LossyInternalControllerEffect::Toggle(Toggle::Enable),
             ) => {
-                let cca = (self.new_cca)();
+                let cca = (self.cca_generator)();
                 let initial_settings = cca.initial_settings();
                 self.state = LossyWindowControllerState::Enabled(cca);
                 Some(SettingsUpdate::Enable(initial_settings))

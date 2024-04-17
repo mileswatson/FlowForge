@@ -2,12 +2,14 @@ use std::path::Path;
 
 use anyhow::Result;
 use flowforge::{
-    core::{never::Never, rand::Rng},
+    core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
-    network::{config::NetworkConfig, toggler::Toggle, EffectTypeGenerator, Packet},
+    network::{
+        config::NetworkConfig, senders::window::CcaTemplateSync, EffectTypeGenerator,
+        HasNetworkSubEffects,
+    },
     quantities::Float,
-    simulation::HasSubEffect,
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
     Config, Trainer,
 };
@@ -23,17 +25,16 @@ pub fn _evaluate<T>(
 ) -> (Float, FlowProperties)
 where
     T: Trainer,
-    for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>: HasSubEffect<Packet<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>>
-        + HasSubEffect<Toggle>
-        + HasSubEffect<Never>,
+    for<'a> T::CcaTemplate<'a>: CcaTemplateSync<'a>,
+    for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>:
+        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>,
 {
     let dna = T::Dna::load(input_path).unwrap();
 
     let x = evaluation_config
         .evaluate(
-            &T::DefaultFlowAdder::default(),
+            T::CcaTemplate::default().with_sync(&dna),
             network_config,
-            &dna,
             utility_config,
             &mut rng.identical_child_factory()(),
         )
