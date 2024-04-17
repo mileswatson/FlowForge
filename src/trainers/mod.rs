@@ -3,11 +3,11 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     components::{
+        packet::Packet,
         senders::window::{
             LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
         },
         toggler::Toggle,
-        Packet,
     },
     core::{never::Never, WithLifetime},
 };
