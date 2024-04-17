@@ -479,7 +479,7 @@ mod tests {
     #[test]
     fn original_remy_compatibility() -> Result<()> {
         let tmp_dir = tempdir()?;
-        let test_data_dir = Path::new("./src/protocols/remy/test_dna");
+        let test_data_dir = Path::new("./src/ccas/remy/test_dna");
         let dna_files = read_dir(test_data_dir)?
             .map(Result::unwrap)
             .map(|x| x.path())
