@@ -21,7 +21,7 @@ use crate::{
     },
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    protocols::{
+    ccas::{
         remy::{
             action::Action,
             point::Point,
@@ -595,7 +595,7 @@ mod tests {
         core::rand::{ContinuousDistribution, Rng},
         evaluator::EvaluationConfig,
         flow::AlphaFairness,
-        protocols::{
+        ccas::{
             remy::{action::Action, point::Point, rule_tree::RuleTree},
             remyr::dna::RemyrDna,
         },

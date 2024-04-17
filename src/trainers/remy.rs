@@ -9,7 +9,7 @@ use crate::{
     core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    protocols::remy::{
+    ccas::remy::{
         action::Action,
         dna::RemyDna,
         rule_tree::{CountingRuleTree, LeafHandle},

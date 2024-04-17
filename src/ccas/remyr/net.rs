@@ -111,7 +111,7 @@ where
 mod tests {
     use dfdx::{nn::BuildModuleExt, tensor::Cpu};
 
-    use crate::protocols::remyr::dna::SerializeTensors;
+    use crate::ccas::remyr::dna::SerializeTensors;
 
     use super::HiddenLayers;
 

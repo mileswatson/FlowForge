@@ -30,7 +30,7 @@ pub mod core;
 pub mod evaluator;
 pub mod flow;
 pub mod components;
-pub mod protocols;
+pub mod ccas;
 pub mod quantities;
 pub mod simulation;
 pub mod trainers;

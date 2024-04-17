@@ -447,7 +447,7 @@ mod tests {
     use tempfile::tempdir;
 
     use crate::{
-        protocols::remy::{dna::RemyDna, rule_tree::BaseRuleTree},
+        ccas::remy::{dna::RemyDna, rule_tree::BaseRuleTree},
         Config,
     };
 
