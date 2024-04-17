@@ -2,7 +2,6 @@ use std::fmt::Debug;
 
 use derive_where::derive_where;
 use generativity::Guard;
-use itertools::Itertools;
 use serde::Serialize;
 
 use crate::{
@@ -14,7 +13,8 @@ use crate::{
     },
     network::senders::window::LossyWindowSender,
     quantities::{packets, Float, Information, InformationRate, Time, TimeSpan},
-    simulation::{Address, DynComponent, HasSubEffect, Simulator, SimulatorBuilder}, Cca,
+    simulation::{Address, DynComponent, HasSubEffect, Simulator, SimulatorBuilder},
+    Cca,
 };
 
 use self::{
@@ -89,22 +89,21 @@ impl<'sim, E, T> HasNetworkSubEffects<'sim, E> for T where
 impl Network {
     #[must_use]
     #[allow(clippy::type_complexity)]
-    pub fn to_sim<'sim, 'a, C, G>(
+    pub fn to_sim<'sim, 'a, C, G, F>(
         &self,
         new_cca: impl Fn() -> C + Clone + 'a,
         guard: Guard<'sim>,
         rng: &'a mut Rng,
-        flows: impl IntoIterator<Item = impl FlowMeter + 'a>,
+        mut new_flow_meter: impl FnMut() -> F,
         extra_components: impl FnOnce(&SimulatorBuilder<'sim, 'a, G::Type<'sim>>),
     ) -> Simulator<'sim, 'a, G::Type<'sim>, NothingLogger>
     where
         C: Cca + 'a,
         G: EffectTypeGenerator,
         G::Type<'sim>: HasNetworkSubEffects<'sim, G::Type<'sim>>,
+        F: FlowMeter + 'a,
         'sim: 'a,
     {
-        let flows = flows.into_iter().collect_vec();
-        assert_eq!(flows.len(), self.num_senders as usize);
         let builder = SimulatorBuilder::<'sim, '_>::new(guard);
         extra_components(&builder);
         let sender_link_id = builder.insert(DynComponent::new(Link::create(
@@ -115,7 +114,7 @@ impl Network {
             rng.create_child(),
             NothingLogger,
         )));
-        for flow in flows {
+        for _ in 0..self.num_senders {
             let slot = LossyWindowSender::reserve_slot::<_>(&builder);
             let address = slot.address();
             let packet_address = address.clone().cast();
@@ -125,7 +124,7 @@ impl Network {
                 packet_address,
                 new_cca.clone(),
                 true,
-                flow,
+                new_flow_meter(),
                 rng.create_child(),
                 NothingLogger,
             );
