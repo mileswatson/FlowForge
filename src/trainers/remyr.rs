@@ -5,6 +5,7 @@ use std::{
     iter::once,
 };
 
+use append_only_vec::AppendOnlyVec;
 use derive_where::derive_where;
 use dfdx::{data::IteratorBatchExt, prelude::*};
 use generativity::make_guard;
@@ -16,10 +17,11 @@ use crate::{
     core::{
         meters::CurrentFlowMeter,
         rand::{ContinuousDistribution, DiscreteDistribution, Rng},
-    }, evaluator::EvaluationConfig, flow::UtilityFunction, network::{
-        config::NetworkConfig,
-        senders::remy::RemyCca,
-    }, protocols::{
+    },
+    evaluator::EvaluationConfig,
+    flow::UtilityFunction,
+    network::{config::NetworkConfig, senders::remy::RemyCca},
+    protocols::{
         remy::{
             action::Action,
             point::Point,
@@ -31,7 +33,10 @@ use crate::{
                 CopyToDevice, HiddenLayers, PolicyNet, PolicyNetwork, ACTION, OBSERVATION, STATE,
             },
         },
-    }, quantities::{milliseconds, seconds, Float, Time, TimeSpan}, trainers::DefaultEffect, CcaTemplate, Trainer
+    },
+    quantities::{milliseconds, seconds, Float, Time, TimeSpan},
+    trainers::DefaultEffect,
+    CcaTemplate, Trainer,
 };
 
 use super::remy::RuleTreeCcaTemplate;
@@ -361,11 +366,14 @@ fn rollout(
             let x = {
                 make_guard!(guard);
 
-                let flows = (0..n.num_senders)
-                    .map(|_| {
-                        RefCell::new(CurrentFlowMeter::new_disabled(Time::SIM_START, half_life))
-                    })
-                    .collect_vec();
+                let flows = AppendOnlyVec::new();
+                let new_flow = || {
+                    let index = flows.push(RefCell::new(CurrentFlowMeter::new_disabled(
+                        Time::SIM_START,
+                        half_life,
+                    )));
+                    &flows[index]
+                };
                 let current_utility = |time| {
                     let flow_stats = flows
                         .iter()
@@ -392,7 +400,8 @@ fn rollout(
                 };
                 let cca_template = RuleTreeCcaTemplate::new(repeat_actions.clone());
                 let cca_gen = cca_template.with_not_sync(dna);
-                let sim = n.to_sim::<_, DefaultEffect>(&cca_gen, guard, &mut rng, &flows, |_| {});
+                let sim =
+                    n.to_sim::<_, DefaultEffect, _>(&cca_gen, guard, &mut rng, new_flow, |_| {});
                 let sim_end = Time::from_sim_start(training_config.run_sim_for);
                 sim.run_while(|t| t < sim_end);
                 (current_utility(sim_end), sim_end)

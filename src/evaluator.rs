@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+
+use append_only_vec::AppendOnlyVec;
 use generativity::make_guard;
 use itertools::Itertools;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -46,15 +49,17 @@ impl EvaluationConfig {
     {
         let score_network = |(n, mut rng): (Network, Rng)| {
             make_guard!(guard);
-            let mut flows = (0..n.num_senders)
-                .map(|_| AverageFlowMeter::new_disabled())
-                .collect_vec();
-            let sim = n.to_sim::<_, G>(&new_cca, guard, &mut rng, &mut flows, |_| {});
+            let flows = AppendOnlyVec::new();
+            let new_flow = || {
+                let index = flows.push(RefCell::new(AverageFlowMeter::new_disabled()));
+                &flows[index]
+            };
+            let sim = n.to_sim::<_, G, _>(&new_cca, guard, &mut rng, new_flow, |_| {});
             let sim_end = Time::from_sim_start(self.run_sim_for);
             sim.run_while(|t| t < sim_end);
             let flow_stats = flows
                 .iter()
-                .filter_map(|x| x.average_properties(sim_end).ok())
+                .filter_map(|x| x.borrow().average_properties(sim_end).ok())
                 .collect_vec();
             utility_function.total_utility(&flow_stats)
         };

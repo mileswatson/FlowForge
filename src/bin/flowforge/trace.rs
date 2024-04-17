@@ -1,4 +1,5 @@
 use anyhow::Result;
+use append_only_vec::AppendOnlyVec;
 use flowforge::{
     core::{meters::CurrentFlowMeter, never::Never, rand::Rng},
     flow::{UtilityConfig, UtilityFunction},
@@ -69,54 +70,55 @@ where
     let n = rng.sample(network_config);
     let mut result = TraceResult::new(n.clone());
     make_guard!(guard);
-    let flows = (0..n.num_senders)
-        .map(|_| {
-            RefCell::new(CurrentFlowMeter::new_disabled(
-                Time::SIM_START,
-                seconds(0.1),
-            ))
-        })
-        .collect_vec();
+    let flows = AppendOnlyVec::new();
+    let new_flow = || {
+        let index = flows.push(RefCell::new(CurrentFlowMeter::new_disabled(
+            Time::SIM_START,
+            seconds(0.1),
+        )));
+        &flows[index]
+    };
     let cca_template = T::CcaTemplate::default();
     let cca_gen = cca_template.with(&dna);
-    let sim = n.to_sim::<_, T::DefaultEffectGenerator>(&cca_gen, guard, rng, &flows, |builder| {
-        builder.insert(DynComponent::<Never, _>::new(Ticker::new(
-            milliseconds(1.),
-            |time| {
-                result.timestamps.push((time - Time::SIM_START).seconds());
-                let properties = flows
-                    .iter()
-                    .map(|x| x.borrow().current_properties(time))
-                    .collect_vec();
-                let active_properties = properties
-                    .iter()
-                    .filter_map(|x| x.clone().ok())
-                    .collect_vec();
-                result.active_senders.push(active_properties.len());
-                flows
-                    .iter()
-                    .zip(properties)
-                    .map(|(f, p)| {
-                        (
-                            f.borrow().current_bandwidth(time),
-                            f.borrow().current_rtt(time).unwrap_or(seconds(Float::NAN)),
-                            p.map(|p| utility_config.flow_utility(&p))
-                                .unwrap_or(Float::NAN),
-                        )
-                    })
-                    .enumerate()
-                    .for_each(|(i, (throughput, rtt, utility))| {
-                        result.flows[i].add(throughput, rtt, utility)
-                    });
-                result.aggregate_utility.push(
-                    utility_config
-                        .total_utility(&active_properties)
-                        .map(|(u, _)| u)
-                        .unwrap_or(Float::NAN),
-                );
-            },
-        )));
-    });
+    let sim =
+        n.to_sim::<_, T::DefaultEffectGenerator, _>(&cca_gen, guard, rng, new_flow, |builder| {
+            builder.insert(DynComponent::<Never, _>::new(Ticker::new(
+                milliseconds(1.),
+                |time| {
+                    result.timestamps.push((time - Time::SIM_START).seconds());
+                    let properties = flows
+                        .iter()
+                        .map(|x| x.borrow().current_properties(time))
+                        .collect_vec();
+                    let active_properties = properties
+                        .iter()
+                        .filter_map(|x| x.clone().ok())
+                        .collect_vec();
+                    result.active_senders.push(active_properties.len());
+                    flows
+                        .iter()
+                        .zip(properties)
+                        .map(|(f, p)| {
+                            (
+                                f.borrow().current_bandwidth(time),
+                                f.borrow().current_rtt(time).unwrap_or(seconds(Float::NAN)),
+                                p.map(|p| utility_config.flow_utility(&p))
+                                    .unwrap_or(Float::NAN),
+                            )
+                        })
+                        .enumerate()
+                        .for_each(|(i, (throughput, rtt, utility))| {
+                            result.flows[i].add(throughput, rtt, utility)
+                        });
+                    result.aggregate_utility.push(
+                        utility_config
+                            .total_utility(&active_properties)
+                            .map(|(u, _)| u)
+                            .unwrap_or(Float::NAN),
+                    );
+                },
+            )));
+        });
     sim.run_while(|t| t < Time::from_sim_start(seconds(100.)));
     result
 }
