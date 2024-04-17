@@ -9,7 +9,7 @@ use crate::{
     simulation::{Component, EffectContext, Message},
 };
 
-use super::Packet;
+use super::packet::Packet;
 
 #[derive_where(Debug; L)]
 pub struct Link<'sim, E, L> {

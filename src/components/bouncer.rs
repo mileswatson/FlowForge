@@ -6,7 +6,7 @@ use crate::{
     simulation::{Component, EffectContext, Message},
 };
 
-use super::{Packet, PacketAddress};
+use super::packet::{Packet, PacketAddress};
 
 #[derive_where(Debug; L)]
 pub struct LossyBouncer<'sim, E, L> {
