@@ -3,18 +3,16 @@ use serde::Serialize;
 
 use crate::{
     components::{
-        link::Link,
-        senders::window::{
+        link::Link, packet::Packet, senders::window::{
             LossyInternalControllerEffect, LossyInternalSenderEffect, LossyWindowSender,
-        },
-        toggler::{Toggle, Toggler},
-        Packet,
+        }, toggler::{Toggle, Toggler}
     },
     core::{
         logging::NothingLogger,
         meters::FlowMeter,
         never::Never,
-        rand::{PositiveContinuousDistribution, Rng}, WithLifetime,
+        rand::{PositiveContinuousDistribution, Rng},
+        WithLifetime,
     },
     quantities::{Float, Information, InformationRate, TimeSpan},
     simulation::{DynComponent, HasSubEffect, Simulator, SimulatorBuilder},
