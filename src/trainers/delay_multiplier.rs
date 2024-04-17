@@ -3,16 +3,12 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    components::{
-        config::NetworkConfig,
-        senders::window::{
+    ccas::delay_multiplier::DelayMultiplierCca, components::senders::window::{
             LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
-        },
-        EffectTypeGenerator,
-    }, core::{
+        }, core::{
         meters::EWMA,
-        rand::{ContinuousDistribution, Rng},
-    }, flow::UtilityFunction, ccas::delay_multiplier::DelayMultiplierCca, simulation::HasSubEffect, CcaTemplate, Dna, Trainer
+        rand::{ContinuousDistribution, Rng}, WithLifetime,
+    }, flow::UtilityFunction, networks::config::NetworkConfig, simulation::HasSubEffect, CcaTemplate, Dna, Trainer
 };
 
 use super::{
@@ -40,7 +36,7 @@ impl<'a> CcaTemplate<'a> for DelayMultiplierCcaTemplate {
     }
 }
 
-impl EffectTypeGenerator for DelayMultiplierCcaTemplate {
+impl WithLifetime for DelayMultiplierCcaTemplate {
     type Type<'a> = DelayMultiplierCcaTemplate;
 }
 
@@ -67,7 +63,7 @@ impl Dna for DelayMultiplierDna {
 
 impl<G> GeneticDna<G> for DelayMultiplierDna
 where
-    G: EffectTypeGenerator,
+    G: WithLifetime,
     for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>
         + HasSubEffect<LossyInternalSenderEffect<'sim, G::Type<'sim>>>
         + HasSubEffect<LossyInternalControllerEffect>,

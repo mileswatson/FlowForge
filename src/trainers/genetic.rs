@@ -5,11 +5,7 @@ use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::rand::Rng,
-    evaluator::EvaluationConfig,
-    flow::UtilityFunction,
-    components::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects},
-    CcaTemplate, Dna, ProgressHandler, Trainer,
+    core::{rand::Rng, WithLifetime}, evaluator::EvaluationConfig, flow::UtilityFunction, networks::{config::NetworkConfig, HasNetworkSubEffects}, CcaTemplate, Dna, ProgressHandler, Trainer
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -47,8 +43,8 @@ impl<T> Trainer for GeneticTrainer<T>
 where
     T: Trainer,
     T::Dna: GeneticDna<T::DefaultEffectGenerator>,
-    for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>:
-        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>,
+    for<'sim> <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>:
+        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>>,
 {
     type Config = GeneticConfig;
     type Dna = T::Dna;

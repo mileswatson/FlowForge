@@ -1,12 +1,10 @@
 use anyhow::Result;
 use append_only_vec::AppendOnlyVec;
 use flowforge::{
-    core::{meters::CurrentFlowMeter, never::Never, rand::Rng},
+    components::ticker::Ticker,
+    core::{meters::CurrentFlowMeter, never::Never, rand::Rng, WithLifetime},
     flow::{UtilityConfig, UtilityFunction},
-    components::{
-        config::NetworkConfig, ticker::Ticker, EffectTypeGenerator, HasNetworkSubEffects,
-        RemyNetwork,
-    },
+    networks::{config::NetworkConfig, HasNetworkSubEffects, RemyNetwork},
     quantities::{milliseconds, seconds, Float, InformationRate, Time, TimeSpan},
     simulation::DynComponent,
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
@@ -64,8 +62,8 @@ fn _trace<T>(
 ) -> TraceResult
 where
     T: Trainer,
-    for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>:
-        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>,
+    for<'sim> <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>:
+        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>>,
 {
     let dna = T::Dna::load(input_path).unwrap();
     let n = rng.sample(network_config);

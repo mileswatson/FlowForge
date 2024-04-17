@@ -7,10 +7,10 @@ use std::{
 
 use anyhow::Result;
 use flowforge::{
-    core::rand::Rng,
+    core::{rand::Rng, WithLifetime},
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
-    components::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects},
+    networks::{config::NetworkConfig, HasNetworkSubEffects},
     quantities::Float,
     trainers::{
         delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
@@ -60,8 +60,8 @@ pub fn _train<T>(
 ) where
     T: Trainer,
     T::Config: Serialize + Sync,
-    for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>:
-        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>,
+    for<'sim> <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>:
+        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>>,
 {
     assert!(T::Dna::valid_path(dna_path));
     let starting_point = if force {

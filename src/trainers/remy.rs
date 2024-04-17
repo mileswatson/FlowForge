@@ -5,16 +5,16 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    components::config::NetworkConfig,
-    core::rand::Rng,
-    evaluator::EvaluationConfig,
-    flow::UtilityFunction,
     ccas::remy::{
         action::Action,
         dna::RemyDna,
         rule_tree::{CountingRuleTree, LeafHandle},
         RemyCcaTemplate, RuleTreeCcaTemplate,
     },
+    core::rand::Rng,
+    evaluator::EvaluationConfig,
+    flow::UtilityFunction,
+    networks::config::NetworkConfig,
     quantities::{milliseconds, seconds},
     trainers::DefaultEffect,
     ProgressHandler, Trainer,
@@ -231,8 +231,8 @@ impl Trainer for RemyTrainer {
 #[cfg(test)]
 mod tests {
     use crate::{
-        components::config::NetworkConfig, core::rand::Rng, evaluator::EvaluationConfig,
-        flow::AlphaFairness, quantities::seconds, trainers::remy::RemyDna, Trainer,
+        core::rand::Rng, evaluator::EvaluationConfig, flow::AlphaFairness,
+        networks::config::NetworkConfig, quantities::seconds, trainers::remy::RemyDna, Trainer,
     };
 
     use super::{RemyConfig, RemyTrainer};
