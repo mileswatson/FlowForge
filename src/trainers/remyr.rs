@@ -14,32 +14,30 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    components::config::NetworkConfig,
     core::{
         meters::CurrentFlowMeter,
         rand::{ContinuousDistribution, DiscreteDistribution, Rng},
     },
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    components::{config::NetworkConfig, senders::remy::RemyCca},
     protocols::{
         remy::{
             action::Action,
             point::Point,
-            rule_tree::{DynRuleTree, RuleTree},
+            rule_tree::{DynRuleTree, RuleTree}, RuleTreeCcaTemplate,
         },
         remyr::{
             dna::RemyrDna,
             net::{
                 CopyToDevice, HiddenLayers, PolicyNet, PolicyNetwork, ACTION, OBSERVATION, STATE,
             },
+            RemyrCcaTemplate,
         },
     },
     quantities::{milliseconds, seconds, Float, Time, TimeSpan},
-    trainers::DefaultEffect,
-    CcaTemplate, Trainer,
+    trainers::DefaultEffect, Trainer,
 };
-
-use super::remy::RuleTreeCcaTemplate;
 
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -413,18 +411,6 @@ fn rollout(
         .collect()
 }
 
-#[derive(Default, Debug)]
-pub struct RemyrCcaTemplate<'a>(RuleTreeCcaTemplate<&'a RemyrDna>);
-
-impl<'a> CcaTemplate<'a> for RemyrCcaTemplate<'a> {
-    type Policy = &'a RemyrDna;
-    type CCA = RemyCca<&'a RemyrDna>;
-
-    fn with(&self, policy: &'a RemyrDna) -> impl Fn() -> RemyCca<&'a RemyrDna> + Sync {
-        self.0.with_not_sync(policy)
-    }
-}
-
 pub struct RemyrTrainer {
     config: RemyrConfig,
 }
@@ -605,10 +591,10 @@ mod tests {
     use itertools::Itertools;
 
     use crate::{
+        components::config::NetworkConfig,
         core::rand::{ContinuousDistribution, Rng},
         evaluator::EvaluationConfig,
         flow::AlphaFairness,
-        components::config::NetworkConfig,
         protocols::{
             remy::{action::Action, point::Point, rule_tree::RuleTree},
             remyr::dna::RemyrDna,

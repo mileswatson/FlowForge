@@ -1,6 +1,3 @@
-use std::marker::PhantomData;
-
-use derive_where::derive_where;
 use indicatif::{ParallelProgressIterator, ProgressBar};
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -8,18 +5,19 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::rand::{DiscreteDistribution, Rng},
+    components::config::NetworkConfig,
+    core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    components::{config::NetworkConfig, senders::remy::RemyCca},
     protocols::remy::{
         action::Action,
         dna::RemyDna,
-        rule_tree::{CountingRuleTree, DynRuleTree, LeafHandle},
+        rule_tree::{CountingRuleTree, LeafHandle},
+        RemyCcaTemplate, RuleTreeCcaTemplate,
     },
     quantities::{milliseconds, seconds},
     trainers::DefaultEffect,
-    CcaTemplate, ProgressHandler, Trainer,
+    ProgressHandler, Trainer,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -80,58 +78,6 @@ impl Default for RemyConfig {
 
 pub struct RemyTrainer {
     config: RemyConfig,
-}
-
-#[derive_where(Default, Debug)]
-pub struct RuleTreeCcaTemplate<T> {
-    repeat_actions: Option<DiscreteDistribution<u32>>,
-    rule_tree: PhantomData<T>,
-}
-
-impl<T> RuleTreeCcaTemplate<T> {
-    #[must_use]
-    pub const fn new(repeat_actions: Option<DiscreteDistribution<u32>>) -> RuleTreeCcaTemplate<T> {
-        RuleTreeCcaTemplate {
-            repeat_actions,
-            rule_tree: PhantomData,
-        }
-    }
-}
-
-impl<T> RuleTreeCcaTemplate<T>
-where
-    T: DynRuleTree,
-{
-    pub fn with_not_sync(&self, policy: T) -> impl Fn() -> RemyCca<T> {
-        let repeat_actions = self.repeat_actions.clone();
-        move || RemyCca::new(policy.clone(), repeat_actions.clone())
-    }
-}
-
-impl<'a, T> CcaTemplate<'a> for RuleTreeCcaTemplate<T>
-where
-    T: DynRuleTree + Sync + 'a,
-{
-    type Policy = T;
-
-    type CCA = RemyCca<T>;
-
-    fn with(&self, policy: T) -> impl Fn() -> RemyCca<T> + Sync {
-        let repeat_actions = self.repeat_actions.clone();
-        move || RemyCca::new(policy.clone(), repeat_actions.clone())
-    }
-}
-
-#[derive(Default, Debug)]
-pub struct RemyCcaTemplate<'a>(RuleTreeCcaTemplate<&'a RemyDna>);
-
-impl<'a> CcaTemplate<'a> for RemyCcaTemplate<'a> {
-    type Policy = &'a RemyDna;
-    type CCA = RemyCca<&'a RemyDna>;
-
-    fn with(&self, policy: &'a RemyDna) -> impl Fn() -> RemyCca<&'a RemyDna> + Sync {
-        self.0.with(policy)
-    }
 }
 
 /// Hack until <https://github.com/rust-lang/rust/issues/97362> is stabilised
@@ -285,8 +231,8 @@ impl Trainer for RemyTrainer {
 #[cfg(test)]
 mod tests {
     use crate::{
-        core::rand::Rng, evaluator::EvaluationConfig, flow::AlphaFairness,
-        components::config::NetworkConfig, quantities::seconds, trainers::remy::RemyDna, Trainer,
+        components::config::NetworkConfig, core::rand::Rng, evaluator::EvaluationConfig,
+        flow::AlphaFairness, quantities::seconds, trainers::remy::RemyDna, Trainer,
     };
 
     use super::{RemyConfig, RemyTrainer};
