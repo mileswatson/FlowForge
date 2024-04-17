@@ -10,16 +10,13 @@ use flowforge::{
     core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
-    network::{
-        config::NetworkConfig, senders::window::CcaTemplate, EffectTypeGenerator,
-        HasNetworkSubEffects,
-    },
+    network::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects},
     quantities::Float,
     trainers::{
         delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
         TrainerConfig,
     },
-    Config, Trainer,
+    CcaTemplate, Config, Trainer,
 };
 use serde::Serialize;
 

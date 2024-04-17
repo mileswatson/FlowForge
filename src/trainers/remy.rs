@@ -11,10 +11,7 @@ use crate::{
     core::rand::{DiscreteDistribution, Rng},
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    network::{
-        config::NetworkConfig,
-        senders::{remy::RemyCca, window::CcaTemplate},
-    },
+    network::{config::NetworkConfig, senders::remy::RemyCca},
     protocols::remy::{
         action::Action,
         dna::RemyDna,
@@ -22,7 +19,7 @@ use crate::{
     },
     quantities::{milliseconds, seconds},
     trainers::DefaultEffect,
-    ProgressHandler, Trainer,
+    CcaTemplate, ProgressHandler, Trainer,
 };
 
 #[derive(Clone, Serialize, Deserialize)]

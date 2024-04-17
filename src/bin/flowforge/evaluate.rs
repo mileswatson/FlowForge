@@ -5,13 +5,10 @@ use flowforge::{
     core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
-    network::{
-        config::NetworkConfig, senders::window::CcaTemplate, EffectTypeGenerator,
-        HasNetworkSubEffects,
-    },
+    network::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects},
     quantities::Float,
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
-    Config, Trainer,
+    CcaTemplate, Config, Trainer,
 };
 
 use crate::FlowAdders;
@@ -25,7 +22,6 @@ pub fn _evaluate<T>(
 ) -> (Float, FlowProperties)
 where
     T: Trainer,
-    for<'a> T::CcaTemplate<'a>: CcaTemplate<'a>,
     for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>:
         HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>,
 {

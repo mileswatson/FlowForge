@@ -10,11 +10,9 @@ use crate::{
         rand::Rng,
     },
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
-    network::{
-        config::NetworkConfig, senders::window::Cca, EffectTypeGenerator, HasNetworkSubEffects,
-        Network,
-    },
+    network::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects, Network},
     quantities::{seconds, Float, Time, TimeSpan},
+    Cca,
 };
 
 #[allow(clippy::unsafe_derive_deserialize)]

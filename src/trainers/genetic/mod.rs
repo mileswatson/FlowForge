@@ -8,11 +8,8 @@ use crate::{
     core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    network::{
-        config::NetworkConfig, senders::window::CcaTemplate, EffectTypeGenerator,
-        HasNetworkSubEffects,
-    },
-    Dna, ProgressHandler, Trainer,
+    network::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects},
+    CcaTemplate, Dna, ProgressHandler, Trainer,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

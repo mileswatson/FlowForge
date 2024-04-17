@@ -16,14 +16,10 @@ use crate::{
     core::{
         meters::CurrentFlowMeter,
         rand::{ContinuousDistribution, DiscreteDistribution, Rng},
-    },
-    evaluator::EvaluationConfig,
-    flow::UtilityFunction,
-    network::{
+    }, evaluator::EvaluationConfig, flow::UtilityFunction, network::{
         config::NetworkConfig,
-        senders::{remy::RemyCca, window::CcaTemplate},
-    },
-    protocols::{
+        senders::remy::RemyCca,
+    }, protocols::{
         remy::{
             action::Action,
             point::Point,
@@ -35,10 +31,7 @@ use crate::{
                 CopyToDevice, HiddenLayers, PolicyNet, PolicyNetwork, ACTION, OBSERVATION, STATE,
             },
         },
-    },
-    quantities::{milliseconds, seconds, Float, Time, TimeSpan},
-    trainers::DefaultEffect,
-    Trainer,
+    }, quantities::{milliseconds, seconds, Float, Time, TimeSpan}, trainers::DefaultEffect, CcaTemplate, Trainer
 };
 
 use super::remy::RuleTreeCcaTemplate;

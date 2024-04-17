@@ -12,15 +12,12 @@ use crate::{
         config::NetworkConfig,
         senders::{
             delay_multiplier::DelayMultiplierCca,
-            window::{
-                CcaTemplate, LossyInternalControllerEffect, LossyInternalSenderEffect,
-                LossySenderEffect,
-            },
+            window::{LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect},
         },
         EffectTypeGenerator,
     },
     simulation::HasSubEffect,
-    Dna, Trainer,
+    CcaTemplate, Dna, Trainer,
 };
 
 use super::{

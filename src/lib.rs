@@ -11,6 +11,7 @@
 )]
 
 use std::{
+    fmt::Debug,
     fs::File,
     io::{Read, Write},
     path::Path,
@@ -19,10 +20,10 @@ use std::{
 use anyhow::{anyhow, Result};
 use serde::{de::DeserializeOwned, Serialize};
 
-use core::rand::Rng;
+use core::{logging::Logger, rand::Rng};
 use flow::UtilityFunction;
-use network::{config::NetworkConfig, senders::window::CcaTemplate, EffectTypeGenerator};
-use quantities::Float;
+use network::{config::NetworkConfig, EffectTypeGenerator};
+use quantities::{Float, Time, TimeSpan};
 
 #[macro_use]
 pub mod core;
@@ -114,6 +115,34 @@ impl<D: Dna, F: FnMut(Float, &D) + Send> ProgressHandler<D> for F {
     fn update_progress(&mut self, frac_complete: Float, current: &D) {
         self(frac_complete, current);
     }
+}
+
+#[derive(Debug, Clone)]
+pub struct CwndSettings {
+    pub window: u32,
+    pub intersend_delay: TimeSpan,
+}
+
+pub trait Cca: Debug {
+    fn initial_settings(&self) -> CwndSettings;
+    fn ack_received<L: Logger>(
+        &mut self,
+        ack: AckReceived,
+        rng: &mut Rng,
+        logger: &mut L,
+    ) -> Option<CwndSettings>;
+}
+
+pub trait CcaTemplate<'a>: Default + Debug {
+    type Policy: 'a + ?Sized;
+    type CCA: Cca + 'a;
+    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA + Sync;
+}
+
+pub struct AckReceived {
+    pub current_settings: CwndSettings,
+    pub sent_time: Time,
+    pub received_time: Time,
 }
 
 pub trait Trainer {

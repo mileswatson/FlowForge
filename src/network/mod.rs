@@ -14,12 +14,12 @@ use crate::{
     },
     network::senders::window::LossyWindowSender,
     quantities::{packets, Float, Information, InformationRate, Time, TimeSpan},
-    simulation::{Address, DynComponent, HasSubEffect, Simulator, SimulatorBuilder},
+    simulation::{Address, DynComponent, HasSubEffect, Simulator, SimulatorBuilder}, Cca,
 };
 
 use self::{
     link::Link,
-    senders::window::{Cca, LossyInternalControllerEffect, LossyInternalSenderEffect},
+    senders::window::{LossyInternalControllerEffect, LossyInternalSenderEffect},
     toggler::{Toggle, Toggler},
 };
 
