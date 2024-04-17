@@ -9,7 +9,7 @@ use crate::{
     quantities::{bits_per_second, milliseconds, seconds, Information, InformationRate, TimeSpan},
 };
 
-use super::Network;
+use super::RemyNetwork;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NetworkConfig {
@@ -46,9 +46,9 @@ impl Default for NetworkConfig {
     }
 }
 
-impl Distribution<Network> for NetworkConfig {
-    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> Network {
-        Network {
+impl Distribution<RemyNetwork> for NetworkConfig {
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> RemyNetwork {
+        RemyNetwork {
             rtt: rng.sample(&self.rtt),
             packet_rate: rng.sample(&self.bandwidth),
             loss_rate: rng.sample(&self.loss_rate),

@@ -11,7 +11,7 @@ use crate::{
     core::rand::{DiscreteDistribution, Rng},
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    network::{config::NetworkConfig, senders::remy::RemyCca},
+    components::{config::NetworkConfig, senders::remy::RemyCca},
     protocols::remy::{
         action::Action,
         dna::RemyDna,
@@ -286,7 +286,7 @@ impl Trainer for RemyTrainer {
 mod tests {
     use crate::{
         core::rand::Rng, evaluator::EvaluationConfig, flow::AlphaFairness,
-        network::config::NetworkConfig, quantities::seconds, trainers::remy::RemyDna, Trainer,
+        components::config::NetworkConfig, quantities::seconds, trainers::remy::RemyDna, Trainer,
     };
 
     use super::{RemyConfig, RemyTrainer};

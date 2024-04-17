@@ -6,7 +6,7 @@ use flowforge::{
         meters::{AverageFlowMeter, CurrentFlowMeter},
         rand::Rng,
     },
-    network::{bouncer::LossyBouncer, link::Link, senders::window::LossyWindowSender},
+    components::{bouncer::LossyBouncer, link::Link, senders::window::LossyWindowSender},
     quantities::{packets, packets_per_second, seconds, Time},
     simulation::{DynComponent, SimulatorBuilder},
     trainers::{

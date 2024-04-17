@@ -3,7 +3,7 @@ use std::{cell::RefCell, fmt::Debug, rc::Rc};
 use derive_more::{From, TryInto};
 
 use crate::{
-    core::{logging::Logger, meters::FlowMeter, rand::Rng}, network::{toggler::Toggle, Packet, PacketAddress}, simulation::{Address, Component, ComponentSlot, DynComponent, HasSubEffect, SimulatorBuilder}, AckReceived, Cca, CwndSettings
+    core::{logging::Logger, meters::FlowMeter, rand::Rng}, components::{toggler::Toggle, Packet, PacketAddress}, simulation::{Address, Component, ComponentSlot, DynComponent, HasSubEffect, SimulatorBuilder}, AckReceived, Cca, CwndSettings
 };
 
 use self::{controller::LossyWindowController, sender::Sender};

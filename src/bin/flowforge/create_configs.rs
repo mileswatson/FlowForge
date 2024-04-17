@@ -4,7 +4,7 @@ use anyhow::Result;
 use flowforge::{
     evaluator::EvaluationConfig,
     flow::{AlphaFairness, UtilityConfig},
-    network::config::NetworkConfig,
+    components::config::NetworkConfig,
     quantities::seconds,
     trainers::{
         delay_multiplier::DelayMultiplierConfig, remy::RemyConfig, remyr::RemyrConfig,

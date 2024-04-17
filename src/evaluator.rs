@@ -13,7 +13,7 @@ use crate::{
         rand::Rng,
     },
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
-    network::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects, Network},
+    components::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects, RemyNetwork},
     quantities::{seconds, Float, Time, TimeSpan},
     Cca,
 };
@@ -47,7 +47,7 @@ impl EvaluationConfig {
         G: EffectTypeGenerator,
         for<'sim> G::Type<'sim>: HasNetworkSubEffects<'sim, G::Type<'sim>>,
     {
-        let score_network = |(n, mut rng): (Network, Rng)| {
+        let score_network = |(n, mut rng): (RemyNetwork, Rng)| {
             make_guard!(guard);
             let flows = AppendOnlyVec::new();
             let new_flow = || {

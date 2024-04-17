@@ -3,8 +3,9 @@ use append_only_vec::AppendOnlyVec;
 use flowforge::{
     core::{meters::CurrentFlowMeter, never::Never, rand::Rng},
     flow::{UtilityConfig, UtilityFunction},
-    network::{
-        config::NetworkConfig, ticker::Ticker, EffectTypeGenerator, HasNetworkSubEffects, Network,
+    components::{
+        config::NetworkConfig, ticker::Ticker, EffectTypeGenerator, HasNetworkSubEffects,
+        RemyNetwork,
     },
     quantities::{milliseconds, seconds, Float, InformationRate, Time, TimeSpan},
     simulation::DynComponent,
@@ -37,14 +38,14 @@ impl FlowTrace {
 #[derive(Serialize)]
 struct TraceResult {
     active_senders: Vec<usize>,
-    network: Network,
+    network: RemyNetwork,
     timestamps: Vec<Float>,
     aggregate_utility: Vec<Float>,
     flows: Vec<FlowTrace>,
 }
 
 impl TraceResult {
-    pub fn new(network: Network) -> TraceResult {
+    pub fn new(network: RemyNetwork) -> TraceResult {
         TraceResult {
             timestamps: Vec::new(),
             aggregate_utility: Vec::new(),

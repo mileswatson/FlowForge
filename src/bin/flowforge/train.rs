@@ -10,7 +10,7 @@ use flowforge::{
     core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
-    network::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects},
+    components::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects},
     quantities::Float,
     trainers::{
         delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
