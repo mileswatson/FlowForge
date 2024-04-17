@@ -12,12 +12,14 @@ use crate::{
         never::Never,
         rand::{PositiveContinuousDistribution, Rng},
     },
+    network::senders::window::LossyWindowSender,
     quantities::{packets, Float, Information, InformationRate, Time, TimeSpan},
     simulation::{Address, DynComponent, HasSubEffect, Simulator, SimulatorBuilder},
 };
 
 use self::{
     link::Link,
+    senders::window::{Cca, LossyInternalControllerEffect, LossyInternalSenderEffect},
     toggler::{Toggle, Toggler},
 };
 
@@ -64,56 +66,46 @@ pub trait EffectTypeGenerator {
     type Type<'a>;
 }
 
-pub trait AddFlows<D, G>: Default
-where
-    G: EffectTypeGenerator,
-{
-    fn add_flows<'sim, 'a, F>(
-        &self,
-        dna: D,
-        flows: impl IntoIterator<Item = F>,
-        simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
-        sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
-        rng: &mut Rng,
-    ) -> Vec<Address<'sim, Toggle, G::Type<'sim>>>
-    where
-        D: 'a,
-        F: FlowMeter + 'a,
-        G::Type<'sim>: 'sim,
-        'sim: 'a;
-}
-
 pub trait HasNetworkSubEffects<'sim, E>:
-    HasSubEffect<Packet<'sim, E>> + HasSubEffect<Toggle> + HasSubEffect<Never> + 'sim
+    HasSubEffect<LossyInternalSenderEffect<'sim, E>>
+    + HasSubEffect<LossyInternalControllerEffect>
+    + HasSubEffect<Packet<'sim, E>>
+    + HasSubEffect<Toggle>
+    + HasSubEffect<Never>
+    + 'sim
 {
 }
 
 impl<'sim, E, T> HasNetworkSubEffects<'sim, E> for T where
-    T: HasSubEffect<Packet<'sim, E>> + HasSubEffect<Toggle> + HasSubEffect<Never> + 'sim
+    T: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
+        + HasSubEffect<LossyInternalControllerEffect>
+        + HasSubEffect<Packet<'sim, E>>
+        + HasSubEffect<Toggle>
+        + HasSubEffect<Never>
+        + 'sim
 {
 }
 
 impl Network {
     #[must_use]
     #[allow(clippy::type_complexity)]
-    pub fn to_sim<'sim, 'a, D, G>(
+    pub fn to_sim<'sim, 'a, C, G>(
         &self,
-        flow_adder: &impl AddFlows<D, G>,
+        new_cca: impl Fn() -> C + Clone + 'a,
         guard: Guard<'sim>,
         rng: &'a mut Rng,
         flows: impl IntoIterator<Item = impl FlowMeter + 'a>,
-        dna: D,
         extra_components: impl FnOnce(&SimulatorBuilder<'sim, 'a, G::Type<'sim>>),
     ) -> Simulator<'sim, 'a, G::Type<'sim>, NothingLogger>
     where
-        D: 'a,
+        C: Cca + 'a,
         G: EffectTypeGenerator,
         G::Type<'sim>: HasNetworkSubEffects<'sim, G::Type<'sim>>,
         'sim: 'a,
     {
         let flows = flows.into_iter().collect_vec();
         assert_eq!(flows.len(), self.num_senders as usize);
-        let mut builder = SimulatorBuilder::<'sim, '_>::new(guard);
+        let builder = SimulatorBuilder::<'sim, '_>::new(guard);
         extra_components(&builder);
         let sender_link_id = builder.insert(DynComponent::new(Link::create(
             self.rtt,
@@ -123,10 +115,22 @@ impl Network {
             rng.create_child(),
             NothingLogger,
         )));
-        let senders = flow_adder.add_flows(dna, flows, &mut builder, sender_link_id, rng);
-        for sender in senders {
+        for flow in flows {
+            let slot = LossyWindowSender::reserve_slot::<_>(&builder);
+            let address = slot.address();
+            let packet_address = address.clone().cast();
+            slot.set(
+                packet_address.clone(),
+                sender_link_id.clone(),
+                packet_address,
+                new_cca.clone(),
+                true,
+                flow,
+                rng.create_child(),
+                NothingLogger,
+            );
             builder.insert(DynComponent::new(Toggler::new(
-                sender,
+                address.cast(),
                 self.on_time.clone(),
                 self.off_time.clone(),
                 rng.create_child(),

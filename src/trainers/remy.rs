@@ -1,3 +1,6 @@
+use std::marker::PhantomData;
+
+use derive_where::derive_where;
 use indicatif::{ParallelProgressIterator, ProgressBar};
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -5,29 +8,22 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::{
-        logging::NothingLogger,
-        meters::FlowMeter,
-        rand::{DiscreteDistribution, Rng},
-    },
+    core::rand::{DiscreteDistribution, Rng},
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
     network::{
         config::NetworkConfig,
         senders::{
-            remy::LossyRemySender,
-            window::{LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect},
+            remy::RemyCca,
+            window::{CcaTemplate, CcaTemplateSync},
         },
-        toggler::Toggle,
-        AddFlows, EffectTypeGenerator, Packet,
     },
     protocols::remy::{
         action::Action,
         dna::RemyDna,
-        rule_tree::{AugmentedRuleTree, CountingRuleTree, DynRuleTree, LeafHandle},
+        rule_tree::{CountingRuleTree, DynRuleTree, LeafHandle},
     },
     quantities::{milliseconds, seconds},
-    simulation::{Address, HasSubEffect, SimulatorBuilder},
     trainers::DefaultEffect,
     ProgressHandler, Trainer,
 };
@@ -90,61 +86,67 @@ pub struct RemyTrainer {
     config: RemyConfig,
 }
 
-#[derive(Default)]
-pub struct RemyFlowAdder {
+#[derive_where(Default, Debug)]
+pub struct RuleTreeCcaTemplate<T> {
     repeat_actions: Option<DiscreteDistribution<u32>>,
+    rule_tree: PhantomData<T>,
 }
 
-impl RemyFlowAdder {
+impl<T> RuleTreeCcaTemplate<T> {
     #[must_use]
-    pub const fn new(repeat_actions: Option<DiscreteDistribution<u32>>) -> RemyFlowAdder {
-        RemyFlowAdder { repeat_actions }
+    pub const fn new(repeat_actions: Option<DiscreteDistribution<u32>>) -> RuleTreeCcaTemplate<T> {
+        RuleTreeCcaTemplate {
+            repeat_actions,
+            rule_tree: PhantomData,
+        }
     }
 }
 
-impl<G, T> AddFlows<T, G> for RemyFlowAdder
+impl<'a, T> CcaTemplate<'a> for RuleTreeCcaTemplate<T>
 where
-    T: DynRuleTree,
-    G: EffectTypeGenerator,
-    for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>
-        + HasSubEffect<LossyInternalSenderEffect<'sim, G::Type<'sim>>>
-        + HasSubEffect<LossyInternalControllerEffect>,
+    T: DynRuleTree + 'a,
 {
-    fn add_flows<'sim, 'a, F>(
-        &self,
-        dna: T,
-        flows: impl IntoIterator<Item = F>,
-        simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
-        sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
-        rng: &mut Rng,
-    ) -> Vec<Address<'sim, Toggle, G::Type<'sim>>>
-    where
-        T: Clone + 'a,
-        F: FlowMeter + 'a,
-        G::Type<'sim>: 'sim,
-        'sim: 'a,
-    {
-        let senders = flows
-            .into_iter()
-            .map(|flow| {
-                let slot = LossyRemySender::reserve_slot::<_, NothingLogger>(simulator_builder);
-                let address = slot.address();
-                let packet_address = address.clone().cast();
-                slot.set(
-                    packet_address.clone(),
-                    sender_link_id.clone(),
-                    packet_address,
-                    dna.clone(),
-                    true,
-                    flow,
-                    self.repeat_actions.clone(),
-                    rng.create_child(),
-                    NothingLogger,
-                );
-                address.cast()
-            })
-            .collect_vec();
-        senders
+    type Policy = T;
+    type CCA = RemyCca<T>;
+
+    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA {
+        let repeat_actions = self.repeat_actions.clone();
+        move || RemyCca::new(policy.clone(), repeat_actions.clone())
+    }
+}
+
+impl<'a, T> CcaTemplateSync<'a> for RuleTreeCcaTemplate<T>
+where
+    T: DynRuleTree + Sync + 'a,
+{
+    type Policy = T;
+
+    type CCA = RemyCca<T>;
+
+    fn with_sync(&self, policy: T) -> impl Fn() -> RemyCca<T> + Sync {
+        let repeat_actions = self.repeat_actions.clone();
+        move || RemyCca::new(policy.clone(), repeat_actions.clone())
+    }
+}
+
+#[derive(Default, Debug)]
+pub struct RemyCcaTemplate<'a>(RuleTreeCcaTemplate<&'a RemyDna>);
+
+impl<'a> CcaTemplate<'a> for RemyCcaTemplate<'a> {
+    type Policy = &'a RemyDna;
+    type CCA = RemyCca<&'a RemyDna>;
+
+    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA {
+        self.0.with(policy)
+    }
+}
+
+impl<'a> CcaTemplateSync<'a> for RemyCcaTemplate<'a> {
+    type Policy = &'a RemyDna;
+    type CCA = RemyCca<&'a RemyDna>;
+
+    fn with_sync(&self, policy: &'a RemyDna) -> impl Fn() -> RemyCca<&'a RemyDna> + Sync {
+        self.0.with_sync(policy)
     }
 }
 
@@ -159,8 +161,8 @@ where
 impl Trainer for RemyTrainer {
     type Config = RemyConfig;
     type Dna = RemyDna;
+    type CcaTemplate<'a> = RemyCcaTemplate<'a>;
     type DefaultEffectGenerator = DefaultEffect<'static>;
-    type DefaultFlowAdder<'a> = RemyFlowAdder;
 
     fn new(config: &RemyConfig) -> RemyTrainer {
         RemyTrainer {
@@ -182,10 +184,9 @@ impl Trainer for RemyTrainer {
             let counting_tree = CountingRuleTree::new(&mut dna.tree);
             self.config
                 .count_rule_usage_config
-                .evaluate::<&CountingRuleTree, DefaultEffect>(
-                    &RemyFlowAdder::default(),
+                .evaluate::<_, DefaultEffect>(
+                    RuleTreeCcaTemplate::default().with(&counting_tree),
                     network_config,
-                    &counting_tree,
                     utility_function,
                     &mut new_eval_rng(),
                 )
@@ -195,10 +196,9 @@ impl Trainer for RemyTrainer {
         let test_new_action = |leaf: &LeafHandle, new_action: Action, mut rng: Rng| {
             self.config
                 .change_eval_config
-                .evaluate::<&AugmentedRuleTree, DefaultEffect>(
-                    &RemyFlowAdder::default(),
+                .evaluate::<_, DefaultEffect>(
+                    RuleTreeCcaTemplate::default().with(&leaf.augmented_tree(new_action)),
                     network_config,
-                    &leaf.augmented_tree(new_action),
                     utility_function,
                     &mut rng,
                 )

@@ -1,25 +1,25 @@
 use std::fmt::Debug;
 
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     core::{
-        logging::NothingLogger,
-        meters::FlowMeter,
+        meters::EWMA,
         rand::{ContinuousDistribution, Rng},
     },
     flow::UtilityFunction,
     network::{
         config::NetworkConfig,
         senders::{
-            delay_multiplier::LossyDelayMultiplierSender,
-            window::{LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect},
+            delay_multiplier::DelayMultiplierCca,
+            window::{
+                CcaTemplate, CcaTemplateSync, LossyInternalControllerEffect,
+                LossyInternalSenderEffect, LossySenderEffect,
+            },
         },
-        toggler::Toggle,
-        AddFlows, EffectTypeGenerator, Packet,
+        EffectTypeGenerator,
     },
-    simulation::{Address, HasSubEffect, SimulatorBuilder},
+    simulation::HasSubEffect,
     Dna, Trainer,
 };
 
@@ -33,14 +33,41 @@ pub struct DelayMultiplierConfig {
     genetic_config: GeneticConfig,
 }
 
+#[derive(Debug, Default)]
+pub struct DelayMultiplierCcaTemplate;
+
+impl<'a> CcaTemplate<'a> for DelayMultiplierCcaTemplate {
+    type Policy = &'a DelayMultiplierDna;
+    type CCA = DelayMultiplierCca;
+
+    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA {
+        self.with_sync(policy)
+    }
+}
+
+impl<'a> CcaTemplateSync<'a> for DelayMultiplierCcaTemplate {
+    type Policy = &'a DelayMultiplierDna;
+    type CCA = DelayMultiplierCca;
+
+    fn with_sync(&self, policy: &'a DelayMultiplierDna) -> impl Fn() -> DelayMultiplierCca + Sync {
+        || DelayMultiplierCca {
+            multiplier: policy.multiplier,
+            rtt: EWMA::new(1. / 8.),
+        }
+    }
+}
+
+impl EffectTypeGenerator for DelayMultiplierCcaTemplate {
+    type Type<'a> = DelayMultiplierCcaTemplate;
+}
+
 pub struct DelayMultiplierTrainer {
-    genetic_trainer:
-        GeneticTrainer<DelayMultiplierFlowAdder, DelayMultiplierDna, DefaultEffect<'static>>,
+    genetic_trainer: GeneticTrainer<DelayMultiplierTrainer>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DelayMultiplierDna {
-    multiplier: f64,
+    pub multiplier: f64,
 }
 
 impl Dna for DelayMultiplierDna {
@@ -52,53 +79,6 @@ impl Dna for DelayMultiplierDna {
 
     fn deserialize(buf: &[u8]) -> anyhow::Result<Self> {
         Ok(serde_json::from_slice(buf)?)
-    }
-}
-
-#[derive(Default)]
-pub struct DelayMultiplierFlowAdder;
-
-impl<'d, G> AddFlows<&'d DelayMultiplierDna, G> for DelayMultiplierFlowAdder
-where
-    G: EffectTypeGenerator,
-    for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>
-        + HasSubEffect<LossyInternalSenderEffect<'sim, G::Type<'sim>>>
-        + HasSubEffect<LossyInternalControllerEffect>,
-{
-    fn add_flows<'sim, 'a, F>(
-        &self,
-        dna: &DelayMultiplierDna,
-        flows: impl IntoIterator<Item = F>,
-        simulator_builder: &mut SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
-        sender_link_id: Address<'sim, Packet<'sim, G::Type<'sim>>, G::Type<'sim>>,
-        rng: &mut Rng,
-    ) -> Vec<Address<'sim, Toggle, G::Type<'sim>>>
-    where
-        F: FlowMeter + 'a,
-        G::Type<'sim>: 'sim,
-        'sim: 'a,
-    {
-        let senders = flows
-            .into_iter()
-            .map(|flow| {
-                let slot =
-                    LossyDelayMultiplierSender::reserve_slot::<_, NothingLogger>(simulator_builder);
-                let address = slot.address();
-                let packet_address = address.clone().cast();
-                let _ = slot.set(
-                    packet_address.clone(),
-                    sender_link_id.clone(),
-                    packet_address,
-                    dna.multiplier,
-                    true,
-                    flow,
-                    rng.create_child(),
-                    NothingLogger,
-                );
-                address.cast()
-            })
-            .collect_vec();
-        senders
     }
 }
 
@@ -126,8 +106,8 @@ where
 impl Trainer for DelayMultiplierTrainer {
     type Config = DelayMultiplierConfig;
     type Dna = DelayMultiplierDna;
+    type CcaTemplate<'a> = DelayMultiplierCcaTemplate;
     type DefaultEffectGenerator = DefaultEffect<'static>;
-    type DefaultFlowAdder<'a> = DelayMultiplierFlowAdder;
 
     fn new(config: &Self::Config) -> Self {
         DelayMultiplierTrainer {

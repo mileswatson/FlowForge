@@ -5,12 +5,13 @@ use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::never::Never,
     core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    network::{config::NetworkConfig, toggler::Toggle, AddFlows, EffectTypeGenerator, Packet},
-    simulation::HasSubEffect,
+    network::{
+        config::NetworkConfig, senders::window::CcaTemplateSync, EffectTypeGenerator,
+        HasNetworkSubEffects,
+    },
     Dna, ProgressHandler, Trainer,
 };
 
@@ -31,13 +32,11 @@ impl Default for GeneticConfig {
     }
 }
 
-pub struct GeneticTrainer<A, D, G> {
+pub struct GeneticTrainer<T> {
     iters: u32,
     population_size: u32,
     child_eval_config: EvaluationConfig,
-    effect: PhantomData<G>,
-    flow_adder: PhantomData<A>,
-    dna: PhantomData<D>,
+    trainer: PhantomData<T>,
 }
 
 pub trait GeneticDna<G>: Dna + Sync {
@@ -47,51 +46,44 @@ pub trait GeneticDna<G>: Dna + Sync {
     fn spawn_child(&self, rng: &mut Rng) -> Self;
 }
 
-impl<A, D, G> Trainer for GeneticTrainer<A, D, G>
+impl<T> Trainer for GeneticTrainer<T>
 where
-    G: EffectTypeGenerator,
-    A: for<'a> AddFlows<&'a D, G> + Sync,
-    D: GeneticDna<G>,
-    for<'sim> G::Type<'sim>: HasSubEffect<Packet<'sim, G::Type<'sim>>>
-        + HasSubEffect<Toggle>
-        + HasSubEffect<Never>
-        + 'sim,
+    T: Trainer,
+    T::Dna: GeneticDna<T::DefaultEffectGenerator>,
+    for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>:
+        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>,
 {
     type Config = GeneticConfig;
-    type Dna = D;
-    type DefaultEffectGenerator = G;
-    type DefaultFlowAdder<'a> = A
-    where
-        D: 'a;
+    type Dna = T::Dna;
+    type CcaTemplate<'a> = T::CcaTemplate<'a>;
+    type DefaultEffectGenerator = T::DefaultEffectGenerator;
 
     fn new(config: &Self::Config) -> Self {
         GeneticTrainer {
             iters: config.iters,
             population_size: config.population_size,
             child_eval_config: config.evaluation_config.clone(),
-            flow_adder: PhantomData,
-            effect: PhantomData,
-            dna: PhantomData,
+            trainer: PhantomData,
         }
     }
 
     fn train<H>(
         &self,
-        starting_point: Option<D>,
+        starting_point: Option<T::Dna>,
         network_config: &NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
-    ) -> D
+    ) -> T::Dna
     where
-        H: ProgressHandler<D>,
+        H: ProgressHandler<T::Dna>,
     {
         assert!(
             starting_point.is_none(),
             "Starting point not supported for genetic trainer!"
         );
         let mut population = (0..self.population_size)
-            .map(|_| D::new_random(rng))
+            .map(|_| T::Dna::new_random(rng))
             .collect_vec();
         for i in 0..self.iters {
             let frac = f64::from(i) / f64::from(self.iters);
@@ -99,13 +91,14 @@ where
                 .into_iter()
                 .map(|d| (d, rng.create_child()))
                 .filter_map(|(d, mut rng)| {
-                    let score = self.child_eval_config.evaluate::<&D, G>(
-                        &A::default(),
-                        network_config,
-                        &d,
-                        utility_function,
-                        &mut rng,
-                    );
+                    let score = self
+                        .child_eval_config
+                        .evaluate::<_, T::DefaultEffectGenerator>(
+                            T::CcaTemplate::default().with_sync(&d),
+                            network_config,
+                            utility_function,
+                            &mut rng,
+                        );
                     score.map(|(s, p)| (d, s, p)).ok()
                 })
                 .collect_vec();

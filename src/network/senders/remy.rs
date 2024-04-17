@@ -3,19 +3,14 @@ use std::fmt::Debug;
 use crate::{
     core::{
         logging::Logger,
-        meters::{FlowMeter, EWMA},
+        meters::EWMA,
         rand::{DiscreteDistribution, Rng},
     },
-    network::PacketAddress,
     protocols::remy::{action::Action, point::Point, rule_tree::DynRuleTree},
     quantities::{Time, TimeSpan},
-    simulation::{HasSubEffect, SimulatorBuilder},
 };
 
-use super::window::{
-    AckReceived, Cca, LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderAddress,
-    LossySenderSlot, LossyWindowSender, LossyWindowSettings,
-};
+use super::window::{AckReceived, Cca, LossyWindowSettings};
 
 #[derive(Debug, Clone)]
 struct Rtt {
@@ -23,7 +18,7 @@ struct Rtt {
     current: TimeSpan,
 }
 
-struct RemyCca<T> {
+pub struct RemyCca<T> {
     rule_tree: T,
     last_ack: Option<Time>,
     last_send: Option<Time>,
@@ -53,7 +48,7 @@ impl<T> RemyCca<T>
 where
     T: DynRuleTree,
 {
-    fn new(rule_tree: T, repeat_actions: Option<DiscreteDistribution<u32>>) -> RemyCca<T> {
+    pub fn new(rule_tree: T, repeat_actions: Option<DiscreteDistribution<u32>>) -> RemyCca<T> {
         RemyCca {
             rule_tree,
             ack_ewma: EWMA::new(1. / 8.),
@@ -152,100 +147,5 @@ where
             window,
             intersend_delay: action.intersend_delay,
         })
-    }
-}
-
-pub struct LossyRemySender;
-
-pub struct LossyRemySenderSlot<'sim, 'a, 'b, E>(LossySenderSlot<'sim, 'a, 'b, E>);
-
-impl<'sim, 'a, 'b, E> LossyRemySenderSlot<'sim, 'a, 'b, E>
-where
-    E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
-        + HasSubEffect<LossyInternalControllerEffect>
-        + 'sim,
-    'sim: 'a,
-{
-    #[must_use]
-    pub fn address(&self) -> LossySenderAddress<'sim, E> {
-        self.0.address()
-    }
-
-    pub fn set<T, F>(
-        self,
-        id: PacketAddress<'sim, E>,
-        link: PacketAddress<'sim, E>,
-        destination: PacketAddress<'sim, E>,
-        rule_tree: T,
-        wait_for_enable: bool,
-        flow_meter: F,
-        repeat_actions: Option<DiscreteDistribution<u32>>,
-        rng: Rng,
-        logger: impl Logger + Clone + 'a,
-    ) -> LossySenderAddress<'sim, E>
-    where
-        T: DynRuleTree + 'a,
-        F: FlowMeter + 'a,
-    {
-        self.0.set(
-            id,
-            link,
-            destination,
-            Box::new(move || RemyCca::new(rule_tree.clone(), repeat_actions.clone())),
-            wait_for_enable,
-            flow_meter,
-            rng,
-            logger,
-        )
-    }
-}
-
-impl LossyRemySender {
-    pub fn reserve_slot<'sim, 'a, 'b, E, L>(
-        builder: &'b SimulatorBuilder<'sim, 'a, E>,
-    ) -> LossyRemySenderSlot<'sim, 'a, 'b, E>
-    where
-        L: Logger + Clone + 'a,
-        E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
-            + HasSubEffect<LossyInternalControllerEffect>
-            + 'sim,
-        'sim: 'a,
-    {
-        LossyRemySenderSlot(LossyWindowSender::reserve_slot(builder))
-    }
-
-    pub fn insert<'sim, 'a, 'b, T, F, E, L>(
-        builder: &SimulatorBuilder<'sim, 'a, E>,
-        id: PacketAddress<'sim, E>,
-        link: PacketAddress<'sim, E>,
-        destination: PacketAddress<'sim, E>,
-        rule_tree: T,
-        wait_for_enable: bool,
-        flow_meter: F,
-        repeat_actions: Option<DiscreteDistribution<u32>>,
-        rng: Rng,
-        logger: L,
-    ) -> LossySenderAddress<'sim, E>
-    where
-        T: DynRuleTree + 'a,
-        L: Logger + Clone + 'a,
-        E: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
-            + HasSubEffect<LossyInternalControllerEffect>
-            + 'sim,
-        F: FlowMeter + 'a,
-        'sim: 'a,
-    {
-        let slot = Self::reserve_slot::<E, L>(builder);
-        slot.set(
-            id,
-            link,
-            destination,
-            rule_tree,
-            wait_for_enable,
-            flow_meter,
-            repeat_actions,
-            rng,
-            logger,
-        )
     }
 }
