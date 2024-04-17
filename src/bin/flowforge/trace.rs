@@ -3,8 +3,8 @@ use flowforge::{
     core::{meters::CurrentFlowMeter, never::Never, rand::Rng},
     flow::{UtilityConfig, UtilityFunction},
     network::{
-        config::NetworkConfig, senders::window::CcaTemplateSync, ticker::Ticker,
-        EffectTypeGenerator, HasNetworkSubEffects, Network,
+        config::NetworkConfig, senders::window::CcaTemplate, ticker::Ticker, EffectTypeGenerator,
+        HasNetworkSubEffects, Network,
     },
     quantities::{milliseconds, seconds, Float, InformationRate, Time, TimeSpan},
     simulation::DynComponent,
@@ -79,7 +79,7 @@ where
         })
         .collect_vec();
     let cca_template = T::CcaTemplate::default();
-    let cca_gen = cca_template.with_sync(&dna);
+    let cca_gen = cca_template.with(&dna);
     let sim = n.to_sim::<_, T::DefaultEffectGenerator>(&cca_gen, guard, rng, &flows, |builder| {
         builder.insert(DynComponent::<Never, _>::new(Ticker::new(
             milliseconds(1.),

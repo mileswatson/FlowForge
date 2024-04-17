@@ -21,7 +21,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use core::rand::Rng;
 use flow::UtilityFunction;
-use network::{config::NetworkConfig, senders::window::CcaTemplateSync, EffectTypeGenerator};
+use network::{config::NetworkConfig, senders::window::CcaTemplate, EffectTypeGenerator};
 use quantities::Float;
 
 #[macro_use]
@@ -119,7 +119,7 @@ impl<D: Dna, F: FnMut(Float, &D) + Send> ProgressHandler<D> for F {
 pub trait Trainer {
     type Config: Config<Json>;
     type Dna: Dna;
-    type CcaTemplate<'a>: CcaTemplateSync<'a, Policy = &'a Self::Dna>;
+    type CcaTemplate<'a>: CcaTemplate<'a, Policy = &'a Self::Dna>;
     type DefaultEffectGenerator: EffectTypeGenerator;
 
     fn new(config: &Self::Config) -> Self;

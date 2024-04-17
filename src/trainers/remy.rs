@@ -13,10 +13,7 @@ use crate::{
     flow::UtilityFunction,
     network::{
         config::NetworkConfig,
-        senders::{
-            remy::RemyCca,
-            window::{CcaTemplate, CcaTemplateSync},
-        },
+        senders::{remy::RemyCca, window::CcaTemplate},
     },
     protocols::remy::{
         action::Action,
@@ -104,20 +101,17 @@ impl<T> RuleTreeCcaTemplate<T> {
     }
 }
 
-impl<'a, T> CcaTemplate<'a> for RuleTreeCcaTemplate<T>
+impl<T> RuleTreeCcaTemplate<T>
 where
-    T: DynRuleTree + 'a,
+    T: DynRuleTree,
 {
-    type Policy = T;
-    type CCA = RemyCca<T>;
-
-    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA {
+    pub fn with_not_sync(&self, policy: T) -> impl Fn() -> RemyCca<T> {
         let repeat_actions = self.repeat_actions.clone();
         move || RemyCca::new(policy.clone(), repeat_actions.clone())
     }
 }
 
-impl<'a, T> CcaTemplateSync<'a> for RuleTreeCcaTemplate<T>
+impl<'a, T> CcaTemplate<'a> for RuleTreeCcaTemplate<T>
 where
     T: DynRuleTree + Sync + 'a,
 {
@@ -125,7 +119,7 @@ where
 
     type CCA = RemyCca<T>;
 
-    fn with_sync(&self, policy: T) -> impl Fn() -> RemyCca<T> + Sync {
+    fn with(&self, policy: T) -> impl Fn() -> RemyCca<T> + Sync {
         let repeat_actions = self.repeat_actions.clone();
         move || RemyCca::new(policy.clone(), repeat_actions.clone())
     }
@@ -138,17 +132,8 @@ impl<'a> CcaTemplate<'a> for RemyCcaTemplate<'a> {
     type Policy = &'a RemyDna;
     type CCA = RemyCca<&'a RemyDna>;
 
-    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA {
+    fn with(&self, policy: &'a RemyDna) -> impl Fn() -> RemyCca<&'a RemyDna> + Sync {
         self.0.with(policy)
-    }
-}
-
-impl<'a> CcaTemplateSync<'a> for RemyCcaTemplate<'a> {
-    type Policy = &'a RemyDna;
-    type CCA = RemyCca<&'a RemyDna>;
-
-    fn with_sync(&self, policy: &'a RemyDna) -> impl Fn() -> RemyCca<&'a RemyDna> + Sync {
-        self.0.with_sync(policy)
     }
 }
 
@@ -187,7 +172,7 @@ impl Trainer for RemyTrainer {
             self.config
                 .count_rule_usage_config
                 .evaluate::<_, DefaultEffect>(
-                    RuleTreeCcaTemplate::default().with(&counting_tree),
+                    RuleTreeCcaTemplate::default().with_not_sync(&counting_tree),
                     network_config,
                     utility_function,
                     &mut new_eval_rng(),
@@ -199,7 +184,7 @@ impl Trainer for RemyTrainer {
             self.config
                 .change_eval_config
                 .evaluate::<_, DefaultEffect>(
-                    RuleTreeCcaTemplate::default().with(&leaf.augmented_tree(new_action)),
+                    RuleTreeCcaTemplate::default().with_not_sync(&leaf.augmented_tree(new_action)),
                     network_config,
                     utility_function,
                     &mut rng,

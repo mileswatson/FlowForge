@@ -21,10 +21,7 @@ use crate::{
     flow::UtilityFunction,
     network::{
         config::NetworkConfig,
-        senders::{
-            remy::RemyCca,
-            window::{CcaTemplate, CcaTemplateSync},
-        },
+        senders::{remy::RemyCca, window::CcaTemplate},
     },
     protocols::{
         remy::{
@@ -401,7 +398,7 @@ fn rollout(
                     num_senders: &|| flows.iter().filter(|x| x.borrow().active()).count(),
                 };
                 let cca_template = RuleTreeCcaTemplate::new(repeat_actions.clone());
-                let cca_gen = cca_template.with(dna);
+                let cca_gen = cca_template.with_not_sync(dna);
                 let sim = n.to_sim::<_, DefaultEffect>(&cca_gen, guard, &mut rng, &flows, |_| {});
                 let sim_end = Time::from_sim_start(training_config.run_sim_for);
                 sim.run_while(|t| t < sim_end);
@@ -421,17 +418,8 @@ impl<'a> CcaTemplate<'a> for RemyrCcaTemplate<'a> {
     type Policy = &'a RemyrDna;
     type CCA = RemyCca<&'a RemyrDna>;
 
-    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA {
-        self.0.with(policy)
-    }
-}
-
-impl<'a> CcaTemplateSync<'a> for RemyrCcaTemplate<'a> {
-    type Policy = &'a RemyrDna;
-    type CCA = RemyCca<&'a RemyrDna>;
-
-    fn with_sync(&self, policy: &'a RemyrDna) -> impl Fn() -> RemyCca<&'a RemyrDna> + Sync {
-        self.0.with(policy)
+    fn with(&self, policy: &'a RemyrDna) -> impl Fn() -> RemyCca<&'a RemyrDna> + Sync {
+        self.0.with_not_sync(policy)
     }
 }
 

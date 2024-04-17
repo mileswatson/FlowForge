@@ -13,8 +13,8 @@ use crate::{
         senders::{
             delay_multiplier::DelayMultiplierCca,
             window::{
-                CcaTemplate, CcaTemplateSync, LossyInternalControllerEffect,
-                LossyInternalSenderEffect, LossySenderEffect,
+                CcaTemplate, LossyInternalControllerEffect, LossyInternalSenderEffect,
+                LossySenderEffect,
             },
         },
         EffectTypeGenerator,
@@ -40,16 +40,7 @@ impl<'a> CcaTemplate<'a> for DelayMultiplierCcaTemplate {
     type Policy = &'a DelayMultiplierDna;
     type CCA = DelayMultiplierCca;
 
-    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA {
-        self.with_sync(policy)
-    }
-}
-
-impl<'a> CcaTemplateSync<'a> for DelayMultiplierCcaTemplate {
-    type Policy = &'a DelayMultiplierDna;
-    type CCA = DelayMultiplierCca;
-
-    fn with_sync(&self, policy: &'a DelayMultiplierDna) -> impl Fn() -> DelayMultiplierCca + Sync {
+    fn with(&self, policy: &'a DelayMultiplierDna) -> impl Fn() -> DelayMultiplierCca + Sync {
         || DelayMultiplierCca {
             multiplier: policy.multiplier,
             rtt: EWMA::new(1. / 8.),

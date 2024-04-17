@@ -6,7 +6,7 @@ use flowforge::{
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
     network::{
-        config::NetworkConfig, senders::window::CcaTemplateSync, EffectTypeGenerator,
+        config::NetworkConfig, senders::window::CcaTemplate, EffectTypeGenerator,
         HasNetworkSubEffects,
     },
     quantities::Float,
@@ -25,7 +25,7 @@ pub fn _evaluate<T>(
 ) -> (Float, FlowProperties)
 where
     T: Trainer,
-    for<'a> T::CcaTemplate<'a>: CcaTemplateSync<'a>,
+    for<'a> T::CcaTemplate<'a>: CcaTemplate<'a>,
     for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>:
         HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>,
 {
@@ -33,7 +33,7 @@ where
 
     let x = evaluation_config
         .evaluate(
-            T::CcaTemplate::default().with_sync(&dna),
+            T::CcaTemplate::default().with(&dna),
             network_config,
             utility_config,
             &mut rng.identical_child_factory()(),
