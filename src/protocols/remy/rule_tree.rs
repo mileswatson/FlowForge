@@ -93,6 +93,16 @@ impl<'a> CountingRuleTree<'a> {
             })
     }
 
+    pub fn num_used_rules(&mut self) -> usize {
+        let mut total = 0;
+        for count in &mut self.counts {
+            if *count.get_mut() > 0 {
+                total += 1;
+            }
+        }
+        total
+    }
+
     #[must_use]
     pub fn most_used_rule(self) -> (Float, LeafHandle<'a>) {
         self._most_used_rule::<false>().unwrap()
