@@ -14,18 +14,12 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    components::config::NetworkConfig,
-    core::{
-        meters::CurrentFlowMeter,
-        rand::{ContinuousDistribution, DiscreteDistribution, Rng},
-    },
-    evaluator::EvaluationConfig,
-    flow::UtilityFunction,
     ccas::{
         remy::{
             action::Action,
             point::Point,
-            rule_tree::{DynRuleTree, RuleTree}, RuleTreeCcaTemplate,
+            rule_tree::{DynRuleTree, RuleTree},
+            RuleTreeCcaTemplate,
         },
         remyr::{
             dna::RemyrDna,
@@ -35,8 +29,16 @@ use crate::{
             RemyrCcaTemplate,
         },
     },
+    core::{
+        meters::CurrentFlowMeter,
+        rand::{ContinuousDistribution, DiscreteDistribution, Rng},
+    },
+    evaluator::EvaluationConfig,
+    flow::UtilityFunction,
+    networks::config::NetworkConfig,
     quantities::{milliseconds, seconds, Float, Time, TimeSpan},
-    trainers::DefaultEffect, Trainer,
+    trainers::DefaultEffect,
+    Trainer,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -591,14 +593,14 @@ mod tests {
     use itertools::Itertools;
 
     use crate::{
-        components::config::NetworkConfig,
-        core::rand::{ContinuousDistribution, Rng},
-        evaluator::EvaluationConfig,
-        flow::AlphaFairness,
         ccas::{
             remy::{action::Action, point::Point, rule_tree::RuleTree},
             remyr::dna::RemyrDna,
         },
+        core::rand::{ContinuousDistribution, Rng},
+        evaluator::EvaluationConfig,
+        flow::AlphaFairness,
+        networks::config::NetworkConfig,
         quantities::{milliseconds, seconds, Float, Time},
         Trainer,
     };

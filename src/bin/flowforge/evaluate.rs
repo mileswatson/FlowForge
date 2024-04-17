@@ -2,10 +2,10 @@ use std::path::Path;
 
 use anyhow::Result;
 use flowforge::{
-    core::rand::Rng,
+    core::{rand::Rng, WithLifetime},
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
-    components::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects},
+    networks::{config::NetworkConfig, HasNetworkSubEffects},
     quantities::Float,
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
     CcaTemplate, Config, Trainer,
@@ -22,8 +22,8 @@ pub fn _evaluate<T>(
 ) -> (Float, FlowProperties)
 where
     T: Trainer,
-    for<'sim> <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>:
-        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as EffectTypeGenerator>::Type<'sim>>,
+    for<'sim> <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>:
+        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>>,
 {
     let dna = T::Dna::load(input_path).unwrap();
 

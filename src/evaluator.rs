@@ -10,12 +10,8 @@ use crate::{
     core::{
         average::{AveragePair, IterAverage, SameEmptiness},
         meters::AverageFlowMeter,
-        rand::Rng,
-    },
-    flow::{FlowProperties, NoActiveFlows, UtilityFunction},
-    components::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects, RemyNetwork},
-    quantities::{seconds, Float, Time, TimeSpan},
-    Cca,
+        rand::Rng, WithLifetime,
+    }, flow::{FlowProperties, NoActiveFlows, UtilityFunction}, networks::{config::NetworkConfig, HasNetworkSubEffects, RemyNetwork}, quantities::{seconds, Float, Time, TimeSpan}, Cca
 };
 
 #[allow(clippy::unsafe_derive_deserialize)]
@@ -44,7 +40,7 @@ impl EvaluationConfig {
     ) -> Result<(Float, FlowProperties), NoActiveFlows>
     where
         C: Cca,
-        G: EffectTypeGenerator,
+        G: WithLifetime,
         for<'sim> G::Type<'sim>: HasNetworkSubEffects<'sim, G::Type<'sim>>,
     {
         let score_network = |(n, mut rng): (RemyNetwork, Rng)| {

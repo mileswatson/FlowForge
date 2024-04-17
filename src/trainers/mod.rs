@@ -2,14 +2,14 @@ use derive_more::{From, TryInto};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::never::Never,
     components::{
         senders::window::{
             LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
         },
         toggler::Toggle,
-        EffectTypeGenerator, Packet,
+        Packet,
     },
+    core::{never::Never, WithLifetime},
 };
 
 use self::{delay_multiplier::DelayMultiplierConfig, remy::RemyConfig, remyr::RemyrConfig};
@@ -37,6 +37,6 @@ pub enum DefaultEffect<'sim> {
     Never(Never),
 }
 
-impl<'sim> EffectTypeGenerator for DefaultEffect<'sim> {
+impl<'sim> WithLifetime for DefaultEffect<'sim> {
     type Type<'a> = DefaultEffect<'a>;
 }

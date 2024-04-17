@@ -18,19 +18,20 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
+use networks::config::NetworkConfig;
 use serde::{de::DeserializeOwned, Serialize};
 
-use core::{logging::Logger, rand::Rng};
+use core::{logging::Logger, rand::Rng, WithLifetime};
 use flow::UtilityFunction;
-use components::{config::NetworkConfig, EffectTypeGenerator};
 use quantities::{Float, Time, TimeSpan};
 
 #[macro_use]
 pub mod core;
+pub mod ccas;
+pub mod components;
 pub mod evaluator;
 pub mod flow;
-pub mod components;
-pub mod ccas;
+pub mod networks;
 pub mod quantities;
 pub mod simulation;
 pub mod trainers;
@@ -149,7 +150,7 @@ pub trait Trainer {
     type Config: Config<Json>;
     type Dna: Dna;
     type CcaTemplate<'a>: CcaTemplate<'a, Policy = &'a Self::Dna>;
-    type DefaultEffectGenerator: EffectTypeGenerator;
+    type DefaultEffectGenerator: WithLifetime;
 
     fn new(config: &Self::Config) -> Self;
 
