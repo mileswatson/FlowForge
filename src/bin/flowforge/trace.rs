@@ -3,13 +3,12 @@ use flowforge::{
     core::{meters::CurrentFlowMeter, never::Never, rand::Rng},
     flow::{UtilityConfig, UtilityFunction},
     network::{
-        config::NetworkConfig, senders::window::CcaTemplate, ticker::Ticker, EffectTypeGenerator,
-        HasNetworkSubEffects, Network,
+        config::NetworkConfig, ticker::Ticker, EffectTypeGenerator, HasNetworkSubEffects, Network,
     },
     quantities::{milliseconds, seconds, Float, InformationRate, Time, TimeSpan},
     simulation::DynComponent,
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
-    Config, Trainer,
+    CcaTemplate, Config, Trainer,
 };
 use generativity::make_guard;
 use itertools::Itertools;

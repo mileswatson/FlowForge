@@ -1,11 +1,8 @@
 use std::fmt::Debug;
 
 use crate::{
-    core::{logging::Logger, meters::EWMA, rand::Rng},
-    quantities::{Float, TimeSpan},
+    core::{logging::Logger, meters::EWMA, rand::Rng}, quantities::{Float, TimeSpan}, AckReceived, Cca, CwndSettings
 };
-
-use super::window::{AckReceived, Cca, LossyWindowSettings};
 
 #[derive(Debug)]
 pub struct DelayMultiplierCca {
@@ -14,8 +11,8 @@ pub struct DelayMultiplierCca {
 }
 
 impl Cca for DelayMultiplierCca {
-    fn initial_settings(&self) -> LossyWindowSettings {
-        LossyWindowSettings {
+    fn initial_settings(&self) -> CwndSettings {
+        CwndSettings {
             window: 1,
             intersend_delay: TimeSpan::ZERO,
         }
@@ -30,14 +27,14 @@ impl Cca for DelayMultiplierCca {
         }: AckReceived,
         _rng: &mut Rng,
         logger: &mut L,
-    ) -> Option<LossyWindowSettings>
+    ) -> Option<CwndSettings>
     where
         L: Logger,
     {
         let rtt = self.rtt.update(received_time - sent_time);
         let intersend_delay = self.multiplier * rtt;
         log!(logger, "Updated intersend_delay to {}", intersend_delay);
-        Some(LossyWindowSettings {
+        Some(CwndSettings {
             intersend_delay,
             ..current_settings
         })

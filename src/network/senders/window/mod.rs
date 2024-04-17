@@ -3,10 +3,7 @@ use std::{cell::RefCell, fmt::Debug, rc::Rc};
 use derive_more::{From, TryInto};
 
 use crate::{
-    core::{logging::Logger, meters::FlowMeter, rand::Rng},
-    network::{toggler::Toggle, Packet, PacketAddress},
-    quantities::{Time, TimeSpan},
-    simulation::{Address, Component, ComponentSlot, DynComponent, HasSubEffect, SimulatorBuilder},
+    core::{logging::Logger, meters::FlowMeter, rand::Rng}, network::{toggler::Toggle, Packet, PacketAddress}, simulation::{Address, Component, ComponentSlot, DynComponent, HasSubEffect, SimulatorBuilder}, AckReceived, Cca, CwndSettings
 };
 
 use self::{controller::LossyWindowController, sender::Sender};
@@ -15,36 +12,8 @@ mod controller;
 mod sender;
 
 enum SettingsUpdate {
-    Enable(LossyWindowSettings),
+    Enable(CwndSettings),
     Disable,
-}
-
-#[derive(Debug, Clone)]
-pub struct LossyWindowSettings {
-    pub window: u32,
-    pub intersend_delay: TimeSpan,
-}
-
-pub trait Cca: Debug {
-    fn initial_settings(&self) -> LossyWindowSettings;
-    fn ack_received<L: Logger>(
-        &mut self,
-        ack: AckReceived,
-        rng: &mut Rng,
-        logger: &mut L,
-    ) -> Option<LossyWindowSettings>;
-}
-
-pub trait CcaTemplate<'a>: Default + Debug {
-    type Policy: 'a + ?Sized;
-    type CCA: Cca + 'a;
-    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA + Sync;
-}
-
-pub struct AckReceived {
-    pub current_settings: LossyWindowSettings,
-    pub sent_time: Time,
-    pub received_time: Time,
 }
 
 #[derive(From, TryInto)]

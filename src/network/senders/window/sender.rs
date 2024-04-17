@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    AckReceived, LossyInternalControllerEffect, LossyInternalSenderEffect, LossyWindowSettings,
+    AckReceived, CwndSettings, LossyInternalControllerEffect, LossyInternalSenderEffect,
     SettingsUpdate,
 };
 
@@ -24,12 +24,12 @@ struct WaitingForEnable {
 struct Enabled {
     last_send: Time,
     greatest_ack: u64,
-    settings: LossyWindowSettings,
+    settings: CwndSettings,
     packets_sent: u64,
 }
 
 impl Enabled {
-    const fn new(settings: LossyWindowSettings, packets_sent: u64) -> Self {
+    const fn new(settings: CwndSettings, packets_sent: u64) -> Self {
         Self {
             last_send: Time::MIN,
             greatest_ack: packets_sent,

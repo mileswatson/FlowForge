@@ -5,12 +5,8 @@ use crate::{
         logging::Logger,
         meters::EWMA,
         rand::{DiscreteDistribution, Rng},
-    },
-    protocols::remy::{action::Action, point::Point, rule_tree::DynRuleTree},
-    quantities::{Time, TimeSpan},
+    }, protocols::remy::{action::Action, point::Point, rule_tree::DynRuleTree}, quantities::{Time, TimeSpan}, AckReceived, Cca, CwndSettings
 };
-
-use super::window::{AckReceived, Cca, LossyWindowSettings};
 
 #[derive(Debug, Clone)]
 struct Rtt {
@@ -81,8 +77,8 @@ impl<T> Cca for RemyCca<T>
 where
     T: DynRuleTree,
 {
-    fn initial_settings(&self) -> LossyWindowSettings {
-        LossyWindowSettings {
+    fn initial_settings(&self) -> CwndSettings {
+        CwndSettings {
             window: 1,
             intersend_delay: TimeSpan::ZERO,
         }
@@ -97,7 +93,7 @@ where
         }: AckReceived,
         rng: &mut Rng,
         logger: &mut L,
-    ) -> Option<LossyWindowSettings>
+    ) -> Option<CwndSettings>
     where
         L: Logger,
     {
@@ -143,7 +139,7 @@ where
             }
         };
         let window = action.apply_to(current_settings.window);
-        Some(LossyWindowSettings {
+        Some(CwndSettings {
             window,
             intersend_delay: action.intersend_delay,
         })

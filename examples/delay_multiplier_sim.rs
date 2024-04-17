@@ -6,17 +6,14 @@ use flowforge::{
         meters::{AverageFlowMeter, CurrentFlowMeter},
         rand::Rng,
     },
-    network::{
-        bouncer::LossyBouncer,
-        link::Link,
-        senders::window::{CcaTemplate, LossyWindowSender},
-    },
+    network::{bouncer::LossyBouncer, link::Link, senders::window::LossyWindowSender},
     quantities::{packets, packets_per_second, seconds, Time},
     simulation::{DynComponent, SimulatorBuilder},
     trainers::{
         delay_multiplier::{DelayMultiplierCcaTemplate, DelayMultiplierDna},
         DefaultEffect,
     },
+    CcaTemplate,
 };
 use generativity::make_guard;
 
