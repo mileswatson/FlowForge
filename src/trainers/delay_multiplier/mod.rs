@@ -12,7 +12,7 @@ use crate::{
     }, core::{
         meters::EWMA,
         rand::{ContinuousDistribution, Rng},
-    }, flow::UtilityFunction, protocols::delay_multiplier::DelayMultiplierCca, simulation::HasSubEffect, CcaTemplate, Dna, Trainer
+    }, flow::UtilityFunction, ccas::delay_multiplier::DelayMultiplierCca, simulation::HasSubEffect, CcaTemplate, Dna, Trainer
 };
 
 use super::{

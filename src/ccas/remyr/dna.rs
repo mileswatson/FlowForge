@@ -11,7 +11,7 @@ use dfdx::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    protocols::remy::{action::Action, point::Point},
+    ccas::remy::{action::Action, point::Point},
     Dna,
 };
 
@@ -136,7 +136,7 @@ mod tests {
         tensor::{AsArray, Cpu, TensorFrom},
     };
 
-    use crate::protocols::remyr::{dna::SerializeTensors, net::HiddenLayers};
+    use crate::ccas::remyr::{dna::SerializeTensors, net::HiddenLayers};
 
     #[test]
     fn serialize_deserialize() {

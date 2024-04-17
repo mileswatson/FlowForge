@@ -1,7 +1,7 @@
 use std::{fs::File, io::Write, path::Path};
 
 use flowforge::{
-    protocols::{
+    ccas::{
         remy::{action::Action, dna::RemyDna, point::Point, rule_tree::RuleTree},
         remyr::{
             dna::RemyrDna,
