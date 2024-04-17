@@ -22,14 +22,14 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use core::{logging::Logger, rand::Rng};
 use flow::UtilityFunction;
-use network::{config::NetworkConfig, EffectTypeGenerator};
+use components::{config::NetworkConfig, EffectTypeGenerator};
 use quantities::{Float, Time, TimeSpan};
 
 #[macro_use]
 pub mod core;
 pub mod evaluator;
 pub mod flow;
-pub mod network;
+pub mod components;
 pub mod protocols;
 pub mod quantities;
 pub mod simulation;

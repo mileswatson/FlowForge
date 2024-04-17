@@ -8,7 +8,7 @@ use crate::{
         rand::{ContinuousDistribution, Rng},
     },
     flow::UtilityFunction,
-    network::{
+    components::{
         config::NetworkConfig,
         senders::{
             delay_multiplier::DelayMultiplierCca,

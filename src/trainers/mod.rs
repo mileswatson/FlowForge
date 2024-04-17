@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     core::never::Never,
-    network::{
+    components::{
         senders::window::{
             LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
         },

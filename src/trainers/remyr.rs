@@ -20,7 +20,7 @@ use crate::{
     },
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    network::{config::NetworkConfig, senders::remy::RemyCca},
+    components::{config::NetworkConfig, senders::remy::RemyCca},
     protocols::{
         remy::{
             action::Action,
@@ -608,7 +608,7 @@ mod tests {
         core::rand::{ContinuousDistribution, Rng},
         evaluator::EvaluationConfig,
         flow::AlphaFairness,
-        network::config::NetworkConfig,
+        components::config::NetworkConfig,
         protocols::{
             remy::{action::Action, point::Point, rule_tree::RuleTree},
             remyr::dna::RemyrDna,

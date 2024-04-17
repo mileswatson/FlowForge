@@ -4,7 +4,7 @@ use itertools::Itertools;
 
 use crate::{
     core::{logging::Logger, rand::Rng},
-    network::toggler::Toggle,
+    components::toggler::Toggle,
     quantities::Time,
     simulation::{Address, Component, EffectContext, Message},
 };

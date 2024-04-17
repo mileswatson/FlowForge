@@ -11,7 +11,7 @@ use crate::{
         never::Never,
         rand::{PositiveContinuousDistribution, Rng},
     },
-    network::senders::window::LossyWindowSender,
+    components::senders::window::LossyWindowSender,
     quantities::{packets, Float, Information, InformationRate, Time, TimeSpan},
     simulation::{Address, DynComponent, HasSubEffect, Simulator, SimulatorBuilder},
     Cca,
@@ -52,7 +52,7 @@ impl<'sim, E> Packet<'sim, E> {
 pub type PacketAddress<'sim, E> = Address<'sim, Packet<'sim, E>, E>;
 
 #[derive(Debug, Clone, Serialize)]
-pub struct Network {
+pub struct RemyNetwork {
     pub rtt: TimeSpan,
     pub packet_rate: InformationRate,
     pub loss_rate: Float,
@@ -86,7 +86,7 @@ impl<'sim, E, T> HasNetworkSubEffects<'sim, E> for T where
 {
 }
 
-impl Network {
+impl RemyNetwork {
     #[must_use]
     #[allow(clippy::type_complexity)]
     pub fn to_sim<'sim, 'a, C, G, F>(

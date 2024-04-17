@@ -8,7 +8,7 @@ use crate::{
     core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    network::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects},
+    components::{config::NetworkConfig, EffectTypeGenerator, HasNetworkSubEffects},
     CcaTemplate, Dna, ProgressHandler, Trainer,
 };
 
