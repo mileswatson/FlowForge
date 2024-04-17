@@ -3,21 +3,16 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::{
-        meters::EWMA,
-        rand::{ContinuousDistribution, Rng},
-    },
-    flow::UtilityFunction,
     components::{
         config::NetworkConfig,
-        senders::{
-            delay_multiplier::DelayMultiplierCca,
-            window::{LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect},
+        senders::window::{
+            LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
         },
         EffectTypeGenerator,
-    },
-    simulation::HasSubEffect,
-    CcaTemplate, Dna, Trainer,
+    }, core::{
+        meters::EWMA,
+        rand::{ContinuousDistribution, Rng},
+    }, flow::UtilityFunction, protocols::delay_multiplier::DelayMultiplierCca, simulation::HasSubEffect, CcaTemplate, Dna, Trainer
 };
 
 use super::{
