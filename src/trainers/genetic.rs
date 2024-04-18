@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     eval::EvaluationConfig,
     flow::UtilityFunction,
-    networks::NetworkConfig,
+    NetworkConfig,
     util::{rand::Rng, WithLifetime},
     CcaTemplate, Dna, ProgressHandler, Trainer,
 };

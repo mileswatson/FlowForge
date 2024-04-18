@@ -7,16 +7,10 @@ use std::{
 
 use anyhow::Result;
 use flowforge::{
-    eval::EvaluationConfig,
-    flow::{FlowProperties, UtilityConfig},
-    networks::{DefaultNetworkConfig, NetworkConfig},
-    quantities::Float,
-    trainers::{
+    eval::EvaluationConfig, flow::{FlowProperties, UtilityConfig}, networks::DefaultNetworkConfig, quantities::Float, trainers::{
         delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
         TrainerConfig,
-    },
-    util::rand::Rng,
-    CcaTemplate, Config, Trainer,
+    }, util::rand::Rng, CcaTemplate, Config, NetworkConfig, Trainer
 };
 use serde::Serialize;
 

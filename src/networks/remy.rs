@@ -24,10 +24,8 @@ use crate::{
         },
         WithLifetime,
     },
-    Cca,
+    Cca, NetworkBuilder, NetworkConfig,
 };
-
-use super::{NetworkBuilder, NetworkConfig};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RemyNetworkBuilder {
