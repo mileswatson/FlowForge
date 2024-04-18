@@ -35,8 +35,9 @@ use crate::{
     },
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    networks::config::NetworkConfig,
+    networks::{NetworkBuilder, NetworkConfig},
     quantities::{milliseconds, seconds, Float, Time, TimeSpan},
+    simulation::SimulatorBuilder,
     trainers::DefaultEffect,
     Trainer,
 };
@@ -346,7 +347,7 @@ where
 fn rollout(
     dna: &RemyrDna,
     stddev: &Tensor1D<ACTION>,
-    network_config: &NetworkConfig,
+    network_config: &impl NetworkConfig,
     utility_function: &dyn UtilityFunction,
     training_config: &EvaluationConfig,
     half_life: TimeSpan,
@@ -364,8 +365,6 @@ fn rollout(
         .map(|(n, mut rng)| {
             let records = RefCell::new((Vec::new(), Vec::new()));
             let x = {
-                make_guard!(guard);
-
                 let flows = AppendOnlyVec::new();
                 let new_flow = || {
                     let index = flows.push(RefCell::new(CurrentFlowMeter::new_disabled(
@@ -400,8 +399,10 @@ fn rollout(
                 };
                 let cca_template = RuleTreeCcaTemplate::new(repeat_actions.clone());
                 let cca_gen = cca_template.with_not_sync(dna);
+                make_guard!(guard);
+                let builder = SimulatorBuilder::new(guard);
                 let sim =
-                    n.to_sim::<_, DefaultEffect, _>(&cca_gen, guard, &mut rng, new_flow, |_| {});
+                    n.populate_sim::<_, DefaultEffect, _>(builder, &cca_gen, &mut rng, new_flow);
                 let sim_end = Time::from_sim_start(training_config.run_sim_for);
                 sim.run_while(|t| t < sim_end);
                 (current_utility(sim_end), sim_end)
@@ -433,7 +434,7 @@ impl Trainer for RemyrTrainer {
     fn train<H>(
         &self,
         starting_point: Option<Self::Dna>,
-        network_config: &NetworkConfig,
+        network_config: &impl NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut crate::core::rand::Rng,
@@ -600,7 +601,7 @@ mod tests {
         core::rand::{ContinuousDistribution, Rng},
         evaluator::EvaluationConfig,
         flow::AlphaFairness,
-        networks::config::NetworkConfig,
+        networks::remy::RemyNetworkConfig,
         quantities::{milliseconds, seconds, Float, Time},
         Trainer,
     };
@@ -622,7 +623,7 @@ mod tests {
         let mut rng = Rng::from_seed(5_243_533);
         let result = trainer.train(
             None,
-            &NetworkConfig::default(),
+            &RemyNetworkConfig::default(),
             &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
             &mut |_: Float, _: &RemyrDna| {},
             &mut rng,

@@ -5,7 +5,10 @@ use flowforge::{
     core::{rand::Rng, WithLifetime},
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
-    networks::{config::NetworkConfig, HasNetworkSubEffects},
+    networks::{
+        remy::{HasNetworkSubEffects, RemyNetworkConfig},
+        NetworkConfig,
+    },
     quantities::Float,
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
     CcaTemplate, Config, Trainer,
@@ -15,7 +18,7 @@ use crate::FlowAdders;
 
 pub fn _evaluate<T>(
     evaluation_config: &EvaluationConfig,
-    network_config: &NetworkConfig,
+    network_config: &impl NetworkConfig,
     utility_config: &UtilityConfig,
     input_path: &Path,
     rng: &mut Rng,
@@ -47,7 +50,7 @@ pub fn evaluate(
     input_path: &Path,
 ) -> Result<()> {
     let evaluation_config = EvaluationConfig::load(evaluation_config)?;
-    let network_config = NetworkConfig::load(network_config)?;
+    let network_config = RemyNetworkConfig::load(network_config)?;
     let utility_config = UtilityConfig::load(utility_config)?;
 
     let mut rng = Rng::from_seed(534522);

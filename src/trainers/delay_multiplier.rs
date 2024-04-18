@@ -3,12 +3,19 @@ use std::fmt::Debug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ccas::delay_multiplier::DelayMultiplierCca, components::senders::window::{
-            LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
-        }, core::{
+    ccas::delay_multiplier::DelayMultiplierCca,
+    components::senders::window::{
+        LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
+    },
+    core::{
         meters::EWMA,
-        rand::{ContinuousDistribution, Rng}, WithLifetime,
-    }, flow::UtilityFunction, networks::config::NetworkConfig, simulation::HasSubEffect, CcaTemplate, Dna, Trainer
+        rand::{ContinuousDistribution, Rng},
+        WithLifetime,
+    },
+    flow::UtilityFunction,
+    networks::NetworkConfig,
+    simulation::HasSubEffect,
+    CcaTemplate, Dna, Trainer,
 };
 
 use super::{
@@ -97,7 +104,7 @@ impl Trainer for DelayMultiplierTrainer {
     fn train<H>(
         &self,
         starting_point: Option<DelayMultiplierDna>,
-        network_config: &NetworkConfig,
+        network_config: &impl NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,

@@ -18,7 +18,7 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use networks::config::NetworkConfig;
+use networks::NetworkConfig;
 use serde::{de::DeserializeOwned, Serialize};
 
 use core::{logging::Logger, rand::Rng, WithLifetime};
@@ -157,7 +157,7 @@ pub trait Trainer {
     fn train<H>(
         &self,
         starting_point: Option<Self::Dna>,
-        network_config: &NetworkConfig,
+        network_config: &impl NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,

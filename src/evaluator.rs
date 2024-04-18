@@ -10,8 +10,14 @@ use crate::{
     core::{
         average::{AveragePair, IterAverage, SameEmptiness},
         meters::AverageFlowMeter,
-        rand::Rng, WithLifetime,
-    }, flow::{FlowProperties, NoActiveFlows, UtilityFunction}, networks::{config::NetworkConfig, HasNetworkSubEffects, RemyNetwork}, quantities::{seconds, Float, Time, TimeSpan}, Cca
+        rand::Rng,
+        WithLifetime,
+    },
+    flow::{FlowProperties, NoActiveFlows, UtilityFunction},
+    networks::{remy::HasNetworkSubEffects, NetworkBuilder, NetworkConfig},
+    quantities::{seconds, Float, Time, TimeSpan},
+    simulation::SimulatorBuilder,
+    Cca,
 };
 
 #[allow(clippy::unsafe_derive_deserialize)]
@@ -31,26 +37,28 @@ impl Default for EvaluationConfig {
 }
 
 impl EvaluationConfig {
-    pub fn evaluate<'a, C, G>(
+    pub fn evaluate<'a, C, G, B>(
         &self,
         new_cca: impl Fn() -> C + Sync,
-        network_config: &NetworkConfig,
+        network_config: &impl NetworkConfig<NetworkBuilder = B>,
         utility_function: &(impl UtilityFunction + ?Sized),
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows>
     where
+        B: NetworkBuilder,
         C: Cca,
         G: WithLifetime,
         for<'sim> G::Type<'sim>: HasNetworkSubEffects<'sim, G::Type<'sim>>,
     {
-        let score_network = |(n, mut rng): (RemyNetwork, Rng)| {
-            make_guard!(guard);
+        let score_network = |(n, mut rng): (B, Rng)| {
             let flows = AppendOnlyVec::new();
             let new_flow = || {
                 let index = flows.push(RefCell::new(AverageFlowMeter::new_disabled()));
                 &flows[index]
             };
-            let sim = n.to_sim::<_, G, _>(&new_cca, guard, &mut rng, new_flow, |_| {});
+            make_guard!(guard);
+            let builder = SimulatorBuilder::new(guard);
+            let sim = n.populate_sim::<_, G, _>(builder, &new_cca, &mut rng, new_flow);
             let sim_end = Time::from_sim_start(self.run_sim_for);
             sim.run_while(|t| t < sim_end);
             let flow_stats = flows
@@ -60,7 +68,7 @@ impl EvaluationConfig {
             utility_function.total_utility(&flow_stats)
         };
 
-        let networks = (0..self.network_samples)
+        let networks: Vec<_> = (0..self.network_samples)
             .map(|_| (rng.sample(network_config), rng.create_child()))
             .collect_vec();
         networks

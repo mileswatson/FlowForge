@@ -5,7 +5,11 @@ use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::{rand::Rng, WithLifetime}, evaluator::EvaluationConfig, flow::UtilityFunction, networks::{config::NetworkConfig, HasNetworkSubEffects}, CcaTemplate, Dna, ProgressHandler, Trainer
+    core::{rand::Rng, WithLifetime},
+    evaluator::EvaluationConfig,
+    flow::UtilityFunction,
+    networks::{remy::HasNetworkSubEffects, NetworkConfig},
+    CcaTemplate, Dna, ProgressHandler, Trainer,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -63,7 +67,7 @@ where
     fn train<H>(
         &self,
         starting_point: Option<T::Dna>,
-        network_config: &NetworkConfig,
+        network_config: &impl NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
@@ -86,7 +90,7 @@ where
                 .filter_map(|(d, mut rng)| {
                     let score = self
                         .child_eval_config
-                        .evaluate::<_, T::DefaultEffectGenerator>(
+                        .evaluate::<_, T::DefaultEffectGenerator, _>(
                             T::CcaTemplate::default().with(&d),
                             network_config,
                             utility_function,

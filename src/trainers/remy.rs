@@ -14,7 +14,7 @@ use crate::{
     core::rand::Rng,
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    networks::config::NetworkConfig,
+    networks::NetworkConfig,
     quantities::{milliseconds, seconds},
     trainers::DefaultEffect,
     ProgressHandler, Trainer,
@@ -104,7 +104,7 @@ impl Trainer for RemyTrainer {
     fn train<H: ProgressHandler<RemyDna>>(
         &self,
         starting_point: Option<RemyDna>,
-        network_config: &NetworkConfig,
+        network_config: &impl NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
@@ -114,7 +114,7 @@ impl Trainer for RemyTrainer {
             let counting_tree = CountingRuleTree::new(&mut dna.tree);
             self.config
                 .count_rule_usage_config
-                .evaluate::<_, DefaultEffect>(
+                .evaluate::<_, DefaultEffect, _>(
                     RuleTreeCcaTemplate::default().with_not_sync(&counting_tree),
                     network_config,
                     utility_function,
@@ -126,7 +126,7 @@ impl Trainer for RemyTrainer {
         let test_new_action = |leaf: &LeafHandle, new_action: Action, mut rng: Rng| {
             self.config
                 .change_eval_config
-                .evaluate::<_, DefaultEffect>(
+                .evaluate::<_, DefaultEffect, _>(
                     RuleTreeCcaTemplate::default().with_not_sync(&leaf.augmented_tree(new_action)),
                     network_config,
                     utility_function,
@@ -232,7 +232,7 @@ impl Trainer for RemyTrainer {
 mod tests {
     use crate::{
         core::rand::Rng, evaluator::EvaluationConfig, flow::AlphaFairness,
-        networks::config::NetworkConfig, quantities::seconds, trainers::remy::RemyDna, Trainer,
+        networks::remy::RemyNetworkConfig, quantities::seconds, trainers::remy::RemyDna, Trainer,
     };
 
     use super::{RemyConfig, RemyTrainer};
@@ -254,7 +254,7 @@ mod tests {
         let trainer = RemyTrainer::new(&remy_config);
         let result = trainer.train(
             None,
-            &NetworkConfig::default(),
+            &RemyNetworkConfig::default(),
             &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
             &mut |_, _: &RemyDna| {},
             &mut rng,
