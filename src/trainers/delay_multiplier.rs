@@ -8,7 +8,7 @@ use crate::{
         LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
     },
     flow::UtilityFunction,
-    networks::NetworkConfig,
+    NetworkConfig,
     simulation::HasSubEffect,
     util::{
         meters::EWMA,

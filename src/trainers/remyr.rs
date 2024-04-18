@@ -31,7 +31,6 @@ use crate::{
     },
     eval::EvaluationConfig,
     flow::UtilityFunction,
-    networks::{NetworkBuilder, NetworkConfig},
     quantities::{milliseconds, seconds, Float, Time, TimeSpan},
     simulation::SimulatorBuilder,
     trainers::DefaultEffect,
@@ -40,7 +39,7 @@ use crate::{
         rand::{ContinuousDistribution, DiscreteDistribution, Rng},
         WithLifetime,
     },
-    Trainer,
+    NetworkBuilder, NetworkConfig, Trainer,
 };
 
 #[derive(Clone, Serialize, Deserialize)]

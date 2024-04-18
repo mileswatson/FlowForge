@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     flow::{FlowProperties, NoActiveFlows, UtilityFunction},
-    networks::{NetworkBuilder, NetworkConfig},
     quantities::{seconds, Float, Time, TimeSpan},
     simulation::SimulatorBuilder,
     util::{
@@ -17,7 +16,7 @@ use crate::{
         rand::Rng,
         WithLifetime,
     },
-    Cca,
+    Cca, NetworkBuilder, NetworkConfig,
 };
 
 #[allow(clippy::unsafe_derive_deserialize)]

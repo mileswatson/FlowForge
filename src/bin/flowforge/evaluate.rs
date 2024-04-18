@@ -2,13 +2,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use flowforge::{
-    eval::EvaluationConfig,
-    flow::{FlowProperties, UtilityConfig},
-    networks::{DefaultNetworkConfig, NetworkConfig},
-    quantities::Float,
-    trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
-    util::rand::Rng,
-    CcaTemplate, Config, Trainer,
+    eval::EvaluationConfig, flow::{FlowProperties, UtilityConfig}, networks::DefaultNetworkConfig, quantities::Float, trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer}, util::rand::Rng, CcaTemplate, Config, NetworkConfig, Trainer
 };
 
 use crate::FlowAdders;

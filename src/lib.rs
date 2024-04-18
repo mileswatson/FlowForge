@@ -18,12 +18,18 @@ use std::{
 };
 
 use anyhow::{anyhow, Result};
-use networks::NetworkConfig;
+use rand_distr::Distribution;
 use serde::{de::DeserializeOwned, Serialize};
 
 use flow::UtilityFunction;
 use quantities::{Float, Time, TimeSpan};
-use util::{logging::Logger, rand::Rng, WithLifetime};
+use simulation::{Simulator, SimulatorBuilder};
+use util::{
+    logging::{Logger, NothingLogger},
+    meters::FlowMeter,
+    rand::Rng,
+    WithLifetime,
+};
 
 #[macro_use]
 pub mod util;
@@ -116,6 +122,31 @@ impl<D: Dna, F: FnMut(Float, &D) + Send> ProgressHandler<D> for F {
     fn update_progress(&mut self, frac_complete: Float, current: &D) {
         self(frac_complete, current);
     }
+}
+
+pub trait NetworkBuilder<G>: Clone + Send
+where
+    G: WithLifetime,
+{
+    fn populate_sim<'sim, 'a, C, F>(
+        &self,
+        builder: SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
+        new_cca: impl Fn() -> C + Clone + 'a,
+        rng: &'a mut Rng,
+        new_flow_meter: impl FnMut() -> F,
+    ) -> Simulator<'sim, 'a, G::Type<'sim>, NothingLogger>
+    where
+        C: Cca + 'a,
+        F: FlowMeter + 'a,
+        'sim: 'a;
+}
+
+pub trait NetworkConfig<G>:
+    Serialize + DeserializeOwned + Distribution<Self::NetworkBuilder> + Sync
+where
+    G: WithLifetime,
+{
+    type NetworkBuilder: NetworkBuilder<G>;
 }
 
 #[derive(Debug, Clone)]

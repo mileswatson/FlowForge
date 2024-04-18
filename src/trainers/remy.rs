@@ -13,7 +13,7 @@ use crate::{
     },
     eval::EvaluationConfig,
     flow::UtilityFunction,
-    networks::NetworkConfig,
+    NetworkConfig,
     quantities::{milliseconds, seconds},
     trainers::DefaultEffect,
     util::{rand::Rng, WithLifetime},
