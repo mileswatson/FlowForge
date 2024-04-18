@@ -21,12 +21,12 @@ use anyhow::{anyhow, Result};
 use networks::NetworkConfig;
 use serde::{de::DeserializeOwned, Serialize};
 
-use core::{logging::Logger, rand::Rng, WithLifetime};
+use util::{logging::Logger, rand::Rng, WithLifetime};
 use flow::UtilityFunction;
 use quantities::{Float, Time, TimeSpan};
 
 #[macro_use]
-pub mod core;
+pub mod util;
 pub mod ccas;
 pub mod components;
 pub mod evaluator;

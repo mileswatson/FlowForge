@@ -3,7 +3,7 @@ use std::{fmt::Debug, marker::PhantomData};
 use derive_where::derive_where;
 
 use crate::{
-    core::{
+    util::{
         logging::Logger,
         meters::EWMA,
         rand::{DiscreteDistribution, Rng},

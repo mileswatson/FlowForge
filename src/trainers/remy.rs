@@ -11,7 +11,7 @@ use crate::{
         rule_tree::{CountingRuleTree, LeafHandle},
         RemyCcaTemplate, RuleTreeCcaTemplate,
     },
-    core::rand::Rng,
+    util::rand::Rng,
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
     networks::NetworkConfig,
@@ -231,7 +231,7 @@ impl Trainer for RemyTrainer {
 #[cfg(test)]
 mod tests {
     use crate::{
-        core::rand::Rng, evaluator::EvaluationConfig, flow::AlphaFairness,
+        util::rand::Rng, evaluator::EvaluationConfig, flow::AlphaFairness,
         networks::remy::RemyNetworkConfig, quantities::seconds, trainers::remy::RemyDna, Trainer,
     };
 

@@ -10,7 +10,7 @@ use crate::{
         },
         toggler::{Toggle, Toggler},
     },
-    core::{
+    util::{
         logging::NothingLogger,
         meters::FlowMeter,
         never::Never,

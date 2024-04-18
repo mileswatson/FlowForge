@@ -9,7 +9,7 @@ use crate::{
         },
         toggler::Toggle,
     },
-    core::{never::Never, WithLifetime},
+    util::{never::Never, WithLifetime},
 };
 
 use self::{delay_multiplier::DelayMultiplierConfig, remy::RemyConfig, remyr::RemyrConfig};

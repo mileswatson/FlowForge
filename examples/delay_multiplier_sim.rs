@@ -1,7 +1,7 @@
 use std::{mem::ManuallyDrop, ops::Deref};
 
 use flowforge::{
-    core::{
+    util::{
         logging::LogTable,
         meters::{AverageFlowMeter, CurrentFlowMeter},
         rand::Rng,

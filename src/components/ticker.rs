@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use crate::{
-    core::never::Never,
+    util::never::Never,
     quantities::{Time, TimeSpan},
     simulation::{Component, EffectContext, Message},
 };

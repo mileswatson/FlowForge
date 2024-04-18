@@ -7,7 +7,7 @@ use crate::{
     components::senders::window::{
         LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
     },
-    core::{
+    util::{
         meters::EWMA,
         rand::{ContinuousDistribution, Rng},
         WithLifetime,

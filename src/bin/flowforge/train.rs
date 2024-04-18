@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Result;
 use flowforge::{
-    core::{rand::Rng, WithLifetime},
+    util::{rand::Rng, WithLifetime},
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
     networks::{

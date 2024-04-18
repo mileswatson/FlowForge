@@ -11,7 +11,7 @@ use std::{
 };
 use vec_map::VecMap;
 
-use crate::{core::logging::Logger, quantities::Time};
+use crate::{util::logging::Logger, quantities::Time};
 
 pub trait HasSubEffect<P>: From<P> + TryInto<P> {}
 

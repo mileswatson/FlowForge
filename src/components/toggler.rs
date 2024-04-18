@@ -1,8 +1,8 @@
 use derive_where::derive_where;
 
 use crate::{
-    core::never::Never,
-    core::rand::{PositiveContinuousDistribution, Rng},
+    util::never::Never,
+    util::rand::{PositiveContinuousDistribution, Rng},
     quantities::{Time, TimeSpan},
     simulation::{Address, Component, EffectContext, Message},
 };

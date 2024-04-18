@@ -3,8 +3,8 @@ use std::collections::VecDeque;
 use derive_where::derive_where;
 
 use crate::{
-    core::logging::Logger,
-    core::rand::{ContinuousDistribution, Rng},
+    util::logging::Logger,
+    util::rand::{ContinuousDistribution, Rng},
     quantities::{earliest_opt, latest, Information, InformationRate, Time, TimeSpan},
     simulation::{Component, EffectContext, Message},
 };

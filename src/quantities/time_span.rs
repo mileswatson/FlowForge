@@ -6,7 +6,7 @@ use std::{
 use format_num::format_num;
 use serde::{Deserialize, Serialize};
 
-use crate::core::rand::Wrapper;
+use crate::util::rand::Wrapper;
 
 use super::{deserialize, serialize, Float, Milli, Quantity, UnitPrefix, Uno};
 

@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use itertools::Itertools;
 
 use crate::{
-    core::{logging::Logger, rand::Rng},
+    util::{logging::Logger, rand::Rng},
     components::toggler::Toggle,
     quantities::Time,
     simulation::{Address, Component, EffectContext, Message},

@@ -29,7 +29,7 @@ use crate::{
             RemyrCcaTemplate,
         },
     },
-    core::{
+    util::{
         meters::CurrentFlowMeter,
         rand::{ContinuousDistribution, DiscreteDistribution, Rng},
     },
@@ -437,7 +437,7 @@ impl Trainer for RemyrTrainer {
         network_config: &impl NetworkConfig,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
-        rng: &mut crate::core::rand::Rng,
+        rng: &mut crate::util::rand::Rng,
     ) -> Self::Dna
     where
         H: crate::ProgressHandler<Self::Dna>,
@@ -598,7 +598,7 @@ mod tests {
             remy::{action::Action, point::Point, rule_tree::RuleTree},
             remyr::dna::RemyrDna,
         },
-        core::rand::{ContinuousDistribution, Rng},
+        util::rand::{ContinuousDistribution, Rng},
         evaluator::EvaluationConfig,
         flow::AlphaFairness,
         networks::remy::RemyNetworkConfig,
