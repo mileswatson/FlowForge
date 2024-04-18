@@ -15,7 +15,10 @@ flamegraph.svg
 
 !/configs/network
 /configs/network/*
-!/configs/network/default.json
+
+!/configs/network/remy
+/configs/network/remy/*
+!/configs/network/remy/default.json
 
 !/configs/trainer
 /configs/trainer/*

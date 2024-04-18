@@ -3,9 +3,7 @@ use append_only_vec::AppendOnlyVec;
 use flowforge::{
     components::ticker::Ticker,
     flow::{UtilityConfig, UtilityFunction},
-    networks::{
-        remy::RemyNetworkConfig, HasDefaultNetworkSubEffects, NetworkBuilder, NetworkConfig,
-    },
+    networks::{DefaultNetworkConfig, HasDefaultNetworkSubEffects, NetworkBuilder, NetworkConfig},
     quantities::{milliseconds, seconds, Float, InformationRate, Time, TimeSpan},
     simulation::{DynComponent, SimulatorBuilder},
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
@@ -130,7 +128,7 @@ pub fn trace(
     output_path: Option<&Path>,
     seed: u64,
 ) -> Result<()> {
-    let network_config = RemyNetworkConfig::load(network_config)?;
+    let network_config = DefaultNetworkConfig::load(network_config)?;
     let utility_config = UtilityConfig::load(utility_config)?;
 
     let mut rng = Rng::from_seed(seed);

@@ -4,7 +4,7 @@ use anyhow::Result;
 use flowforge::{
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
-    networks::{remy::RemyNetworkConfig, NetworkConfig},
+    networks::{DefaultNetworkConfig, NetworkConfig},
     quantities::Float,
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
     util::rand::Rng,
@@ -45,7 +45,7 @@ pub fn evaluate(
     input_path: &Path,
 ) -> Result<()> {
     let evaluation_config = EvaluationConfig::load(evaluation_config)?;
-    let network_config = RemyNetworkConfig::load(network_config)?;
+    let network_config = DefaultNetworkConfig::load(network_config)?;
     let utility_config = UtilityConfig::load(utility_config)?;
 
     let mut rng = Rng::from_seed(534522);

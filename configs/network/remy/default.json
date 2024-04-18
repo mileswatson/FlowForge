@@ -1,0 +1,32 @@
+{
+  "Remy": {
+    "rtt": {
+      "type": "uniform",
+      "min": "100ms",
+      "max": "200ms"
+    },
+    "bandwidth": {
+      "type": "uniform",
+      "min": "10Mb/s",
+      "max": "20Mb/s"
+    },
+    "loss_rate": {
+      "type": "always",
+      "value": 0.0
+    },
+    "buffer_size": null,
+    "num_senders": {
+      "type": "uniform",
+      "min": 1,
+      "max": 16
+    },
+    "off_time": {
+      "type": "exponential",
+      "mean": "5s"
+    },
+    "on_time": {
+      "type": "exponential",
+      "mean": "5s"
+    }
+  }
+}

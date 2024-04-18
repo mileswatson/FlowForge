@@ -4,7 +4,7 @@ use anyhow::Result;
 use flowforge::{
     evaluator::EvaluationConfig,
     flow::{AlphaFairness, UtilityConfig},
-    networks::remy::RemyNetworkConfig,
+    networks::{remy::RemyNetworkConfig, DefaultNetworkConfig},
     quantities::seconds,
     trainers::{
         delay_multiplier::DelayMultiplierConfig, remy::RemyConfig, remyr::RemyrConfig,
@@ -15,7 +15,7 @@ use flowforge::{
 
 pub fn create_all_configs(folder: &Path) -> Result<()> {
     create_dir_all(folder.join("eval"))?;
-    create_dir_all(folder.join("network"))?;
+    create_dir_all(folder.join("network/remy"))?;
     create_dir_all(folder.join("trainer/remy"))?;
     create_dir_all(folder.join("trainer/remyr"))?;
     create_dir_all(folder.join("trainer/delay_multiplier"))?;
@@ -33,7 +33,8 @@ pub fn create_all_configs(folder: &Path) -> Result<()> {
     }
     .save(&folder.join("eval/very_short.json"))?;
 
-    RemyNetworkConfig::default().save(&folder.join("network/default.json"))?;
+    DefaultNetworkConfig::Remy(RemyNetworkConfig::default())
+        .save(&folder.join("network/remy/default.json"))?;
 
     TrainerConfig::Remy(RemyConfig::default()).save(&folder.join("trainer/remy/default.json"))?;
     TrainerConfig::Remyr(RemyrConfig::default())

@@ -231,8 +231,13 @@ impl Trainer for RemyTrainer {
 #[cfg(test)]
 mod tests {
     use crate::{
-        evaluator::EvaluationConfig, flow::AlphaFairness, networks::remy::RemyNetworkConfig,
-        quantities::seconds, trainers::{remy::RemyDna, DefaultEffect}, util::rand::Rng, Trainer,
+        evaluator::EvaluationConfig,
+        flow::AlphaFairness,
+        networks::DefaultNetworkConfig,
+        quantities::seconds,
+        trainers::{remy::RemyDna, DefaultEffect},
+        util::rand::Rng,
+        Trainer,
     };
 
     use super::{RemyConfig, RemyTrainer};
@@ -254,7 +259,7 @@ mod tests {
         let trainer = RemyTrainer::new(&remy_config);
         let result = trainer.train::<DefaultEffect<'static>, _>(
             None,
-            &RemyNetworkConfig::default(),
+            &DefaultNetworkConfig::default(),
             &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
             &mut |_, _: &RemyDna| {},
             &mut rng,

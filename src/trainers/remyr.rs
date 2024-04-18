@@ -598,7 +598,14 @@ mod tests {
         ccas::{
             remy::{action::Action, point::Point, rule_tree::RuleTree},
             remyr::dna::RemyrDna,
-        }, evaluator::EvaluationConfig, flow::AlphaFairness, networks::remy::RemyNetworkConfig, quantities::{milliseconds, seconds, Float, Time}, trainers::DefaultEffect, util::rand::{ContinuousDistribution, Rng}, Trainer
+        },
+        evaluator::EvaluationConfig,
+        flow::AlphaFairness,
+        networks::DefaultNetworkConfig,
+        quantities::{milliseconds, seconds, Float, Time},
+        trainers::DefaultEffect,
+        util::rand::{ContinuousDistribution, Rng},
+        Trainer,
     };
 
     use super::{RemyrConfig, RemyrTrainer};
@@ -618,7 +625,7 @@ mod tests {
         let mut rng = Rng::from_seed(5_243_533);
         let result = trainer.train::<DefaultEffect, _>(
             None,
-            &RemyNetworkConfig::default(),
+            &DefaultNetworkConfig::default(),
             &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
             &mut |_: Float, _: &RemyrDna| {},
             &mut rng,
