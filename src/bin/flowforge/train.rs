@@ -10,7 +10,10 @@ use flowforge::{
     core::{rand::Rng, WithLifetime},
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
-    networks::{config::NetworkConfig, HasNetworkSubEffects},
+    networks::{
+        remy::{HasNetworkSubEffects, RemyNetworkConfig},
+        NetworkConfig,
+    },
     quantities::Float,
     trainers::{
         delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
@@ -21,22 +24,22 @@ use flowforge::{
 use serde::Serialize;
 
 #[derive(Serialize)]
-struct TrainResult<'a, T> {
+struct TrainResult<'a, T, N> {
     timestamps: Vec<Float>,
     bandwidth: Vec<Float>,
     rtt: Vec<Float>,
     utility: Vec<Float>,
     trainer_config: &'a T,
-    network_config: &'a NetworkConfig,
+    network_config: &'a N,
     utility_config: &'a UtilityConfig,
 }
 
-impl<'a, T> TrainResult<'a, T> {
+impl<'a, T, N> TrainResult<'a, T, N> {
     pub fn new(
         trainer_config: &'a T,
-        network_config: &'a NetworkConfig,
+        network_config: &'a N,
         utility_config: &'a UtilityConfig,
-    ) -> TrainResult<'a, T> {
+    ) -> TrainResult<'a, T, N> {
         TrainResult {
             timestamps: Vec::new(),
             bandwidth: Vec::new(),
@@ -52,7 +55,7 @@ impl<'a, T> TrainResult<'a, T> {
 pub fn _train<T>(
     trainer_config: &T::Config,
     evaluation_config: Option<(u32, EvaluationConfig, Option<&Path>)>,
-    network_config: &NetworkConfig,
+    network_config: &impl NetworkConfig,
     utility_config: &UtilityConfig,
     dna_path: &Path,
     rng: &mut Rng,
@@ -110,7 +113,7 @@ pub fn _train<T>(
                     print!("Evaluating... ");
                     io::stdout().flush().unwrap();
                     let (utility, props) = evaluation_config
-                        .evaluate::<_, T::DefaultEffectGenerator>(
+                        .evaluate::<_, T::DefaultEffectGenerator, _>(
                             &T::CcaTemplate::default().with(dna),
                             network_config,
                             utility_config,
@@ -170,7 +173,7 @@ pub fn train(
     };
 
     let trainer_config = TrainerConfig::load(trainer_config)?;
-    let network_config = NetworkConfig::load(network_config)?;
+    let network_config = RemyNetworkConfig::load(network_config)?;
     let utility_config = UtilityConfig::load(utility_config)?;
 
     let mut rng = Rng::from_seed(534522);
