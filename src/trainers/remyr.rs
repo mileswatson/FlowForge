@@ -29,16 +29,17 @@ use crate::{
             RemyrCcaTemplate,
         },
     },
-    util::{
-        meters::CurrentFlowMeter,
-        rand::{ContinuousDistribution, DiscreteDistribution, Rng},
-    },
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
     networks::{NetworkBuilder, NetworkConfig},
     quantities::{milliseconds, seconds, Float, Time, TimeSpan},
     simulation::SimulatorBuilder,
     trainers::DefaultEffect,
+    util::{
+        meters::CurrentFlowMeter,
+        rand::{ContinuousDistribution, DiscreteDistribution, Rng},
+        WithLifetime,
+    },
     Trainer,
 };
 
@@ -344,10 +345,10 @@ where
     }
 }
 
-fn rollout(
+fn rollout<G: WithLifetime>(
     dna: &RemyrDna,
     stddev: &Tensor1D<ACTION>,
-    network_config: &impl NetworkConfig,
+    network_config: &impl NetworkConfig<G>,
     utility_function: &dyn UtilityFunction,
     training_config: &EvaluationConfig,
     half_life: TimeSpan,
@@ -401,8 +402,7 @@ fn rollout(
                 let cca_gen = cca_template.with_not_sync(dna);
                 make_guard!(guard);
                 let builder = SimulatorBuilder::new(guard);
-                let sim =
-                    n.populate_sim::<_, DefaultEffect, _>(builder, &cca_gen, &mut rng, new_flow);
+                let sim = n.populate_sim(builder, &cca_gen, &mut rng, new_flow);
                 let sim_end = Time::from_sim_start(training_config.run_sim_for);
                 sim.run_while(|t| t < sim_end);
                 (current_utility(sim_end), sim_end)
@@ -431,15 +431,16 @@ impl Trainer for RemyrTrainer {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn train<H>(
+    fn train<G, H>(
         &self,
         starting_point: Option<Self::Dna>,
-        network_config: &impl NetworkConfig,
+        network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut crate::util::rand::Rng,
     ) -> Self::Dna
     where
+        G: WithLifetime,
         H: crate::ProgressHandler<Self::Dna>,
     {
         assert!(
@@ -597,13 +598,7 @@ mod tests {
         ccas::{
             remy::{action::Action, point::Point, rule_tree::RuleTree},
             remyr::dna::RemyrDna,
-        },
-        util::rand::{ContinuousDistribution, Rng},
-        evaluator::EvaluationConfig,
-        flow::AlphaFairness,
-        networks::remy::RemyNetworkConfig,
-        quantities::{milliseconds, seconds, Float, Time},
-        Trainer,
+        }, evaluator::EvaluationConfig, flow::AlphaFairness, networks::remy::RemyNetworkConfig, quantities::{milliseconds, seconds, Float, Time}, trainers::DefaultEffect, util::rand::{ContinuousDistribution, Rng}, Trainer
     };
 
     use super::{RemyrConfig, RemyrTrainer};
@@ -621,7 +616,7 @@ mod tests {
             ..RemyrConfig::default()
         });
         let mut rng = Rng::from_seed(5_243_533);
-        let result = trainer.train(
+        let result = trainer.train::<DefaultEffect, _>(
             None,
             &RemyNetworkConfig::default(),
             &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,

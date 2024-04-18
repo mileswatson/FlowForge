@@ -21,9 +21,9 @@ use anyhow::{anyhow, Result};
 use networks::NetworkConfig;
 use serde::{de::DeserializeOwned, Serialize};
 
-use util::{logging::Logger, rand::Rng, WithLifetime};
 use flow::UtilityFunction;
 use quantities::{Float, Time, TimeSpan};
+use util::{logging::Logger, rand::Rng, WithLifetime};
 
 #[macro_use]
 pub mod util;
@@ -154,14 +154,15 @@ pub trait Trainer {
 
     fn new(config: &Self::Config) -> Self;
 
-    fn train<H>(
+    fn train<G, H>(
         &self,
         starting_point: Option<Self::Dna>,
-        network_config: &impl NetworkConfig,
+        network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
     ) -> Self::Dna
     where
-        H: ProgressHandler<Self::Dna>;
+        H: ProgressHandler<Self::Dna>,
+        G: WithLifetime;
 }

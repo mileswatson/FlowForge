@@ -2,17 +2,20 @@ use rand_distr::Distribution;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
-    util::{logging::NothingLogger, meters::FlowMeter, rand::Rng, WithLifetime},
     simulation::{Simulator, SimulatorBuilder},
+    util::{logging::NothingLogger, meters::FlowMeter, rand::Rng, WithLifetime},
     Cca,
 };
 
-use self::remy::HasNetworkSubEffects;
+use self::remy::HasRemyNetworkSubEffects;
 
 pub mod remy;
 
-pub trait NetworkBuilder: Clone + Send {
-    fn populate_sim<'sim, 'a, C, G, F>(
+pub trait NetworkBuilder<G>: Clone + Send
+where
+    G: WithLifetime,
+{
+    fn populate_sim<'sim, 'a, C, F>(
         &self,
         builder: SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
         new_cca: impl Fn() -> C + Clone + 'a,
@@ -21,14 +24,22 @@ pub trait NetworkBuilder: Clone + Send {
     ) -> Simulator<'sim, 'a, G::Type<'sim>, NothingLogger>
     where
         C: Cca + 'a,
-        G: WithLifetime,
-        G::Type<'sim>: HasNetworkSubEffects<'sim, G::Type<'sim>>,
+
         F: FlowMeter + 'a,
         'sim: 'a;
 }
 
-pub trait NetworkConfig:
+pub trait NetworkConfig<G>:
     Serialize + DeserializeOwned + Distribution<Self::NetworkBuilder> + Sync
+where
+    G: WithLifetime,
 {
-    type NetworkBuilder: NetworkBuilder;
+    type NetworkBuilder: NetworkBuilder<G>;
+}
+
+pub trait HasDefaultNetworkSubEffects<'sim, E>: HasRemyNetworkSubEffects<'sim, E> {}
+
+impl<'sim, E, T> HasDefaultNetworkSubEffects<'sim, E> for T where
+    T: HasRemyNetworkSubEffects<'sim, E>
+{
 }

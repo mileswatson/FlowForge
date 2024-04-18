@@ -10,6 +10,10 @@ use crate::{
         },
         toggler::{Toggle, Toggler},
     },
+    quantities::{
+        bits_per_second, milliseconds, seconds, Float, Information, InformationRate, TimeSpan,
+    },
+    simulation::{DynComponent, HasSubEffect, Simulator, SimulatorBuilder},
     util::{
         logging::NothingLogger,
         meters::FlowMeter,
@@ -20,10 +24,6 @@ use crate::{
         },
         WithLifetime,
     },
-    quantities::{
-        bits_per_second, milliseconds, seconds, Float, Information, InformationRate, TimeSpan,
-    },
-    simulation::{DynComponent, HasSubEffect, Simulator, SimulatorBuilder},
     Cca,
 };
 
@@ -40,7 +40,7 @@ pub struct RemyNetworkBuilder {
     pub on_time: PositiveContinuousDistribution<TimeSpan>,
 }
 
-pub trait HasNetworkSubEffects<'sim, E>:
+pub trait HasRemyNetworkSubEffects<'sim, E>:
     HasSubEffect<LossyInternalSenderEffect<'sim, E>>
     + HasSubEffect<LossyInternalControllerEffect>
     + HasSubEffect<Packet<'sim, E>>
@@ -50,7 +50,7 @@ pub trait HasNetworkSubEffects<'sim, E>:
 {
 }
 
-impl<'sim, E, T> HasNetworkSubEffects<'sim, E> for T where
+impl<'sim, E, T> HasRemyNetworkSubEffects<'sim, E> for T where
     T: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
         + HasSubEffect<LossyInternalControllerEffect>
         + HasSubEffect<Packet<'sim, E>>
@@ -60,8 +60,12 @@ impl<'sim, E, T> HasNetworkSubEffects<'sim, E> for T where
 {
 }
 
-impl NetworkBuilder for RemyNetworkBuilder {
-    fn populate_sim<'sim, 'a, C, G, F>(
+impl<G> NetworkBuilder<G> for RemyNetworkBuilder
+where
+    G: WithLifetime,
+    for<'sim> G::Type<'sim>: HasRemyNetworkSubEffects<'sim, G::Type<'sim>>,
+{
+    fn populate_sim<'sim, 'a, C, F>(
         &self,
         builder: SimulatorBuilder<'sim, 'a, <G>::Type<'sim>>,
         new_cca: impl Fn() -> C + Clone + 'a,
@@ -70,8 +74,6 @@ impl NetworkBuilder for RemyNetworkBuilder {
     ) -> Simulator<'sim, 'a, <G>::Type<'sim>, NothingLogger>
     where
         C: Cca + 'a,
-        G: WithLifetime,
-        <G>::Type<'sim>: HasNetworkSubEffects<'sim, <G>::Type<'sim>>,
         F: FlowMeter + 'a,
         'sim: 'a,
     {
@@ -158,6 +160,10 @@ impl Distribution<RemyNetworkBuilder> for RemyNetworkConfig {
     }
 }
 
-impl NetworkConfig for RemyNetworkConfig {
+impl<G> NetworkConfig<G> for RemyNetworkConfig
+where
+    G: WithLifetime,
+    for<'sim> G::Type<'sim>: HasRemyNetworkSubEffects<'sim, G::Type<'sim>>,
+{
     type NetworkBuilder = RemyNetworkBuilder;
 }
