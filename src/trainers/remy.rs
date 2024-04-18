@@ -11,12 +11,12 @@ use crate::{
         rule_tree::{CountingRuleTree, LeafHandle},
         RemyCcaTemplate, RuleTreeCcaTemplate,
     },
-    util::rand::Rng,
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
     networks::NetworkConfig,
     quantities::{milliseconds, seconds},
     trainers::DefaultEffect,
+    util::{rand::Rng, WithLifetime},
     ProgressHandler, Trainer,
 };
 
@@ -101,10 +101,10 @@ impl Trainer for RemyTrainer {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn train<H: ProgressHandler<RemyDna>>(
+    fn train<G: WithLifetime, H: ProgressHandler<RemyDna>>(
         &self,
         starting_point: Option<RemyDna>,
-        network_config: &impl NetworkConfig,
+        network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
@@ -114,7 +114,7 @@ impl Trainer for RemyTrainer {
             let counting_tree = CountingRuleTree::new(&mut dna.tree);
             self.config
                 .count_rule_usage_config
-                .evaluate::<_, DefaultEffect, _>(
+                .evaluate::<_, G, _>(
                     RuleTreeCcaTemplate::default().with_not_sync(&counting_tree),
                     network_config,
                     utility_function,
@@ -126,7 +126,7 @@ impl Trainer for RemyTrainer {
         let test_new_action = |leaf: &LeafHandle, new_action: Action, mut rng: Rng| {
             self.config
                 .change_eval_config
-                .evaluate::<_, DefaultEffect, _>(
+                .evaluate::<_, G, _>(
                     RuleTreeCcaTemplate::default().with_not_sync(&leaf.augmented_tree(new_action)),
                     network_config,
                     utility_function,
@@ -231,8 +231,8 @@ impl Trainer for RemyTrainer {
 #[cfg(test)]
 mod tests {
     use crate::{
-        util::rand::Rng, evaluator::EvaluationConfig, flow::AlphaFairness,
-        networks::remy::RemyNetworkConfig, quantities::seconds, trainers::remy::RemyDna, Trainer,
+        evaluator::EvaluationConfig, flow::AlphaFairness, networks::remy::RemyNetworkConfig,
+        quantities::seconds, trainers::{remy::RemyDna, DefaultEffect}, util::rand::Rng, Trainer,
     };
 
     use super::{RemyConfig, RemyTrainer};
@@ -252,7 +252,7 @@ mod tests {
             ..RemyConfig::default()
         };
         let trainer = RemyTrainer::new(&remy_config);
-        let result = trainer.train(
+        let result = trainer.train::<DefaultEffect<'static>, _>(
             None,
             &RemyNetworkConfig::default(),
             &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,

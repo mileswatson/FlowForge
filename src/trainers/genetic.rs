@@ -5,10 +5,10 @@ use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    util::{rand::Rng, WithLifetime},
     evaluator::EvaluationConfig,
     flow::UtilityFunction,
-    networks::{remy::HasNetworkSubEffects, NetworkConfig},
+    networks::NetworkConfig,
+    util::{rand::Rng, WithLifetime},
     CcaTemplate, Dna, ProgressHandler, Trainer,
 };
 
@@ -47,8 +47,6 @@ impl<T> Trainer for GeneticTrainer<T>
 where
     T: Trainer,
     T::Dna: GeneticDna<T::DefaultEffectGenerator>,
-    for<'sim> <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>:
-        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>>,
 {
     type Config = GeneticConfig;
     type Dna = T::Dna;
@@ -64,16 +62,17 @@ where
         }
     }
 
-    fn train<H>(
+    fn train<G, H>(
         &self,
         starting_point: Option<T::Dna>,
-        network_config: &impl NetworkConfig,
+        network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
     ) -> T::Dna
     where
         H: ProgressHandler<T::Dna>,
+        G: WithLifetime,
     {
         assert!(
             starting_point.is_none(),
@@ -90,7 +89,7 @@ where
                 .filter_map(|(d, mut rng)| {
                     let score = self
                         .child_eval_config
-                        .evaluate::<_, T::DefaultEffectGenerator, _>(
+                        .evaluate::<_, G, _>(
                             T::CcaTemplate::default().with(&d),
                             network_config,
                             utility_function,

@@ -7,16 +7,16 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    flow::{FlowProperties, NoActiveFlows, UtilityFunction},
+    networks::{NetworkBuilder, NetworkConfig},
+    quantities::{seconds, Float, Time, TimeSpan},
+    simulation::SimulatorBuilder,
     util::{
         average::{AveragePair, IterAverage, SameEmptiness},
         meters::AverageFlowMeter,
         rand::Rng,
         WithLifetime,
     },
-    flow::{FlowProperties, NoActiveFlows, UtilityFunction},
-    networks::{remy::HasNetworkSubEffects, NetworkBuilder, NetworkConfig},
-    quantities::{seconds, Float, Time, TimeSpan},
-    simulation::SimulatorBuilder,
     Cca,
 };
 
@@ -37,18 +37,17 @@ impl Default for EvaluationConfig {
 }
 
 impl EvaluationConfig {
-    pub fn evaluate<'a, C, G, B>(
+    pub fn evaluate<C, G, B>(
         &self,
         new_cca: impl Fn() -> C + Sync,
-        network_config: &impl NetworkConfig<NetworkBuilder = B>,
+        network_config: &impl NetworkConfig<G, NetworkBuilder = B>,
         utility_function: &(impl UtilityFunction + ?Sized),
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows>
     where
-        B: NetworkBuilder,
+        B: NetworkBuilder<G>,
         C: Cca,
         G: WithLifetime,
-        for<'sim> G::Type<'sim>: HasNetworkSubEffects<'sim, G::Type<'sim>>,
     {
         let score_network = |(n, mut rng): (B, Rng)| {
             let flows = AppendOnlyVec::new();
@@ -58,7 +57,7 @@ impl EvaluationConfig {
             };
             make_guard!(guard);
             let builder = SimulatorBuilder::new(guard);
-            let sim = n.populate_sim::<_, G, _>(builder, &new_cca, &mut rng, new_flow);
+            let sim = n.populate_sim(builder, &new_cca, &mut rng, new_flow);
             let sim_end = Time::from_sim_start(self.run_sim_for);
             sim.run_while(|t| t < sim_end);
             let flow_stats = flows

@@ -7,18 +7,15 @@ use std::{
 
 use anyhow::Result;
 use flowforge::{
-    util::{rand::Rng, WithLifetime},
     evaluator::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
-    networks::{
-        remy::{HasNetworkSubEffects, RemyNetworkConfig},
-        NetworkConfig,
-    },
+    networks::{remy::RemyNetworkConfig, NetworkConfig},
     quantities::Float,
     trainers::{
         delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
         TrainerConfig,
     },
+    util::rand::Rng,
     CcaTemplate, Config, Trainer,
 };
 use serde::Serialize;
@@ -55,7 +52,7 @@ impl<'a, T, N> TrainResult<'a, T, N> {
 pub fn _train<T>(
     trainer_config: &T::Config,
     evaluation_config: Option<(u32, EvaluationConfig, Option<&Path>)>,
-    network_config: &impl NetworkConfig,
+    network_config: &impl NetworkConfig<T::DefaultEffectGenerator>,
     utility_config: &UtilityConfig,
     dna_path: &Path,
     rng: &mut Rng,
@@ -63,8 +60,6 @@ pub fn _train<T>(
 ) where
     T: Trainer,
     T::Config: Serialize + Sync,
-    for<'sim> <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>:
-        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>>,
 {
     assert!(T::Dna::valid_path(dna_path));
     let starting_point = if force {

@@ -7,14 +7,14 @@ use crate::{
     components::senders::window::{
         LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
     },
+    flow::UtilityFunction,
+    networks::NetworkConfig,
+    simulation::HasSubEffect,
     util::{
         meters::EWMA,
         rand::{ContinuousDistribution, Rng},
         WithLifetime,
     },
-    flow::UtilityFunction,
-    networks::NetworkConfig,
-    simulation::HasSubEffect,
     CcaTemplate, Dna, Trainer,
 };
 
@@ -101,16 +101,17 @@ impl Trainer for DelayMultiplierTrainer {
         }
     }
 
-    fn train<H>(
+    fn train<G, H>(
         &self,
         starting_point: Option<DelayMultiplierDna>,
-        network_config: &impl NetworkConfig,
+        network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
     ) -> DelayMultiplierDna
     where
         H: crate::ProgressHandler<DelayMultiplierDna>,
+        G: WithLifetime,
     {
         self.genetic_trainer.train(
             starting_point,

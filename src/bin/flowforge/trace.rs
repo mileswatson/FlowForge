@@ -2,15 +2,14 @@ use anyhow::Result;
 use append_only_vec::AppendOnlyVec;
 use flowforge::{
     components::ticker::Ticker,
-    util::{meters::CurrentFlowMeter, never::Never, rand::Rng, WithLifetime},
     flow::{UtilityConfig, UtilityFunction},
     networks::{
-        remy::{HasNetworkSubEffects, RemyNetworkConfig},
-        NetworkBuilder, NetworkConfig,
+        remy::RemyNetworkConfig, HasDefaultNetworkSubEffects, NetworkBuilder, NetworkConfig,
     },
     quantities::{milliseconds, seconds, Float, InformationRate, Time, TimeSpan},
     simulation::{DynComponent, SimulatorBuilder},
     trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
+    util::{meters::CurrentFlowMeter, never::Never, rand::Rng, WithLifetime},
     CcaTemplate, Config, Trainer,
 };
 use generativity::make_guard;
@@ -46,16 +45,16 @@ struct TraceResult<N> {
 }
 
 fn _trace<T, N>(
-    network_config: &impl NetworkConfig<NetworkBuilder = N>,
+    network_config: &impl NetworkConfig<T::DefaultEffectGenerator, NetworkBuilder = N>,
     utility_config: &UtilityConfig,
     input_path: &Path,
     rng: &mut Rng,
 ) -> TraceResult<N>
 where
-    N: NetworkBuilder,
+    N: NetworkBuilder<T::DefaultEffectGenerator>,
     T: Trainer,
     for<'sim> <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>:
-        HasNetworkSubEffects<'sim, <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>>,
+        HasDefaultNetworkSubEffects<'sim, <T::DefaultEffectGenerator as WithLifetime>::Type<'sim>>,
 {
     let dna = T::Dna::load(input_path).unwrap();
     let n = rng.sample(network_config);
@@ -112,7 +111,7 @@ where
         result_flows.borrow_mut().push(FlowTrace::default());
         &flows[index]
     };
-    let sim = n.populate_sim::<_, T::DefaultEffectGenerator, _>(builder, &cca_gen, rng, new_flow);
+    let sim = n.populate_sim(builder, &cca_gen, rng, new_flow);
     sim.run_while(|t| t < Time::from_sim_start(seconds(100.)));
     TraceResult {
         active_senders,
