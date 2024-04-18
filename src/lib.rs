@@ -29,7 +29,7 @@ use util::{logging::Logger, rand::Rng, WithLifetime};
 pub mod util;
 pub mod ccas;
 pub mod components;
-pub mod evaluator;
+pub mod eval;
 pub mod flow;
 pub mod networks;
 pub mod quantities;
