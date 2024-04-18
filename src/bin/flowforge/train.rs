@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Result;
 use flowforge::{
-    evaluator::EvaluationConfig,
+    eval::EvaluationConfig,
     flow::{FlowProperties, UtilityConfig},
     networks::{DefaultNetworkConfig, NetworkConfig},
     quantities::Float,

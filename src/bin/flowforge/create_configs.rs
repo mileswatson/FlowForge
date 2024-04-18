@@ -2,7 +2,7 @@ use std::{fs::create_dir_all, path::Path};
 
 use anyhow::Result;
 use flowforge::{
-    evaluator::EvaluationConfig,
+    eval::EvaluationConfig,
     flow::{AlphaFairness, UtilityConfig},
     networks::{remy::RemyNetworkConfig, DefaultNetworkConfig},
     quantities::seconds,

@@ -5,7 +5,7 @@ use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    evaluator::EvaluationConfig,
+    eval::EvaluationConfig,
     flow::UtilityFunction,
     networks::NetworkConfig,
     util::{rand::Rng, WithLifetime},
