@@ -5,7 +5,7 @@ use derive_where::derive_where;
 
 use crate::{
     components::packet::{Packet, PacketAddress},
-    core::{logging::Logger, meters::FlowMeter},
+    util::{logging::Logger, meters::FlowMeter},
     quantities::{latest, Time},
     simulation::{Address, Component, EffectContext, Message},
 };

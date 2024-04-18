@@ -2,7 +2,7 @@ use anyhow::Result;
 use append_only_vec::AppendOnlyVec;
 use flowforge::{
     components::ticker::Ticker,
-    core::{meters::CurrentFlowMeter, never::Never, rand::Rng, WithLifetime},
+    util::{meters::CurrentFlowMeter, never::Never, rand::Rng, WithLifetime},
     flow::{UtilityConfig, UtilityFunction},
     networks::{
         remy::{HasNetworkSubEffects, RemyNetworkConfig},

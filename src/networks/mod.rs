@@ -2,7 +2,7 @@ use rand_distr::Distribution;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::{
-    core::{logging::NothingLogger, meters::FlowMeter, rand::Rng, WithLifetime},
+    util::{logging::NothingLogger, meters::FlowMeter, rand::Rng, WithLifetime},
     simulation::{Simulator, SimulatorBuilder},
     Cca,
 };

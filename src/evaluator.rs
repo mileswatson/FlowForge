@@ -7,7 +7,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    core::{
+    util::{
         average::{AveragePair, IterAverage, SameEmptiness},
         meters::AverageFlowMeter,
         rand::Rng,

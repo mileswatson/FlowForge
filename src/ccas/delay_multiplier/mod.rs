@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use crate::{
-    core::{logging::Logger, meters::EWMA, rand::Rng}, quantities::{Float, TimeSpan}, AckReceived, Cca, CwndSettings
+    util::{logging::Logger, meters::EWMA, rand::Rng}, quantities::{Float, TimeSpan}, AckReceived, Cca, CwndSettings
 };
 
 #[derive(Debug)]

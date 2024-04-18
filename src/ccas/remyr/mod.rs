@@ -1,7 +1,7 @@
 use dfdx::prelude::*;
 
 use crate::{
-    core::rand::Wrapper,
+    util::rand::Wrapper,
     quantities::{Time, TimeSpan}, CcaTemplate,
 };
 

@@ -432,7 +432,7 @@ impl FlowMeter for CurrentFlowMeter {
 #[cfg(test)]
 mod tests {
     use crate::{
-        core::meters::TimeBasedEWMA,
+        util::meters::TimeBasedEWMA,
         quantities::{seconds, Time},
     };
 
