@@ -4,18 +4,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ccas::delay_multiplier::DelayMultiplierCca,
-    components::senders::window::{
-        LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
-    },
     flow::UtilityFunction,
-    NetworkConfig,
-    simulation::HasSubEffect,
     util::{
-        meters::EWMA,
         rand::{ContinuousDistribution, Rng},
         WithLifetime,
     },
-    CcaTemplate, Dna, Trainer,
+    CcaTemplate, Dna, NetworkConfig, Trainer,
 };
 
 use super::{
@@ -36,10 +30,7 @@ impl<'a> CcaTemplate<'a> for DelayMultiplierCcaTemplate {
     type CCA = DelayMultiplierCca;
 
     fn with(&self, policy: &'a DelayMultiplierDna) -> impl Fn() -> DelayMultiplierCca + Sync {
-        || DelayMultiplierCca {
-            multiplier: policy.multiplier,
-            rtt: EWMA::new(1. / 8.),
-        }
+        || DelayMultiplierCca::new(policy.multiplier, 1. / 8.)
     }
 }
 
@@ -71,9 +62,6 @@ impl Dna for DelayMultiplierDna {
 impl<G> GeneticDna<G> for DelayMultiplierDna
 where
     G: WithLifetime,
-    for<'sim> G::Type<'sim>: HasSubEffect<LossySenderEffect<'sim, G::Type<'sim>>>
-        + HasSubEffect<LossyInternalSenderEffect<'sim, G::Type<'sim>>>
-        + HasSubEffect<LossyInternalControllerEffect>,
 {
     fn new_random(rng: &mut Rng) -> Self {
         DelayMultiplierDna {

@@ -22,7 +22,7 @@ use rand_distr::Distribution;
 use serde::{de::DeserializeOwned, Serialize};
 
 use flow::UtilityFunction;
-use quantities::{Float, Time, TimeSpan};
+use quantities::{Float, Time};
 use simulation::{Simulator, SimulatorBuilder};
 use util::{
     logging::{Logger, NothingLogger},
@@ -149,20 +149,16 @@ where
     type NetworkBuilder: NetworkBuilder<G>;
 }
 
-#[derive(Debug, Clone)]
-pub struct CwndSettings {
-    pub window: u32,
-    pub intersend_delay: TimeSpan,
-}
-
 pub trait Cca: Debug {
-    fn initial_settings(&self) -> CwndSettings;
-    fn ack_received<L: Logger>(
-        &mut self,
-        ack: AckReceived,
-        rng: &mut Rng,
-        logger: &mut L,
-    ) -> Option<CwndSettings>;
+    #[must_use]
+    fn initial_cwnd(&self, time: Time) -> u32;
+    fn next_tick(&self, time: Time) -> Option<Time>;
+    #[must_use]
+    fn tick<L: Logger>(&mut self, rng: &mut Rng, logger: &mut L) -> u32;
+    #[must_use]
+    fn packet_sent<L: Logger>(&mut self, packet: PacketSent, rng: &mut Rng, logger: &mut L) -> u32;
+    #[must_use]
+    fn ack_received<L: Logger>(&mut self, ack: AckReceived, rng: &mut Rng, logger: &mut L) -> u32;
 }
 
 pub trait CcaTemplate<'a>: Default + Debug {
@@ -172,9 +168,12 @@ pub trait CcaTemplate<'a>: Default + Debug {
 }
 
 pub struct AckReceived {
-    pub current_settings: CwndSettings,
     pub sent_time: Time,
     pub received_time: Time,
+}
+
+pub struct PacketSent {
+    pub sent_time: Time,
 }
 
 pub trait Trainer {

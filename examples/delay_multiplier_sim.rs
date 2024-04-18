@@ -1,17 +1,17 @@
-use std::{mem::ManuallyDrop, ops::Deref};
+use std::mem::ManuallyDrop;
 
 use flowforge::{
-    util::{
-        logging::LogTable,
-        meters::{AverageFlowMeter, CurrentFlowMeter},
-        rand::Rng,
-    },
-    components::{bouncer::LossyBouncer, link::Link, senders::window::LossyWindowSender},
+    components::{bouncer::LossyBouncer, link::Link, senders::lossy::LossySender},
     quantities::{packets, packets_per_second, seconds, Time},
     simulation::{DynComponent, SimulatorBuilder},
     trainers::{
         delay_multiplier::{DelayMultiplierCcaTemplate, DelayMultiplierDna},
         DefaultEffect,
+    },
+    util::{
+        logging::LogTable,
+        meters::{AverageFlowMeter, CurrentFlowMeter},
+        rand::Rng,
     },
     CcaTemplate,
 };
@@ -27,7 +27,7 @@ fn main() {
     make_guard!(guard);
     let builder = ManuallyDrop::new(SimulatorBuilder::<DefaultEffect>::new(guard));
 
-    let sender_slot = LossyWindowSender::reserve_slot(builder.deref());
+    let sender_slot = builder.reserve_slot();
     let link1_slot = builder.reserve_slot();
     let receiver_slot = builder.reserve_slot();
     let link2_slot = builder.reserve_slot();
@@ -39,16 +39,16 @@ fn main() {
         CurrentFlowMeter::new_disabled(Time::SIM_START, seconds(10.)),
     );
 
-    sender_slot.set(
+    sender_slot.set(DynComponent::new(LossySender::new(
         sender_address,
         link1_slot.address().cast(),
         receiver_slot.address().cast(),
+        &mut flow_meter,
         cca_template.with(&dna),
         false,
-        &mut flow_meter,
         rng.create_child(),
         table.logger(1),
-    );
+    )));
     let mut link1 = Link::create(
         seconds(1.5),
         packets_per_second(0.2),
@@ -72,7 +72,7 @@ fn main() {
     link2_slot.set(DynComponent::Ref(&mut link2));
 
     let sim = ManuallyDrop::into_inner(builder).build(table.logger(0));
-    let sim_end = Time::from_sim_start(seconds(1000.));
+    let sim_end = Time::from_sim_start(seconds(100.));
     sim.run_while(|t| t < sim_end);
 
     drop(link1);

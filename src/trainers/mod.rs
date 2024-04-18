@@ -2,13 +2,7 @@ use derive_more::{From, TryInto};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    components::{
-        packet::Packet,
-        senders::window::{
-            LossyInternalControllerEffect, LossyInternalSenderEffect, LossySenderEffect,
-        },
-        toggler::Toggle,
-    },
+    components::{packet::Packet, senders::lossy::LossySenderEffect, toggler::Toggle},
     util::{never::Never, WithLifetime},
 };
 
@@ -29,10 +23,8 @@ pub enum TrainerConfig {
 
 #[derive(From, TryInto)]
 pub enum DefaultEffect<'sim> {
+    LossySender(LossySenderEffect<'sim, DefaultEffect<'sim>>),
     Packet(Packet<'sim, DefaultEffect<'sim>>),
-    LossySenderEffect(LossySenderEffect<'sim, DefaultEffect<'sim>>),
-    LossyInternalControllerEffect(LossyInternalControllerEffect),
-    LossyInternalSenderEffect(LossyInternalSenderEffect<'sim, DefaultEffect<'sim>>),
     Toggle(Toggle),
     Never(Never),
 }

@@ -5,9 +5,7 @@ use crate::{
     components::{
         link::Link,
         packet::Packet,
-        senders::window::{
-            LossyInternalControllerEffect, LossyInternalSenderEffect, LossyWindowSender,
-        },
+        senders::lossy::{LossySender, LossySenderEffect},
         toggler::{Toggle, Toggler},
     },
     quantities::{
@@ -39,8 +37,7 @@ pub struct RemyNetworkBuilder {
 }
 
 pub trait HasRemyNetworkSubEffects<'sim, E>:
-    HasSubEffect<LossyInternalSenderEffect<'sim, E>>
-    + HasSubEffect<LossyInternalControllerEffect>
+    HasSubEffect<LossySenderEffect<'sim, E>>
     + HasSubEffect<Packet<'sim, E>>
     + HasSubEffect<Toggle>
     + HasSubEffect<Never>
@@ -49,8 +46,7 @@ pub trait HasRemyNetworkSubEffects<'sim, E>:
 }
 
 impl<'sim, E, T> HasRemyNetworkSubEffects<'sim, E> for T where
-    T: HasSubEffect<LossyInternalSenderEffect<'sim, E>>
-        + HasSubEffect<LossyInternalControllerEffect>
+    T: HasSubEffect<LossySenderEffect<'sim, E>>
         + HasSubEffect<Packet<'sim, E>>
         + HasSubEffect<Toggle>
         + HasSubEffect<Never>
@@ -84,19 +80,19 @@ where
             NothingLogger,
         )));
         for _ in 0..self.num_senders {
-            let slot = LossyWindowSender::reserve_slot::<_>(&builder);
+            let slot = builder.reserve_slot();
             let address = slot.address();
             let packet_address = address.clone().cast();
-            slot.set(
+            slot.set(DynComponent::new(LossySender::new(
                 packet_address.clone(),
                 sender_link_id.clone(),
                 packet_address,
+                new_flow_meter(),
                 new_cca.clone(),
                 true,
-                new_flow_meter(),
                 rng.create_child(),
                 NothingLogger,
-            );
+            )));
             builder.insert(DynComponent::new(Toggler::new(
                 address.cast(),
                 self.on_time.clone(),
