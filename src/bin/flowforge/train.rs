@@ -13,7 +13,7 @@ use flowforge::{
     quantities::Float,
     trainers::{
         delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
-        TrainerConfig,
+        DefaultEffect, TrainerConfig,
     },
     util::rand::Rng,
     CcaTemplate, Config, NetworkConfig, Trainer,
@@ -52,7 +52,7 @@ impl<'a, T, N> TrainResult<'a, T, N> {
 pub fn _train<T>(
     trainer_config: &T::Config,
     evaluation_config: Option<(u32, EvaluationConfig, Option<&Path>)>,
-    network_config: &impl NetworkConfig<T::DefaultEffectGenerator>,
+    network_config: &impl NetworkConfig<DefaultEffect<'static>>,
     utility_config: &UtilityConfig,
     dna_path: &Path,
     rng: &mut Rng,
@@ -108,7 +108,7 @@ pub fn _train<T>(
                     print!("Evaluating... ");
                     io::stdout().flush().unwrap();
                     let (utility, props) = evaluation_config
-                        .evaluate::<_, T::DefaultEffectGenerator, _>(
+                        .evaluate::<_, DefaultEffect<'static>, _>(
                             &T::CcaTemplate::default().with(dna),
                             network_config,
                             utility_config,

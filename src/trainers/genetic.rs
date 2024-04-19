@@ -7,9 +7,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     eval::EvaluationConfig,
     flow::UtilityFunction,
-    NetworkConfig,
     util::{rand::Rng, WithLifetime},
-    CcaTemplate, Dna, ProgressHandler, Trainer,
+    CcaTemplate, Dna, NetworkConfig, ProgressHandler, Trainer,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -36,7 +35,7 @@ pub struct GeneticTrainer<T> {
     trainer: PhantomData<T>,
 }
 
-pub trait GeneticDna<G>: Dna + Sync {
+pub trait GeneticDna: Dna + Sync {
     fn new_random(rng: &mut Rng) -> Self;
 
     #[must_use]
@@ -46,12 +45,11 @@ pub trait GeneticDna<G>: Dna + Sync {
 impl<T> Trainer for GeneticTrainer<T>
 where
     T: Trainer,
-    T::Dna: GeneticDna<T::DefaultEffectGenerator>,
+    T::Dna: GeneticDna,
 {
     type Config = GeneticConfig;
     type Dna = T::Dna;
     type CcaTemplate<'a> = T::CcaTemplate<'a>;
-    type DefaultEffectGenerator = T::DefaultEffectGenerator;
 
     fn new(config: &Self::Config) -> Self {
         GeneticTrainer {
@@ -87,14 +85,12 @@ where
                 .into_iter()
                 .map(|d| (d, rng.create_child()))
                 .filter_map(|(d, mut rng)| {
-                    let score = self
-                        .child_eval_config
-                        .evaluate::<_, G, _>(
-                            T::CcaTemplate::default().with(&d),
-                            network_config,
-                            utility_function,
-                            &mut rng,
-                        );
+                    let score = self.child_eval_config.evaluate::<_, G, _>(
+                        T::CcaTemplate::default().with(&d),
+                        network_config,
+                        utility_function,
+                        &mut rng,
+                    );
                     score.map(|(s, p)| (d, s, p)).ok()
                 })
                 .collect_vec();

@@ -2,14 +2,23 @@ use std::path::Path;
 
 use anyhow::Result;
 use flowforge::{
-    eval::EvaluationConfig, flow::{FlowProperties, UtilityConfig}, networks::DefaultNetworkConfig, quantities::Float, trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer}, util::rand::Rng, CcaTemplate, Config, NetworkConfig, Trainer
+    eval::EvaluationConfig,
+    flow::{FlowProperties, UtilityConfig},
+    networks::DefaultNetworkConfig,
+    quantities::Float,
+    trainers::{
+        delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
+        DefaultEffect,
+    },
+    util::rand::Rng,
+    CcaTemplate, Config, NetworkConfig, Trainer,
 };
 
 use crate::FlowAdders;
 
 pub fn _evaluate<T>(
     evaluation_config: &EvaluationConfig,
-    network_config: &impl NetworkConfig<T::DefaultEffectGenerator>,
+    network_config: &impl NetworkConfig<DefaultEffect<'static>>,
     utility_config: &UtilityConfig,
     input_path: &Path,
     rng: &mut Rng,

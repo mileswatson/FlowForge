@@ -13,11 +13,9 @@ use crate::{
     },
     eval::EvaluationConfig,
     flow::UtilityFunction,
-    NetworkConfig,
     quantities::{milliseconds, seconds},
-    trainers::DefaultEffect,
     util::{rand::Rng, WithLifetime},
-    ProgressHandler, Trainer,
+    NetworkConfig, ProgressHandler, Trainer,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -92,7 +90,6 @@ impl Trainer for RemyTrainer {
     type Config = RemyConfig;
     type Dna = RemyDna;
     type CcaTemplate<'a> = RemyCcaTemplate<'a>;
-    type DefaultEffectGenerator = DefaultEffect<'static>;
 
     fn new(config: &RemyConfig) -> RemyTrainer {
         RemyTrainer {
