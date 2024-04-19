@@ -33,7 +33,6 @@ use crate::{
     flow::UtilityFunction,
     quantities::{milliseconds, seconds, Float, Time, TimeSpan},
     simulation::SimulatorBuilder,
-    trainers::DefaultEffect,
     util::{
         logging::NothingLogger,
         meters::CurrentFlowMeter,
@@ -423,7 +422,6 @@ impl Trainer for RemyrTrainer {
     type Config = RemyrConfig;
     type Dna = RemyrDna;
     type CcaTemplate<'a> = RemyrCcaTemplate<'a>;
-    type DefaultEffectGenerator = DefaultEffect<'static>;
 
     fn new(config: &Self::Config) -> Self {
         RemyrTrainer {

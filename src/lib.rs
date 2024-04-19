@@ -174,7 +174,6 @@ pub trait Trainer {
     type Config: Config<Json>;
     type Dna: Dna;
     type CcaTemplate<'a>: CcaTemplate<'a, Policy = &'a Self::Dna>;
-    type DefaultEffectGenerator: WithLifetime;
 
     fn new(config: &Self::Config) -> Self;
 

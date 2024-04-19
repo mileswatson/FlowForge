@@ -12,10 +12,7 @@ use crate::{
     CcaTemplate, Dna, NetworkConfig, Trainer,
 };
 
-use super::{
-    genetic::{GeneticConfig, GeneticDna, GeneticTrainer},
-    DefaultEffect,
-};
+use super::genetic::{GeneticConfig, GeneticDna, GeneticTrainer};
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct DelayMultiplierConfig {
@@ -59,10 +56,7 @@ impl Dna for DelayMultiplierDna {
     }
 }
 
-impl<G> GeneticDna<G> for DelayMultiplierDna
-where
-    G: WithLifetime,
-{
+impl GeneticDna for DelayMultiplierDna {
     fn new_random(rng: &mut Rng) -> Self {
         DelayMultiplierDna {
             multiplier: rng.sample(&ContinuousDistribution::Uniform { min: 0.0, max: 5.0 }),
@@ -81,7 +75,6 @@ impl Trainer for DelayMultiplierTrainer {
     type Config = DelayMultiplierConfig;
     type Dna = DelayMultiplierDna;
     type CcaTemplate<'a> = DelayMultiplierCcaTemplate;
-    type DefaultEffectGenerator = DefaultEffect<'static>;
 
     fn new(config: &Self::Config) -> Self {
         DelayMultiplierTrainer {
