@@ -82,7 +82,6 @@ fn alpha_fairness(x: Float, alpha: Float) -> Float {
 pub struct NoActiveFlows;
 
 pub trait UtilityFunction: Sync {
-    /// Calculates flow properties and the total utility of a network simulation.
     fn total_utility(
         &self,
         flows: &[FlowProperties],
