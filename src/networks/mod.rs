@@ -2,8 +2,8 @@ use rand_distr::Distribution;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    simulation::{Simulator, SimulatorBuilder},
-    util::{logging::NothingLogger, meters::FlowMeter, rand::Rng, WithLifetime},
+    simulation::SimulatorBuilder,
+    util::{meters::FlowMeter, rand::Rng, WithLifetime},
     Cca, NetworkBuilder, NetworkConfig,
 };
 
@@ -57,12 +57,11 @@ where
 {
     fn populate_sim<'sim, 'a, C, F>(
         &self,
-        builder: SimulatorBuilder<'sim, 'a, <G as WithLifetime>::Type<'sim>>,
+        builder: &SimulatorBuilder<'sim, 'a, <G as WithLifetime>::Type<'sim>>,
         new_cca: impl Fn() -> C + Clone + 'a,
         rng: &'a mut Rng,
         new_flow_meter: impl FnMut() -> F,
-    ) -> Simulator<'sim, 'a, <G as WithLifetime>::Type<'sim>, NothingLogger>
-    where
+    ) where
         C: Cca + 'a,
 
         F: FlowMeter + 'a,
@@ -76,7 +75,7 @@ where
                     new_cca,
                     rng,
                     new_flow_meter,
-                )
+                );
             }
         }
     }

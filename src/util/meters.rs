@@ -231,8 +231,8 @@ impl InfoRateMeter {
 }
 
 pub trait FlowMeter: Debug {
-    fn flow_enabled(&mut self, time: Time);
-    fn flow_disabled(&mut self, time: Time);
+    fn set_enabled(&mut self, time: Time);
+    fn set_disabled(&mut self, time: Time);
     fn packet_received(&mut self, data: Information, rtt: TimeSpan, time: Time);
 }
 
@@ -240,12 +240,12 @@ impl<T> FlowMeter for &mut T
 where
     T: FlowMeter,
 {
-    fn flow_enabled(&mut self, time: Time) {
-        (*self).flow_enabled(time);
+    fn set_enabled(&mut self, time: Time) {
+        (*self).set_enabled(time);
     }
 
-    fn flow_disabled(&mut self, time: Time) {
-        (*self).flow_disabled(time);
+    fn set_disabled(&mut self, time: Time) {
+        (*self).set_disabled(time);
     }
 
     fn packet_received(&mut self, data: Information, rtt: TimeSpan, time: Time) {
@@ -257,12 +257,12 @@ impl<T> FlowMeter for &RefCell<T>
 where
     T: FlowMeter,
 {
-    fn flow_enabled(&mut self, time: Time) {
-        self.borrow_mut().flow_enabled(time);
+    fn set_enabled(&mut self, time: Time) {
+        self.borrow_mut().set_enabled(time);
     }
 
-    fn flow_disabled(&mut self, time: Time) {
-        self.borrow_mut().flow_disabled(time);
+    fn set_disabled(&mut self, time: Time) {
+        self.borrow_mut().set_disabled(time);
     }
 
     fn packet_received(&mut self, data: Information, rtt: TimeSpan, time: Time) {
@@ -275,14 +275,14 @@ where
     T: FlowMeter,
     U: FlowMeter,
 {
-    fn flow_enabled(&mut self, time: Time) {
-        self.0.flow_enabled(time);
-        self.1.flow_enabled(time);
+    fn set_enabled(&mut self, time: Time) {
+        self.0.set_enabled(time);
+        self.1.set_enabled(time);
     }
 
-    fn flow_disabled(&mut self, time: Time) {
-        self.0.flow_disabled(time);
-        self.1.flow_disabled(time);
+    fn set_disabled(&mut self, time: Time) {
+        self.0.set_disabled(time);
+        self.1.set_disabled(time);
     }
 
     fn packet_received(&mut self, data: Information, rtt: TimeSpan, time: Time) {
@@ -295,9 +295,9 @@ where
 pub struct NoFlowMeter;
 
 impl FlowMeter for NoFlowMeter {
-    fn flow_enabled(&mut self, _time: Time) {}
+    fn set_enabled(&mut self, _time: Time) {}
 
-    fn flow_disabled(&mut self, _time: Time) {}
+    fn set_disabled(&mut self, _time: Time) {}
 
     fn packet_received(&mut self, _data: Information, _rtt: TimeSpan, _time: Time) {}
 }
@@ -312,7 +312,7 @@ impl AverageFlowMeter {
     #[must_use]
     pub fn new_enabled(current_time: Time) -> AverageFlowMeter {
         let mut t = Self::new_disabled();
-        t.flow_enabled(current_time);
+        t.set_enabled(current_time);
         t
     }
 
@@ -331,19 +331,19 @@ impl AverageFlowMeter {
         self.average_throughput
             .current_value(current_time)
             .map(|average_throughput| FlowProperties {
-                average_throughput,
-                average_rtt: self.average_rtt.value().map_err(|_| NoPacketsAcked),
+                throughput: average_throughput,
+                rtt: self.average_rtt.value().map_err(|_| NoPacketsAcked),
             })
             .map_err(|_| FlowNeverActive)
     }
 }
 
 impl FlowMeter for AverageFlowMeter {
-    fn flow_enabled(&mut self, time: Time) {
+    fn set_enabled(&mut self, time: Time) {
         self.average_throughput.enable(time);
     }
 
-    fn flow_disabled(&mut self, time: Time) {
+    fn set_disabled(&mut self, time: Time) {
         self.average_throughput.disable(time);
     }
 
@@ -368,7 +368,7 @@ impl CurrentFlowMeter {
     #[must_use]
     pub fn new_enabled(current_time: Time, half_life: TimeSpan) -> CurrentFlowMeter {
         let mut t = Self::new_disabled(current_time, half_life);
-        t.flow_enabled(current_time);
+        t.set_enabled(current_time);
         t
     }
 
@@ -397,8 +397,8 @@ impl CurrentFlowMeter {
     pub fn current_properties(&self, current_time: Time) -> Result<FlowProperties, FlowNotActive> {
         if self.enabled {
             Ok(FlowProperties {
-                average_throughput: self.current_throughput.value(current_time).unwrap(),
-                average_rtt: self.current_rtt.value(current_time).ok_or(NoPacketsAcked),
+                throughput: self.current_throughput.value(current_time).unwrap(),
+                rtt: self.current_rtt.value(current_time).ok_or(NoPacketsAcked),
             })
         } else {
             Err(FlowNotActive)
@@ -412,11 +412,11 @@ impl CurrentFlowMeter {
 }
 
 impl FlowMeter for CurrentFlowMeter {
-    fn flow_enabled(&mut self, _time: Time) {
+    fn set_enabled(&mut self, _time: Time) {
         self.enabled = true;
     }
 
-    fn flow_disabled(&mut self, _time: Time) {
+    fn set_disabled(&mut self, _time: Time) {
         self.enabled = false;
     }
 
@@ -432,8 +432,8 @@ impl FlowMeter for CurrentFlowMeter {
 #[cfg(test)]
 mod tests {
     use crate::{
-        util::meters::TimeBasedEWMA,
         quantities::{seconds, Time},
+        util::meters::TimeBasedEWMA,
     };
 
     use super::{Mean, EWMA};

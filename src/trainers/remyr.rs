@@ -35,6 +35,7 @@ use crate::{
     simulation::SimulatorBuilder,
     trainers::DefaultEffect,
     util::{
+        logging::NothingLogger,
         meters::CurrentFlowMeter,
         rand::{ContinuousDistribution, DiscreteDistribution, Rng},
         WithLifetime,
@@ -401,7 +402,8 @@ fn rollout<G: WithLifetime>(
                 let cca_gen = cca_template.with_not_sync(dna);
                 make_guard!(guard);
                 let builder = SimulatorBuilder::new(guard);
-                let sim = n.populate_sim(builder, &cca_gen, &mut rng, new_flow);
+                n.populate_sim(&builder, &cca_gen, &mut rng, new_flow);
+                let sim = builder.build(NothingLogger);
                 let sim_end = Time::from_sim_start(training_config.run_sim_for);
                 sim.run_while(|t| t < sim_end);
                 (current_utility(sim_end), sim_end)

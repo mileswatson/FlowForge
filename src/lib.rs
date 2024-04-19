@@ -23,13 +23,8 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use flow::UtilityFunction;
 use quantities::{Float, Time};
-use simulation::{Simulator, SimulatorBuilder};
-use util::{
-    logging::{Logger, NothingLogger},
-    meters::FlowMeter,
-    rand::Rng,
-    WithLifetime,
-};
+use simulation::SimulatorBuilder;
+use util::{logging::Logger, meters::FlowMeter, rand::Rng, WithLifetime};
 
 #[macro_use]
 pub mod util;
@@ -130,19 +125,18 @@ where
 {
     fn populate_sim<'sim, 'a, C, F>(
         &self,
-        builder: SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
+        builder: &SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
         new_cca: impl Fn() -> C + Clone + 'a,
         rng: &'a mut Rng,
         new_flow_meter: impl FnMut() -> F,
-    ) -> Simulator<'sim, 'a, G::Type<'sim>, NothingLogger>
-    where
+    ) where
         C: Cca + 'a,
         F: FlowMeter + 'a,
         'sim: 'a;
 }
 
 pub trait NetworkConfig<G>:
-    Serialize + DeserializeOwned + Distribution<Self::NetworkBuilder> + Sync
+    Distribution<Self::NetworkBuilder> + Serialize + DeserializeOwned + Sync
 where
     G: WithLifetime,
 {

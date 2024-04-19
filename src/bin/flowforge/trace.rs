@@ -1,7 +1,15 @@
 use anyhow::Result;
 use append_only_vec::AppendOnlyVec;
 use flowforge::{
-    components::ticker::Ticker, flow::{UtilityConfig, UtilityFunction}, networks::{DefaultNetworkConfig, HasDefaultNetworkSubEffects}, quantities::{milliseconds, seconds, Float, InformationRate, Time, TimeSpan}, simulation::{DynComponent, SimulatorBuilder}, trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer}, util::{meters::CurrentFlowMeter, never::Never, rand::Rng, WithLifetime}, CcaTemplate, Config, NetworkBuilder, NetworkConfig, Trainer
+    components::ticker::Ticker,
+    flow::{UtilityConfig, UtilityFunction},
+    networks::{DefaultNetworkConfig, HasDefaultNetworkSubEffects},
+    quantities::{milliseconds, seconds, Float, InformationRate, Time, TimeSpan},
+    simulation::{DynComponent, SimulatorBuilder},
+    trainers::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer},
+    util::logging::NothingLogger,
+    util::{meters::CurrentFlowMeter, never::Never, rand::Rng, WithLifetime},
+    CcaTemplate, Config, NetworkBuilder, NetworkConfig, Trainer,
 };
 use generativity::make_guard;
 use itertools::Itertools;
@@ -102,7 +110,8 @@ where
         result_flows.borrow_mut().push(FlowTrace::default());
         &flows[index]
     };
-    let sim = n.populate_sim(builder, &cca_gen, rng, new_flow);
+    n.populate_sim(&builder, &cca_gen, rng, new_flow);
+    let sim = builder.build(NothingLogger);
     sim.run_while(|t| t < Time::from_sim_start(seconds(100.)));
     TraceResult {
         active_senders,

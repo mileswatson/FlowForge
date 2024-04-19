@@ -4,8 +4,8 @@ use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    util::average::{Average, AverageIfSome, AveragePair, IterAverage, NoItems, SameEmptiness},
     quantities::{seconds, Float, InformationRate, TimeSpan},
+    util::average::{Average, AverageIfSome, AveragePair, IterAverage, NoItems, SameEmptiness},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -13,22 +13,22 @@ pub struct NoPacketsAcked;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FlowProperties {
-    pub average_throughput: InformationRate,
-    pub average_rtt: Result<TimeSpan, NoPacketsAcked>,
+    pub throughput: InformationRate,
+    pub rtt: Result<TimeSpan, NoPacketsAcked>,
 }
 
 impl Display for FlowProperties {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.average_rtt {
+        match self.rtt {
             Ok(average_rtt) => write!(
                 f,
                 "FlowProperties {{ throughput: {}, rtt: {} }}",
-                self.average_throughput, average_rtt
+                self.throughput, average_rtt
             ),
             Err(_) => write!(
                 f,
                 "FlowProperties {{ throughput: {}, rtt: NoPacketsAcked }}",
-                self.average_throughput
+                self.throughput
             ),
         }
     }
@@ -44,8 +44,8 @@ impl Average for FlowProperties {
             AveragePair::<InformationRate, AverageIfSome<TimeSpan>>::average(aggregator);
         match average_throughput {
             Ok(average_throughput) => Ok(FlowProperties {
-                average_throughput,
-                average_rtt: average_rtt.map_err(|_| NoPacketsAcked),
+                throughput: average_throughput,
+                rtt: average_rtt.map_err(|_| NoPacketsAcked),
             }),
             Err(NoItems) => {
                 assert!(average_rtt.is_err());
@@ -61,10 +61,7 @@ impl Average for FlowProperties {
     fn aggregate(aggregator: Self::Aggregator, next: Self) -> Self::Aggregator {
         AveragePair::<InformationRate, AverageIfSome<TimeSpan>>::aggregate(
             aggregator,
-            AveragePair(
-                next.average_throughput,
-                AverageIfSome::new(next.average_rtt.ok()),
-            ),
+            AveragePair(next.throughput, AverageIfSome::new(next.rtt.ok())),
         )
     }
 }
@@ -190,11 +187,11 @@ impl UtilityFunction for AlphaFairness {
 
     fn flow_utility(&self, properties: &FlowProperties) -> Float {
         assert!(self.delta >= 0.);
-        let throughput_utility = alpha_fairness(properties.average_throughput.value(), self.alpha);
+        let throughput_utility = alpha_fairness(properties.throughput.value(), self.alpha);
         let rtt_utility = -self.delta
             * alpha_fairness(
                 properties
-                    .average_rtt
+                    .rtt
                     .as_ref()
                     .unwrap_or(&self.worst_case_rtt)
                     .seconds()
@@ -212,9 +209,9 @@ mod tests {
     use itertools::Itertools;
 
     use crate::{
-        util::average::{IterAverage, NoItems},
         flow::FlowProperties,
         quantities::{bits_per_second, seconds, Float},
+        util::average::{IterAverage, NoItems},
     };
 
     use super::{FlowUtilityAggregator, NoPacketsAcked};
@@ -225,26 +222,26 @@ mod tests {
             vec![(0., None), (1., Some(3.))]
                 .into_iter()
                 .map(|(average_throughput, average_rtt)| FlowProperties {
-                    average_throughput: bits_per_second(average_throughput),
-                    average_rtt: average_rtt.map(seconds).ok_or(NoPacketsAcked),
+                    throughput: bits_per_second(average_throughput),
+                    rtt: average_rtt.map(seconds).ok_or(NoPacketsAcked),
                 })
                 .average(),
             Ok(FlowProperties {
-                average_throughput: bits_per_second(0.5),
-                average_rtt: Ok(seconds(3.))
+                throughput: bits_per_second(0.5),
+                rtt: Ok(seconds(3.))
             })
         );
         assert_eq!(
             vec![(0., None), (1., None)]
                 .into_iter()
                 .map(|(average_throughput, average_rtt)| FlowProperties {
-                    average_throughput: bits_per_second(average_throughput),
-                    average_rtt: average_rtt.map(seconds).ok_or(NoPacketsAcked),
+                    throughput: bits_per_second(average_throughput),
+                    rtt: average_rtt.map(seconds).ok_or(NoPacketsAcked),
                 })
                 .average(),
             Ok(FlowProperties {
-                average_throughput: bits_per_second(0.5),
-                average_rtt: Err(NoPacketsAcked)
+                throughput: bits_per_second(0.5),
+                rtt: Err(NoPacketsAcked)
             })
         );
         assert_eq!(
@@ -252,8 +249,8 @@ mod tests {
                 .into_iter()
                 .map(
                     |(average_throughput, average_rtt): (Float, Option<Float>)| FlowProperties {
-                        average_throughput: bits_per_second(average_throughput),
-                        average_rtt: average_rtt.map(seconds).ok_or(NoPacketsAcked),
+                        throughput: bits_per_second(average_throughput),
+                        rtt: average_rtt.map(seconds).ok_or(NoPacketsAcked),
                     }
                 )
                 .average(),
@@ -265,29 +262,27 @@ mod tests {
     fn flow_utility_aggregator() {
         let flows = (0..5)
             .map(|x| FlowProperties {
-                average_throughput: bits_per_second(Float::from(x)),
-                average_rtt: Err(NoPacketsAcked),
+                throughput: bits_per_second(Float::from(x)),
+                rtt: Err(NoPacketsAcked),
             })
             .collect_vec();
         assert_eq!(
-            FlowUtilityAggregator::Mean
-                .total_utility(&flows, |props| props.average_throughput.value(),),
+            FlowUtilityAggregator::Mean.total_utility(&flows, |props| props.throughput.value(),),
             Ok((
                 2.,
                 FlowProperties {
-                    average_throughput: bits_per_second(2.),
-                    average_rtt: Err(NoPacketsAcked)
+                    throughput: bits_per_second(2.),
+                    rtt: Err(NoPacketsAcked)
                 }
             ))
         );
         assert_eq!(
-            FlowUtilityAggregator::Minimum
-                .total_utility(&flows, |props| props.average_throughput.value(),),
+            FlowUtilityAggregator::Minimum.total_utility(&flows, |props| props.throughput.value(),),
             Ok((
                 0.,
                 FlowProperties {
-                    average_throughput: bits_per_second(0.),
-                    average_rtt: Err(NoPacketsAcked)
+                    throughput: bits_per_second(0.),
+                    rtt: Err(NoPacketsAcked)
                 }
             ))
         );
