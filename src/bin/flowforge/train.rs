@@ -7,10 +7,16 @@ use std::{
 
 use anyhow::Result;
 use flowforge::{
-    eval::EvaluationConfig, flow::{FlowProperties, UtilityConfig}, networks::DefaultNetworkConfig, quantities::Float, trainers::{
+    eval::EvaluationConfig,
+    flow::{FlowProperties, UtilityConfig},
+    networks::DefaultNetworkConfig,
+    quantities::Float,
+    trainers::{
         delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
         TrainerConfig,
-    }, util::rand::Rng, CcaTemplate, Config, NetworkConfig, Trainer
+    },
+    util::rand::Rng,
+    CcaTemplate, Config, NetworkConfig, Trainer,
 };
 use serde::Serialize;
 
@@ -110,8 +116,8 @@ pub fn _train<T>(
                         )
                         .expect("Simulation to have active flows");
                     let FlowProperties {
-                        average_throughput,
-                        average_rtt,
+                        throughput: average_throughput,
+                        rtt: average_rtt,
                     } = props.clone();
                     if let Some(output_file) = &mut output_file {
                         result.timestamps.push(total_training_time.as_secs_f64());

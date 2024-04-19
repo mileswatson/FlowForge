@@ -11,7 +11,7 @@ use crate::{
     quantities::{
         bits_per_second, milliseconds, seconds, Float, Information, InformationRate, TimeSpan,
     },
-    simulation::{DynComponent, HasSubEffect, Simulator, SimulatorBuilder},
+    simulation::{DynComponent, HasSubEffect, SimulatorBuilder},
     util::{
         logging::NothingLogger,
         meters::FlowMeter,
@@ -61,12 +61,11 @@ where
 {
     fn populate_sim<'sim, 'a, C, F>(
         &self,
-        builder: SimulatorBuilder<'sim, 'a, <G>::Type<'sim>>,
+        builder: &SimulatorBuilder<'sim, 'a, <G>::Type<'sim>>,
         new_cca: impl Fn() -> C + Clone + 'a,
         rng: &'a mut Rng,
         mut new_flow_meter: impl FnMut() -> F,
-    ) -> Simulator<'sim, 'a, <G>::Type<'sim>, NothingLogger>
-    where
+    ) where
         C: Cca + 'a,
         F: FlowMeter + 'a,
         'sim: 'a,
@@ -100,8 +99,6 @@ where
                 rng.create_child(),
             )));
         }
-
-        builder.build(NothingLogger)
     }
 }
 

@@ -106,7 +106,7 @@ where
         logger: L,
     ) -> Self {
         if !wait_for_enable {
-            flow_meter.flow_enabled(Time::SIM_START);
+            flow_meter.set_enabled(Time::SIM_START);
         }
         LossySender {
             id,
@@ -129,12 +129,12 @@ where
         match (&mut self.state, toggle) {
             (State::WaitingForEnable(Disabled { packets_sent, .. }), Toggle::Enable) => {
                 log!(self.logger, "Enabled");
-                self.flow_meter.flow_enabled(time);
+                self.flow_meter.set_enabled(time);
                 self.state = Enabled::new((self.cca_generator)(), *packets_sent, time).into();
             }
             (State::Enabled(Enabled { packets_sent, .. }), Toggle::Disable) => {
                 log!(self.logger, "Disabled");
-                self.flow_meter.flow_disabled(time);
+                self.flow_meter.set_disabled(time);
                 self.state = Disabled {
                     packets_sent: *packets_sent,
                 }
