@@ -240,7 +240,7 @@ where
 {
     type Policy = T;
 
-    type CCA = RemyCca<T>;
+    type Cca = RemyCca<T>;
 
     fn with(&self, policy: T) -> impl Fn() -> RemyCca<T> + Sync {
         let repeat_actions = self.repeat_actions.clone();
@@ -253,7 +253,7 @@ pub struct RemyCcaTemplate<'a>(RuleTreeCcaTemplate<&'a RemyDna>);
 
 impl<'a> CcaTemplate<'a> for RemyCcaTemplate<'a> {
     type Policy = &'a RemyDna;
-    type CCA = RemyCca<&'a RemyDna>;
+    type Cca = RemyCca<&'a RemyDna>;
 
     fn with(&self, policy: &'a RemyDna) -> impl Fn() -> RemyCca<&'a RemyDna> + Sync {
         self.0.with(policy)

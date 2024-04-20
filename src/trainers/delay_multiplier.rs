@@ -24,7 +24,7 @@ pub struct DelayMultiplierCcaTemplate;
 
 impl<'a> CcaTemplate<'a> for DelayMultiplierCcaTemplate {
     type Policy = &'a DelayMultiplierDna;
-    type CCA = DelayMultiplierCca;
+    type Cca = DelayMultiplierCca;
 
     fn with(&self, policy: &'a DelayMultiplierDna) -> impl Fn() -> DelayMultiplierCca + Sync {
         || DelayMultiplierCca::new(policy.multiplier, 1. / 8.)
