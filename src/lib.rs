@@ -157,8 +157,8 @@ pub trait Cca: Debug {
 
 pub trait CcaTemplate<'a>: Default + Debug {
     type Policy: 'a + ?Sized;
-    type CCA: Cca + 'a;
-    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::CCA + Sync;
+    type Cca: Cca + 'a;
+    fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::Cca + Sync;
 }
 
 pub struct AckReceived {

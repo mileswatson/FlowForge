@@ -1,8 +1,9 @@
 use dfdx::prelude::*;
 
 use crate::{
+    quantities::{Time, TimeSpan},
     util::rand::Wrapper,
-    quantities::{Time, TimeSpan}, CcaTemplate,
+    CcaTemplate,
 };
 
 use self::{
@@ -10,7 +11,9 @@ use self::{
     net::{AsPolicyNetRef, ACTION, OBSERVATION},
 };
 
-use super::remy::{action::Action, point::Point, rule_tree::RuleTree, RemyCca, RuleTreeCcaTemplate};
+use super::remy::{
+    action::Action, point::Point, rule_tree::RuleTree, RemyCca, RuleTreeCcaTemplate,
+};
 
 pub mod dna;
 pub mod net;
@@ -79,7 +82,7 @@ pub struct RemyrCcaTemplate<'a>(RuleTreeCcaTemplate<&'a RemyrDna>);
 
 impl<'a> CcaTemplate<'a> for RemyrCcaTemplate<'a> {
     type Policy = &'a RemyrDna;
-    type CCA = RemyCca<&'a RemyrDna>;
+    type Cca = RemyCca<&'a RemyrDna>;
 
     fn with(&self, policy: &'a RemyrDna) -> impl Fn() -> RemyCca<&'a RemyrDna> + Sync {
         self.0.with_not_sync(policy)
