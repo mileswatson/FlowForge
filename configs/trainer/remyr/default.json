@@ -9,8 +9,8 @@
     "rtt_ratio": 1.0
   },
   "max_point": {
-    "ack_ewma": "125ms",
-    "send_ewma": "125ms",
+    "ack_ewma": "500ms",
+    "send_ewma": "500ms",
     "rtt_ratio": 5.0
   },
   "min_action": {
@@ -24,8 +24,8 @@
     "intersend_delay": "3ms"
   },
   "hidden_layers": [
-    64,
-    32
+    32,
+    16
   ],
   "entropy_coefficient": 0.01,
   "value_function_coefficient": 0.5,
