@@ -556,8 +556,7 @@ impl Trainer for RemyrTrainer {
                         batch_ratios.with_empty_tape() * batch_advantages.clone(),
                         clamp(batch_ratios, 1. - clip, 1. + clip) * batch_advantages.clone(),
                     ))
-                    .sum()
-                        * self.config.value_function_coefficient;
+                    .sum();
 
                     // critic
                     let batch_estimated_values =
