@@ -86,8 +86,8 @@ impl Default for RemyrConfig {
                 rtt_ratio: 1.,
             },
             max_point: Point {
-                ack_ewma: seconds(0.125),
-                send_ewma: seconds(0.125),
+                ack_ewma: seconds(0.5),
+                send_ewma: seconds(0.5),
                 rtt_ratio: 5.,
             },
             min_action: Action {
@@ -104,7 +104,7 @@ impl Default for RemyrConfig {
                 network_samples: 100,
                 run_sim_for: seconds(60.),
             },
-            hidden_layers: HiddenLayers(64, 32),
+            hidden_layers: HiddenLayers(32, 16),
             learning_rate: 0.0003,
             learning_rate_annealing: true,
             weight_decay: None,
