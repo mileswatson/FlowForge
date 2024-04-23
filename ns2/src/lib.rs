@@ -1,5 +1,5 @@
 use std::{
-    ffi::{c_char, CStr},
+    ffi::{c_char, c_double, c_uint, CStr},
     path::Path,
 };
 
@@ -11,53 +11,52 @@ use flowforge::{
     quantities::{milliseconds, Time},
     Config, Custom,
 };
-enum Dna {
-    Remy(RemyDna),
-    Remyr(RemyrDna),
-}
 
 #[repr(C)]
 struct CAction {
-    new_window: u32,
-    intersend_seconds: f64,
+    new_window: c_uint,
+    intersend_seconds: c_double,
 }
 
 #[no_mangle]
-unsafe extern "C" fn load_dna(path: *const c_char) -> *mut Dna {
-    let path = Path::new(unsafe { CStr::from_ptr(path) }.to_str().unwrap());
-    let d = if path.ends_with(".remyr.dna") {
-        Dna::Remyr(<RemyrDna as Config<Custom>>::load(path).unwrap())
+unsafe extern "C" fn load_dna(path: *const c_char) -> *mut Box<dyn RuleTree> {
+    let path = unsafe { CStr::from_ptr(path) }.to_str().unwrap();
+    let is_remyr = path.contains(".remyr.dna");
+    let path = Path::new(path);
+    let d: Box<dyn RuleTree> = if is_remyr {
+        Box::new(<RemyrDna as Config<Custom>>::load(path).unwrap())
     } else {
-        Dna::Remy(RemyDna::load(path).unwrap())
+        Box::new(RemyDna::load(path).unwrap())
     };
-    Box::into_raw(Box::new(d))
+    let p = 
+    Box::into_raw(Box::new(d));
+    println!("Loaded dna {:?}...", p);
+    p
 }
 
 #[no_mangle]
-unsafe extern "C" fn free_dna(dna: *mut Dna) {
+unsafe extern "C" fn free_dna(dna: *mut Box<dyn RuleTree>) {
+    println!("Freeing {:?}...", dna);
     unsafe { drop(Box::from_raw(dna)) }
 }
 
 #[no_mangle]
 unsafe extern "C" fn get_action(
-    dna: *mut Dna,
-    ack_ewma_ms: f64,
-    send_ewma_ms: f64,
-    rtt_ratio: f64,
-    current_window: u32,
+    dna: *const Box<dyn RuleTree>,
+    ack_ewma_ms: c_double,
+    send_ewma_ms: c_double,
+    rtt_ratio: c_double,
+    current_window: c_uint,
 ) -> CAction {
-    let dna = unsafe { Box::from_raw(dna) };
+    let dna = unsafe { dna.as_ref().unwrap() };
     let point = Point {
         ack_ewma: milliseconds(ack_ewma_ms),
         send_ewma: milliseconds(send_ewma_ms),
         rtt_ratio,
     };
-    let tree: &dyn RuleTree = match &*dna {
-        Dna::Remy(d) => d,
-        Dna::Remyr(d) => d,
-    };
 
-    let action = tree.action(&point, Time::SIM_START).unwrap();
+    let action = dna.action(&point, Time::SIM_START).unwrap();
+
     CAction {
         new_window: action.apply_to(current_window),
         intersend_seconds: action.intersend_delay.seconds(),
