@@ -77,7 +77,7 @@ pub struct RemyrConfig {
 impl Default for RemyrConfig {
     fn default() -> Self {
         Self {
-            iters: 1000,
+            iters: 2000,
             updates_per_iter: 5,
             num_minibatches: 4,
             min_point: Point {
