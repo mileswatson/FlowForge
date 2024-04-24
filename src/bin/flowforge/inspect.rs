@@ -41,8 +41,8 @@ fn inspect_rule_tree(rule_tree: &(impl RuleTree + Sync)) -> PolicySummary {
         (0..resolution).map(move |x| (Float::from(x) / Float::from(resolution)) * (max - min) + min)
     };
     let rtt_ratios = vec![1.02, 1.1].into_iter();
-    let ack_ewmas = range(0., 0.125).map(seconds);
-    let send_ewmas = range(0., 0.125).map(seconds);
+    let ack_ewmas = range(0., 0.5).map(seconds);
+    let send_ewmas = range(0., 0.5).map(seconds);
     let points = rtt_ratios
         .cartesian_product(ack_ewmas)
         .cartesian_product(send_ewmas)
