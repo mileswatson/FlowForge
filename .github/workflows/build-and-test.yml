@@ -20,4 +20,6 @@ jobs:
       run: cargo test --locked --verbose
     - name: Check for outdated configs
       run: cargo run gen-configs --output-folder ./configs && git diff --exit-code
+    - name: Build flowforge_ns2
+      run: cd ns2 && cargo build --locked --verbose
     
