@@ -154,6 +154,7 @@ pub fn train(
     evaluation_config: Option<&Path>,
     output_path: Option<&Path>,
     force: bool,
+    rng: &mut Rng,
 ) -> Result<()> {
     if output_path.is_some() {
         assert!(evaluation_config.is_some());
@@ -171,8 +172,6 @@ pub fn train(
     let network_config = DefaultNetworkConfig::load(network_config)?;
     let utility_config = UtilityConfig::load(utility_config)?;
 
-    let mut rng = Rng::from_seed(534522);
-
     match trainer_config {
         TrainerConfig::Remy(cfg) => _train::<RemyTrainer>(
             &cfg,
@@ -180,7 +179,7 @@ pub fn train(
             &network_config,
             &utility_config,
             dna_path,
-            &mut rng,
+            rng,
             force,
         ),
         TrainerConfig::Remyr(cfg) => _train::<RemyrTrainer>(
@@ -189,7 +188,7 @@ pub fn train(
             &network_config,
             &utility_config,
             dna_path,
-            &mut rng,
+            rng,
             force,
         ),
         TrainerConfig::DelayMultiplier(cfg) => _train::<DelayMultiplierTrainer>(
@@ -198,7 +197,7 @@ pub fn train(
             &network_config,
             &utility_config,
             dna_path,
-            &mut rng,
+            rng,
             force,
         ),
     };

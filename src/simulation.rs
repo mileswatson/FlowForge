@@ -155,15 +155,6 @@ impl<'sim, T> Address<'sim, T, T> {
 }
 
 impl<'sim, I, E> Address<'sim, I, E> {
-    pub fn custom<F>(create_message: F) -> Address<'sim, I, E>
-    where
-        F: Fn(I) -> Message<'sim, E> + 'sim,
-    {
-        Address {
-            create_message: Rc::new(create_message),
-        }
-    }
-
     #[must_use]
     pub fn cast<J>(self) -> Address<'sim, J, E>
     where
@@ -362,12 +353,6 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
             logger,
         }
     }
-}
-
-pub trait GenericComponent<'sim, 'a, E> {
-    fn next_tick(&self, time: Time) -> Option<Time>;
-    fn tick(&mut self, context: EffectContext) -> Vec<Message<'sim, E>>;
-    fn receive(&mut self, e: E, context: EffectContext) -> Vec<Message<'sim, E>>;
 }
 
 #[derive_where(Debug)]

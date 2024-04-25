@@ -5,6 +5,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 use create_configs::create_all_configs;
 use evaluate::evaluate;
+use flowforge::util::rand::Rng;
 use inspect::inspect;
 use trace::trace;
 use train::train;
@@ -100,10 +101,6 @@ enum Command {
         /// OPTIONAL File to output trace to (JSON)
         #[arg(short, long)]
         output: Option<PathBuf>,
-
-        /// Random seed to use
-        #[arg(long, default_value_t = 12345)]
-        seed: u64,
     },
     Inspect {
         /// Flow mode
@@ -133,6 +130,8 @@ struct Args {
     /// The maximum number of threads to use
     #[arg(short, long)]
     threads: Option<usize>,
+    #[arg(long, default_value_t = 534522)]
+    seed: u64,
     #[command(subcommand)]
     pub command: Command,
 }
@@ -146,6 +145,7 @@ fn main() -> Result<()> {
             .build_global()
             .unwrap();
     }
+    let mut rng = Rng::from_seed(args.seed);
     match args.command {
         Command::GenConfigs { output_folder } => create_all_configs(&output_folder),
         Command::Train {
@@ -166,6 +166,7 @@ fn main() -> Result<()> {
             eval.as_deref(),
             progress.as_deref(),
             force,
+            &mut rng,
         ),
         Command::Evaluate {
             config,
@@ -173,15 +174,14 @@ fn main() -> Result<()> {
             util,
             dna,
             mode,
-        } => evaluate(&mode, &config, &net, &util, &dna),
+        } => evaluate(&mode, &config, &net, &util, &dna, &mut rng),
         Command::Trace {
             mode,
             network,
             utility,
             input,
             output,
-            seed,
-        } => trace(&mode, &network, &utility, &input, output.as_deref(), seed),
+        } => trace(&mode, &network, &utility, &input, output.as_deref(), &mut rng),
         Command::Inspect { mode, dna, output } => {
             inspect(&dna, &mode, output.as_deref());
             Ok(())
