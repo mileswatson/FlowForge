@@ -40,16 +40,14 @@ fn inspect_rule_tree(rule_tree: &(impl RuleTree + Sync)) -> PolicySummary {
     let range = |min, max| {
         (0..resolution).map(move |x| (Float::from(x) / Float::from(resolution)) * (max - min) + min)
     };
-    let rtt_ratios = vec![1.02, 1.1].into_iter();
-    let ack_ewmas = range(0., 0.5).map(seconds);
+    let rtt_ratios = range(1., 1.5);
     let send_ewmas = range(0., 0.5).map(seconds);
     let points = rtt_ratios
-        .cartesian_product(ack_ewmas)
         .cartesian_product(send_ewmas)
-        .map(|((rtt_ratio, ack_ewma), send_ewma)| Point {
-            ack_ewma,
-            send_ewma,
+        .map(|(rtt_ratio, send_ewma)| Point {
             rtt_ratio,
+            ack_ewma: send_ewma,
+            send_ewma,
         })
         .collect_vec();
     points

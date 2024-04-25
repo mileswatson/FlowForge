@@ -46,12 +46,11 @@ pub fn evaluate(
     network_config: &Path,
     utility_config: &Path,
     input_path: &Path,
+    rng: &mut Rng,
 ) -> Result<()> {
     let evaluation_config = EvaluationConfig::load(evaluation_config)?;
     let network_config = DefaultNetworkConfig::load(network_config)?;
     let utility_config = UtilityConfig::load(utility_config)?;
-
-    let mut rng = Rng::from_seed(534522);
 
     let (score, flow_properties) = match mode {
         FlowAdders::Remy => _evaluate::<RemyTrainer>(
@@ -59,21 +58,21 @@ pub fn evaluate(
             &network_config,
             &utility_config,
             input_path,
-            &mut rng,
+            rng,
         ),
         FlowAdders::DelayMultiplier => _evaluate::<DelayMultiplierTrainer>(
             &evaluation_config,
             &network_config,
             &utility_config,
             input_path,
-            &mut rng,
+            rng,
         ),
         FlowAdders::Remyr => _evaluate::<RemyrTrainer>(
             &evaluation_config,
             &network_config,
             &utility_config,
             input_path,
-            &mut rng,
+            rng,
         ),
     };
 
