@@ -409,21 +409,21 @@ fn rollout<G: WithLifetime>(
 }
 
 impl Trainer for RemyrTrainer {
-    type Policy = RemyrDna;
+    type Dna = RemyrDna;
     type CcaTemplate<'a> = RemyCcaTemplate<&'a RemyrDna>;
 
     #[allow(clippy::too_many_lines)]
     fn train<G, H>(
         &self,
-        starting_point: Option<Self::Policy>,
+        starting_point: Option<Self::Dna>,
         network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut crate::util::rand::Rng,
-    ) -> Self::Policy
+    ) -> Self::Dna
     where
         G: WithLifetime,
-        H: crate::ProgressHandler<Self::Policy>,
+        H: crate::ProgressHandler<Self::Dna>,
     {
         assert!(
             starting_point.is_none(),

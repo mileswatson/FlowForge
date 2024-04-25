@@ -46,7 +46,7 @@ impl<T> Trainer for T
 where
     T: GeneticTrainer,
 {
-    type Policy = T::Policy;
+    type Dna = T::Policy;
     type CcaTemplate<'a> = T::CcaTemplate<'a>;
 
     fn train<G, H>(

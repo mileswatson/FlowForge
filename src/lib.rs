@@ -171,18 +171,18 @@ pub struct PacketSent {
 }
 
 pub trait Trainer {
-    type Policy: Dna;
-    type CcaTemplate<'a>: CcaTemplate<'a, Policy = &'a Self::Policy>;
+    type Dna: Dna;
+    type CcaTemplate<'a>: CcaTemplate<'a, Policy = &'a Self::Dna>;
 
     fn train<G, H>(
         &self,
-        starting_point: Option<Self::Policy>,
+        starting_point: Option<Self::Dna>,
         network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
-    ) -> Self::Policy
+    ) -> Self::Dna
     where
-        H: ProgressHandler<Self::Policy>,
+        H: ProgressHandler<Self::Dna>,
         G: WithLifetime;
 }

@@ -26,7 +26,7 @@ pub fn _evaluate<T>(
 where
     T: Trainer,
 {
-    let dna = T::Policy::load(input_path).unwrap();
+    let dna = T::Dna::load(input_path).unwrap();
 
     let x = evaluation_config
         .evaluate(

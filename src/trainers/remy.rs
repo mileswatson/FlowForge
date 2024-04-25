@@ -149,7 +149,7 @@ where
 }
 
 impl Trainer for RemyTrainer {
-    type Policy = RemyDna;
+    type Dna = RemyDna;
     type CcaTemplate<'a> = RemyCcaTemplate<&'a RemyDna>;
 
     #[allow(clippy::too_many_lines)]

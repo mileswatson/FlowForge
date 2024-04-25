@@ -60,11 +60,11 @@ pub fn _train<T>(
 ) where
     T: Trainer + Serialize + Sync,
 {
-    assert!(T::Policy::valid_path(dna_path));
+    assert!(T::Dna::valid_path(dna_path));
     let starting_point = if force {
         None
     } else {
-        T::Policy::load(dna_path).ok().and_then(|d| loop {
+        T::Dna::load(dna_path).ok().and_then(|d| loop {
         let mut buf = String::new();
         println!("There is already valid DNA in the output path. Would you like to use it as a starting point? Y/N");
         std::io::stdin().read_line(&mut buf).unwrap();
@@ -92,7 +92,7 @@ pub fn _train<T>(
             starting_point,
             network_config,
             utility_config,
-            &mut |frac: Float, dna: &T::Policy| {
+            &mut |frac: Float, dna: &T::Dna| {
                 println!("{frac}");
                 if let Some((eval_times, evaluation_config, _)) = evaluation_config.as_ref() {
                     let percent_completed = (frac * *eval_times as f64).floor() as i32;

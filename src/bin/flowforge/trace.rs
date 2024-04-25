@@ -55,7 +55,7 @@ where
     N: NetworkBuilder<DefaultEffect<'static>>,
     T: Trainer,
 {
-    let dna = T::Policy::load(input_path).unwrap();
+    let dna = T::Dna::load(input_path).unwrap();
     let n = rng.sample(network_config);
     let mut active_senders = Vec::new();
     let mut timestamps = Vec::new();
