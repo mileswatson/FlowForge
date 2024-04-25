@@ -15,18 +15,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ccas::{
-        remy::{
-            action::Action,
-            point::Point,
-            rule_tree::{DynRuleTree, RuleTree},
-            RuleTreeCcaTemplate,
-        },
+        remy::{action::Action, point::Point, DynRemyPolicy, RemyCcaTemplate, RemyPolicy},
         remyr::{
             dna::RemyrDna,
             net::{
                 CopyToDevice, HiddenLayers, PolicyNet, PolicyNetwork, ACTION, OBSERVATION, STATE,
             },
-            RemyrCcaTemplate,
         },
     },
     eval::EvaluationConfig,
@@ -52,7 +46,7 @@ pub enum DiscountingMode {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct RemyrConfig {
+pub struct RemyrTrainer {
     pub iters: u32,
     pub updates_per_iter: u32,
     pub num_minibatches: usize,
@@ -74,7 +68,7 @@ pub struct RemyrConfig {
     pub repeat_actions: Option<DiscreteDistribution<u32>>,
 }
 
-impl Default for RemyrConfig {
+impl Default for RemyrTrainer {
     fn default() -> Self {
         Self {
             iters: 2000,
@@ -121,7 +115,7 @@ impl Default for RemyrConfig {
     }
 }
 
-impl RemyrConfig {
+impl RemyrTrainer {
     fn initial_dna(&self, policy: PolicyNetwork<Cpu>) -> RemyrDna {
         RemyrDna {
             min_point: self.min_point.clone(),
@@ -270,12 +264,12 @@ pub struct RolloutWrapper<'a, F, S> {
     f: &'a F,
 }
 
-impl<'a, F, S> DynRuleTree for RolloutWrapper<'a, F, S>
+impl<'a, F, S> DynRemyPolicy for RolloutWrapper<'a, F, S>
 where
     F: Fn(Record, Time),
     S: Fn() -> usize,
 {
-    fn as_ref(&self) -> &dyn RuleTree {
+    fn as_ref(&self) -> &dyn RemyPolicy {
         self
     }
 }
@@ -290,7 +284,7 @@ impl<'a, F, S> std::fmt::Debug for RolloutWrapper<'a, F, S> {
     }
 }
 
-impl<'a, F, S> RuleTree for RolloutWrapper<'a, F, S>
+impl<'a, F, S> RemyPolicy for RolloutWrapper<'a, F, S>
 where
     F: Fn(Record, Time),
     S: Fn() -> usize,
@@ -397,7 +391,7 @@ fn rollout<G: WithLifetime>(
                     samples: RefCell::new((stddev.clone() * 0_f32, VecDeque::new())),
                     num_senders: &|| flows.iter().filter(|x| x.borrow().active()).count(),
                 };
-                let cca_template = RuleTreeCcaTemplate::new(repeat_actions.clone());
+                let cca_template = RemyCcaTemplate::new(repeat_actions.clone());
                 let cca_gen = cca_template.with_not_sync(dna);
                 make_guard!(guard);
                 let builder = SimulatorBuilder::new(guard);
@@ -414,33 +408,22 @@ fn rollout<G: WithLifetime>(
         .collect()
 }
 
-pub struct RemyrTrainer {
-    config: RemyrConfig,
-}
-
 impl Trainer for RemyrTrainer {
-    type Config = RemyrConfig;
-    type Dna = RemyrDna;
-    type CcaTemplate<'a> = RemyrCcaTemplate<'a>;
-
-    fn new(config: &Self::Config) -> Self {
-        RemyrTrainer {
-            config: config.clone(),
-        }
-    }
+    type Policy = RemyrDna;
+    type CcaTemplate<'a> = RemyCcaTemplate<&'a RemyrDna>;
 
     #[allow(clippy::too_many_lines)]
     fn train<G, H>(
         &self,
-        starting_point: Option<Self::Dna>,
+        starting_point: Option<Self::Policy>,
         network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut crate::util::rand::Rng,
-    ) -> Self::Dna
+    ) -> Self::Policy
     where
         G: WithLifetime,
-        H: crate::ProgressHandler<Self::Dna>,
+        H: crate::ProgressHandler<Self::Policy>,
     {
         assert!(
             starting_point.is_none(),
@@ -448,9 +431,9 @@ impl Trainer for RemyrTrainer {
         );
         let dev = AutoDevice::default();
         let mut nets = dev.build_module((
-            self.config.hidden_layers.policy_arch(),
+            self.hidden_layers.policy_arch(),
             Bias1DConfig(Const::<ACTION>),
-            self.config.hidden_layers.critic_arch(),
+            self.hidden_layers.critic_arch(),
         ));
         nets.1.bias = nets.1.bias + 0.5;
 
@@ -458,8 +441,8 @@ impl Trainer for RemyrTrainer {
         let mut optimizer = Adam::new(
             &nets,
             AdamConfig {
-                lr: self.config.learning_rate,
-                weight_decay: self.config.weight_decay.map(WeightDecay::Decoupled),
+                lr: self.learning_rate,
+                weight_decay: self.weight_decay.map(WeightDecay::Decoupled),
                 eps: 1e-5,
                 ..Default::default()
             },
@@ -467,20 +450,20 @@ impl Trainer for RemyrTrainer {
 
         let sim_dev = Cpu::default();
 
-        for i in 0..self.config.iters {
-            let dna = self.config.initial_dna(nets.0.copy_to(&sim_dev));
+        for i in 0..self.iters {
+            let dna = self.initial_dna(nets.0.copy_to(&sim_dev));
 
-            let frac = f64::from(i) / f64::from(self.config.iters);
+            let frac = f64::from(i) / f64::from(self.iters);
             progress_handler.update_progress(frac, &dna);
 
-            if self.config.learning_rate_annealing {
-                optimizer.cfg.lr = (1.0 - frac) * self.config.learning_rate;
+            if self.learning_rate_annealing {
+                optimizer.cfg.lr = (1.0 - frac) * self.learning_rate;
             }
 
-            let clip = if self.config.clip_annealing {
-                (1.0 - frac as f32) * self.config.clip
+            let clip = if self.clip_annealing {
+                (1.0 - frac as f32) * self.clip
             } else {
-                self.config.clip
+                self.clip
             };
 
             let sim_stddevs = Bias1D {
@@ -494,11 +477,11 @@ impl Trainer for RemyrTrainer {
                 &sim_stddevs,
                 network_config,
                 utility_function,
-                &self.config.rollout_config,
-                self.config.bandwidth_half_life,
-                &self.config.discounting_mode,
+                &self.rollout_config,
+                self.bandwidth_half_life,
+                &self.discounting_mode,
                 0.,
-                &self.config.repeat_actions,
+                &self.repeat_actions,
                 rng,
             );
             let RolloutResult {
@@ -516,8 +499,8 @@ impl Trainer for RemyrTrainer {
             };
             let mut all_indices = (0..states.shape().0).collect_vec();
 
-            for _ in 0..self.config.updates_per_iter {
-                let batch_size = all_indices.len() / self.config.num_minibatches;
+            for _ in 0..self.updates_per_iter {
+                let batch_size = all_indices.len() / self.num_minibatches;
                 rng.shuffle(&mut all_indices);
                 for batch_indices in all_indices.iter().copied().batch_with_last(batch_size) {
                     let batch_len = batch_indices.len();
@@ -573,8 +556,8 @@ impl Trainer for RemyrTrainer {
 
                     let entropy = ((stddevs.square() * 2. * PI * E).ln() / 2.).sum();
 
-                    let loss = policy_loss + critic_loss * self.config.value_function_coefficient
-                        - entropy * self.config.entropy_coefficient;
+                    let loss = policy_loss + critic_loss * self.value_function_coefficient
+                        - entropy * self.entropy_coefficient;
 
                     gradients = loss.backward();
                     optimizer.update(&mut nets, &gradients).unwrap();
@@ -582,7 +565,7 @@ impl Trainer for RemyrTrainer {
                 }
             }
         }
-        let dna = self.config.initial_dna(nets.0.copy_to(&sim_dev));
+        let dna = self.initial_dna(nets.0.copy_to(&sim_dev));
         progress_handler.update_progress(1., &dna);
         dna
     }
@@ -594,7 +577,7 @@ mod tests {
 
     use crate::{
         ccas::{
-            remy::{action::Action, point::Point, rule_tree::RuleTree},
+            remy::{action::Action, point::Point, RemyPolicy},
             remyr::dna::RemyrDna,
         },
         eval::EvaluationConfig,
@@ -606,11 +589,11 @@ mod tests {
         Trainer,
     };
 
-    use super::{RemyrConfig, RemyrTrainer};
+    use super::RemyrTrainer;
 
     #[test]
     fn test_determinism() {
-        let trainer = RemyrTrainer::new(&RemyrConfig {
+        let trainer = RemyrTrainer {
             iters: 10,
             updates_per_iter: 3,
             num_minibatches: 2,
@@ -618,8 +601,8 @@ mod tests {
                 network_samples: 1,
                 run_sim_for: seconds(30.),
             },
-            ..RemyrConfig::default()
-        });
+            ..RemyrTrainer::default()
+        };
         let mut rng = Rng::from_seed(5_243_533);
         let result = trainer.train::<DefaultEffect, _>(
             None,
@@ -631,11 +614,11 @@ mod tests {
         let mut random_point = || Point::<false> {
             ack_ewma: rng.sample(&ContinuousDistribution::Uniform {
                 min: seconds(0.),
-                max: milliseconds(125.),
+                max: seconds(0.5),
             }),
             send_ewma: rng.sample(&ContinuousDistribution::Uniform {
                 min: seconds(0.),
-                max: milliseconds(125.),
+                max: seconds(0.5),
             }),
             rtt_ratio: rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. }),
         };

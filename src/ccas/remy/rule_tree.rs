@@ -14,32 +14,16 @@ use super::{
     autogen::remy_dna::{Whisker, WhiskerTree},
     cube::Cube,
     point::Point,
+    RemyPolicy,
 };
-
-pub trait RuleTree<const TESTING: bool = false>: Debug {
-    fn action(&self, point: &Point, time: Time) -> Option<Action>;
-}
-
-pub trait DynRuleTree: Clone {
-    fn as_ref(&self) -> &dyn RuleTree;
-}
-
-impl<T> DynRuleTree for &T
-where
-    T: RuleTree,
-{
-    fn as_ref(&self) -> &dyn RuleTree {
-        *self
-    }
-}
 
 #[derive(Debug)]
 pub struct AugmentedRuleTree<'a> {
-    tree: &'a BaseRuleTree,
+    tree: &'a RuleTree,
     rule_override: (usize, Action),
 }
 
-impl<'a> RuleTree for AugmentedRuleTree<'a> {
+impl<'a> RemyPolicy for AugmentedRuleTree<'a> {
     fn action(&self, point: &Point, _time: Time) -> Option<Action> {
         self.tree._action(self.tree.root, point, &|idx| {
             if idx == self.rule_override.0 {
@@ -53,11 +37,11 @@ impl<'a> RuleTree for AugmentedRuleTree<'a> {
 
 #[derive(Debug)]
 pub struct CountingRuleTree<'a> {
-    tree: &'a mut BaseRuleTree,
+    tree: &'a mut RuleTree,
     counts: Vec<AtomicU64>,
 }
 
-impl<'a> RuleTree for CountingRuleTree<'a> {
+impl<'a> RemyPolicy for CountingRuleTree<'a> {
     fn action(&self, point: &Point, _time: Time) -> Option<Action> {
         self.tree._action(self.tree.root, point, &|idx| {
             self.counts[idx].fetch_add(1, Ordering::Relaxed);
@@ -67,7 +51,7 @@ impl<'a> RuleTree for CountingRuleTree<'a> {
 }
 
 impl<'a> CountingRuleTree<'a> {
-    pub fn new(tree: &'a mut BaseRuleTree) -> CountingRuleTree<'a> {
+    pub fn new(tree: &'a mut RuleTree) -> CountingRuleTree<'a> {
         CountingRuleTree {
             counts: tree.nodes.iter().map(|_| AtomicU64::new(0)).collect(),
             tree,
@@ -115,7 +99,7 @@ impl<'a> CountingRuleTree<'a> {
 }
 
 pub struct LeafHandle<'a> {
-    tree: &'a mut BaseRuleTree,
+    tree: &'a mut RuleTree,
     rule: usize,
 }
 
@@ -192,9 +176,9 @@ pub enum RuleTreeNode<const TESTING: bool = false> {
 impl<const TESTING: bool> RuleTreeNode<TESTING> {
     fn equals(
         lhs: &RuleTreeNode<TESTING>,
-        lhs_tree: &BaseRuleTree<TESTING>,
+        lhs_tree: &RuleTree<TESTING>,
         rhs: &RuleTreeNode<TESTING>,
-        rhs_tree: &BaseRuleTree<TESTING>,
+        rhs_tree: &RuleTree<TESTING>,
     ) -> bool {
         match (lhs, rhs) {
             (
@@ -241,7 +225,7 @@ impl<const TESTING: bool> RuleTreeNode<TESTING> {
 }
 
 #[derive(Debug, Serialize)]
-pub struct BaseRuleTree<const TESTING: bool = false> {
+pub struct RuleTree<const TESTING: bool = false> {
     root: usize,
     nodes: Vec<RuleTreeNode<TESTING>>,
 }
@@ -277,7 +261,7 @@ fn _push_whisker_tree<const TESTING: bool>(
 fn push_tree<const TESTING: bool>(
     nodes: &mut Vec<RuleTreeNode<TESTING>>,
     root: usize,
-    tree: &BaseRuleTree<TESTING>,
+    tree: &RuleTree<TESTING>,
 ) -> usize {
     let new_node = match &tree.nodes[root] {
         RuleTreeNode::Node { domain, children } => RuleTreeNode::Node {
@@ -297,12 +281,12 @@ fn push_tree<const TESTING: bool>(
     nodes.len() - 1
 }
 
-impl<const TESTING: bool> BaseRuleTree<TESTING> {
+impl<const TESTING: bool> RuleTree<TESTING> {
     #[must_use]
-    pub fn from_tree(self: &BaseRuleTree<TESTING>) -> BaseRuleTree<TESTING> {
+    pub fn from_tree(self: &RuleTree<TESTING>) -> RuleTree<TESTING> {
         let mut nodes = Vec::new();
         let root = push_tree(&mut nodes, self.root, self);
-        BaseRuleTree { root, nodes }
+        RuleTree { root, nodes }
     }
 
     fn _action<F>(
@@ -356,14 +340,14 @@ impl<const TESTING: bool> BaseRuleTree<TESTING> {
         self._to_whisker_tree(self.root)
     }
 
-    pub fn from_whisker_tree(value: &WhiskerTree) -> BaseRuleTree<TESTING> {
+    pub fn from_whisker_tree(value: &WhiskerTree) -> RuleTree<TESTING> {
         let mut nodes = Vec::new();
         let root = _push_whisker_tree::<TESTING>(&mut nodes, value);
-        BaseRuleTree { root, nodes }
+        RuleTree { root, nodes }
     }
 }
 
-impl BaseRuleTree {
+impl RuleTree {
     fn greatest_leaf_node<F>(&mut self, mut score: F) -> Option<LeafHandle<'_>>
     where
         F: FnMut(usize, bool) -> Option<u64>,
@@ -384,7 +368,7 @@ impl BaseRuleTree {
 
     #[must_use]
     pub fn default(default_action: Action) -> Self {
-        BaseRuleTree {
+        RuleTree {
             root: 0,
             nodes: vec![RuleTreeNode::Leaf {
                 domain: Cube::default(),
@@ -414,13 +398,13 @@ impl BaseRuleTree {
     }
 }
 
-impl RuleTree for BaseRuleTree {
+impl RemyPolicy for RuleTree {
     fn action(&self, point: &Point, _time: Time) -> Option<Action> {
         self._action(self.root, point, &|_| None)
     }
 }
 
-impl<const TESTING: bool> PartialEq for BaseRuleTree<TESTING> {
+impl<const TESTING: bool> PartialEq for RuleTree<TESTING> {
     fn eq(&self, other: &Self) -> bool {
         self.root == other.root
             && RuleTreeNode::equals(
@@ -447,7 +431,7 @@ mod tests {
     use tempfile::tempdir;
 
     use crate::{
-        ccas::remy::{dna::RemyDna, rule_tree::BaseRuleTree},
+        ccas::remy::{dna::RemyDna, rule_tree::RuleTree},
         Config,
     };
 
@@ -467,12 +451,12 @@ mod tests {
     }
 
     fn check_to_pb(dna: &RemyDna<true>) {
-        let cycled = BaseRuleTree::<true>::from_whisker_tree(&dna.tree.to_whisker_tree());
+        let cycled = RuleTree::<true>::from_whisker_tree(&dna.tree.to_whisker_tree());
         assert_eq!(dna.tree, cycled);
     }
 
     fn check_to_dna(pb: &WhiskerTree) {
-        let cycled = BaseRuleTree::<true>::from_whisker_tree(pb).to_whisker_tree();
+        let cycled = RuleTree::<true>::from_whisker_tree(pb).to_whisker_tree();
         assert_eq!(pb, &cycled);
     }
 

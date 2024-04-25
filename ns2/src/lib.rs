@@ -4,8 +4,8 @@ use std::{
 };
 
 use flowforge::{
-    protocols::{
-        remy::{dna::RemyDna, point::Point, rule_tree::RuleTree},
+    ccas::{
+        remy::{dna::RemyDna, point::Point, RemyPolicy},
         remyr::dna::RemyrDna,
     },
     quantities::{milliseconds, Time},
@@ -19,30 +19,29 @@ struct CAction {
 }
 
 #[no_mangle]
-unsafe extern "C" fn load_dna(path: *const c_char) -> *mut Box<dyn RuleTree> {
+unsafe extern "C" fn load_dna(path: *const c_char) -> *mut Box<dyn RemyPolicy> {
     let path = unsafe { CStr::from_ptr(path) }.to_str().unwrap();
     let is_remyr = path.contains(".remyr.dna");
     let path = Path::new(path);
-    let d: Box<dyn RuleTree> = if is_remyr {
+    let d: Box<dyn RemyPolicy> = if is_remyr {
         Box::new(<RemyrDna as Config<Custom>>::load(path).unwrap())
     } else {
         Box::new(RemyDna::load(path).unwrap())
     };
-    let p = 
-    Box::into_raw(Box::new(d));
+    let p = Box::into_raw(Box::new(d));
     println!("Loaded dna {:?}...", p);
     p
 }
 
 #[no_mangle]
-unsafe extern "C" fn free_dna(dna: *mut Box<dyn RuleTree>) {
+unsafe extern "C" fn free_dna(dna: *mut Box<dyn RemyPolicy>) {
     println!("Freeing {:?}...", dna);
     unsafe { drop(Box::from_raw(dna)) }
 }
 
 #[no_mangle]
 unsafe extern "C" fn get_action(
-    dna: *const Box<dyn RuleTree>,
+    dna: *const Box<dyn RemyPolicy>,
     ack_ewma_ms: c_double,
     send_ewma_ms: c_double,
     rtt_ratio: c_double,

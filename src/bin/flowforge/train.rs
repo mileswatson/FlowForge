@@ -50,7 +50,7 @@ impl<'a, T, N> TrainResult<'a, T, N> {
 }
 
 pub fn _train<T>(
-    trainer_config: &T::Config,
+    trainer: &T,
     evaluation_config: Option<(u32, EvaluationConfig, Option<&Path>)>,
     network_config: &impl NetworkConfig<DefaultEffect<'static>>,
     utility_config: &UtilityConfig,
@@ -58,14 +58,13 @@ pub fn _train<T>(
     rng: &mut Rng,
     force: bool,
 ) where
-    T: Trainer,
-    T::Config: Serialize + Sync,
+    T: Trainer + Serialize + Sync,
 {
-    assert!(T::Dna::valid_path(dna_path));
+    assert!(T::Policy::valid_path(dna_path));
     let starting_point = if force {
         None
     } else {
-        T::Dna::load(dna_path).ok().and_then(|d| loop {
+        T::Policy::load(dna_path).ok().and_then(|d| loop {
         let mut buf = String::new();
         println!("There is already valid DNA in the output path. Would you like to use it as a starting point? Y/N");
         std::io::stdin().read_line(&mut buf).unwrap();
@@ -80,7 +79,7 @@ pub fn _train<T>(
         .as_ref()
         .and_then(|x| x.2)
         .map(|x| File::create(x).unwrap());
-    let mut result = TrainResult::new(trainer_config, network_config, utility_config);
+    let mut result = TrainResult::new(trainer, network_config, utility_config);
 
     let mut last_resumed = Instant::now();
     let mut total_training_time = Duration::ZERO;
@@ -88,12 +87,12 @@ pub fn _train<T>(
     let new_eval_rng = rng.identical_child_factory();
     let mut last_percent = -1;
     let mut best_score: Float = Float::MIN;
-    T::new(trainer_config)
+    trainer
         .train(
             starting_point,
             network_config,
             utility_config,
-            &mut |frac: Float, dna: &T::Dna| {
+            &mut |frac: Float, dna: &T::Policy| {
                 println!("{frac}");
                 if let Some((eval_times, evaluation_config, _)) = evaluation_config.as_ref() {
                     let percent_completed = (frac * *eval_times as f64).floor() as i32;

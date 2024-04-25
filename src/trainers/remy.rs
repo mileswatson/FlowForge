@@ -1,3 +1,5 @@
+use std::{iter::successors, ops::Mul};
+
 use indicatif::{ParallelProgressIterator, ProgressBar};
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -9,17 +11,17 @@ use crate::{
         action::Action,
         dna::RemyDna,
         rule_tree::{CountingRuleTree, LeafHandle},
-        RemyCcaTemplate, RuleTreeCcaTemplate,
+        RemyCcaTemplate,
     },
     eval::EvaluationConfig,
     flow::UtilityFunction,
-    quantities::{milliseconds, seconds},
+    quantities::{milliseconds, seconds, Float, TimeSpan},
     util::{rand::Rng, WithLifetime},
     NetworkConfig, ProgressHandler, Trainer,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct RemyConfig {
+pub struct RemyTrainer {
     pub rule_splits: u32,
     pub optimization_rounds_per_split: u32,
     pub min_action: Action,
@@ -33,7 +35,7 @@ pub struct RemyConfig {
     pub drill_down: bool,
 }
 
-impl Default for RemyConfig {
+impl Default for RemyTrainer {
     fn default() -> Self {
         Self {
             rule_splits: 100,
@@ -74,8 +76,68 @@ impl Default for RemyConfig {
     }
 }
 
-pub struct RemyTrainer {
-    config: RemyConfig,
+fn changes<T, U>(
+    initial_change: T,
+    max_change: T,
+    multiplier: i32,
+) -> impl Iterator<Item = T> + Clone
+where
+    T: PartialOrd + Copy + 'static,
+    U: From<i32> + Mul<T, Output = T>,
+{
+    successors(Some(initial_change), move |x| {
+        Some(U::from(multiplier) * *x)
+    })
+    .take_while(move |x| x <= &max_change)
+    .flat_map(|x| [x, U::from(-1) * x])
+}
+
+impl RemyTrainer {
+    #[must_use]
+    pub fn possible_improvements(&self, action: Action) -> Vec<Action> {
+        let RemyTrainer {
+            min_action,
+            max_action,
+            initial_action_change,
+            max_action_change,
+            action_change_multiplier,
+            ..
+        } = self;
+        changes::<Float, Float>(
+            initial_action_change.window_multiplier,
+            max_action_change.window_multiplier,
+            *action_change_multiplier,
+        )
+        .cartesian_product(changes::<i32, i32>(
+            initial_action_change.window_increment,
+            max_action_change.window_increment,
+            *action_change_multiplier,
+        ))
+        .cartesian_product(changes::<TimeSpan, Float>(
+            initial_action_change.intersend_delay,
+            max_action_change.intersend_delay,
+            *action_change_multiplier,
+        ))
+        .map(
+            move |((window_multiplier, window_increment), intersend_ms)| {
+                &action
+                    + &Action {
+                        window_multiplier,
+                        window_increment,
+                        intersend_delay: intersend_ms,
+                    }
+            },
+        )
+        .filter(move |x| {
+            min_action.window_multiplier <= x.window_multiplier
+                && x.window_multiplier <= max_action.window_multiplier
+                && min_action.window_increment <= x.window_increment
+                && x.window_increment <= max_action.window_increment
+                && min_action.intersend_delay <= x.intersend_delay
+                && x.intersend_delay <= max_action.intersend_delay
+        })
+        .collect_vec()
+    }
 }
 
 /// Hack until <https://github.com/rust-lang/rust/issues/97362> is stabilised
@@ -87,15 +149,8 @@ where
 }
 
 impl Trainer for RemyTrainer {
-    type Config = RemyConfig;
-    type Dna = RemyDna;
-    type CcaTemplate<'a> = RemyCcaTemplate<'a>;
-
-    fn new(config: &RemyConfig) -> RemyTrainer {
-        RemyTrainer {
-            config: config.clone(),
-        }
-    }
+    type Policy = RemyDna;
+    type CcaTemplate<'a> = RemyCcaTemplate<&'a RemyDna>;
 
     #[allow(clippy::too_many_lines)]
     fn train<G: WithLifetime, H: ProgressHandler<RemyDna>>(
@@ -109,10 +164,9 @@ impl Trainer for RemyTrainer {
         let new_eval_rng = rng.identical_child_factory();
         let eval_and_count = coerce(|dna: &mut RemyDna| {
             let counting_tree = CountingRuleTree::new(&mut dna.tree);
-            self.config
-                .count_rule_usage_config
+            self.count_rule_usage_config
                 .evaluate::<_, G, _>(
-                    RuleTreeCcaTemplate::default().with_not_sync(&counting_tree),
+                    RemyCcaTemplate::default().with_not_sync(&counting_tree),
                     network_config,
                     utility_function,
                     &mut new_eval_rng(),
@@ -121,10 +175,9 @@ impl Trainer for RemyTrainer {
             counting_tree
         });
         let test_new_action = |leaf: &LeafHandle, new_action: Action, mut rng: Rng| {
-            self.config
-                .change_eval_config
+            self.change_eval_config
                 .evaluate::<_, G, _>(
-                    RuleTreeCcaTemplate::default().with_not_sync(&leaf.augmented_tree(new_action)),
+                    RemyCcaTemplate::default().with_not_sync(&leaf.augmented_tree(new_action)),
                     network_config,
                     utility_function,
                     &mut rng,
@@ -132,15 +185,15 @@ impl Trainer for RemyTrainer {
                 .expect("Simulation to have active flows")
         };
         let mut dna =
-            starting_point.unwrap_or_else(|| RemyDna::default(self.config.default_action.clone()));
-        for i in 0..=self.config.rule_splits {
-            let frac = f64::from(i) / f64::from(self.config.rule_splits + 1);
+            starting_point.unwrap_or_else(|| RemyDna::default(self.default_action.clone()));
+        for i in 0..=self.rule_splits {
+            let frac = f64::from(i) / f64::from(self.rule_splits + 1);
             progress_handler.update_progress(frac, &dna);
             if i == 0 {
                 println!("Starting optimization");
             } else {
                 let mut counts = eval_and_count(&mut dna);
-                if self.config.drill_down && counts.num_used_rules() <= 1 {
+                if self.drill_down && counts.num_used_rules() <= 1 {
                     loop {
                         let (fraction_used, leaf) = counts.most_used_rule();
                         println!(
@@ -164,11 +217,11 @@ impl Trainer for RemyTrainer {
                     leaf.split();
                 }
             }
-            for optimization_round in 0..self.config.optimization_rounds_per_split {
+            for optimization_round in 0..self.optimization_rounds_per_split {
                 println!(
                     "  Starting optimization round {}/{}",
                     optimization_round + 1,
-                    self.config.optimization_rounds_per_split
+                    self.optimization_rounds_per_split
                 );
                 while let Some((fraction_used, mut leaf)) =
                     eval_and_count(&mut dna).most_used_unoptimized_rule()
@@ -193,10 +246,8 @@ impl Trainer for RemyTrainer {
                         leaf.action()
                     );
                     while let Some((s, new_action)) = {
-                        let possible_improvements = leaf
-                            .action()
-                            .possible_improvements(&self.config)
-                            .collect_vec();
+                        let possible_improvements =
+                            self.possible_improvements(leaf.action().clone());
                         let progress = ProgressBar::new(possible_improvements.len() as u64);
                         possible_improvements
                             .into_par_iter()
@@ -237,13 +288,13 @@ mod tests {
         Trainer,
     };
 
-    use super::{RemyConfig, RemyTrainer};
+    use super::RemyTrainer;
 
     #[test]
     #[ignore = "long runtime"]
     fn determinism() {
         let mut rng = Rng::from_seed(123_456);
-        let remy_config = RemyConfig {
+        let trainer = RemyTrainer {
             rule_splits: 1,
             optimization_rounds_per_split: 1,
             action_change_multiplier: 16,
@@ -251,9 +302,8 @@ mod tests {
                 network_samples: 100,
                 run_sim_for: seconds(10.),
             },
-            ..RemyConfig::default()
+            ..RemyTrainer::default()
         };
-        let trainer = RemyTrainer::new(&remy_config);
         let result = trainer.train::<DefaultEffect<'static>, _>(
             None,
             &DefaultNetworkConfig::default(),

@@ -4,18 +4,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ccas::delay_multiplier::DelayMultiplierCca,
-    flow::UtilityFunction,
     util::{
         rand::{ContinuousDistribution, Rng},
         WithLifetime,
     },
-    CcaTemplate, Dna, NetworkConfig, Trainer,
+    CcaTemplate, Dna,
 };
 
-use super::genetic::{GeneticConfig, GeneticDna, GeneticTrainer};
+use super::genetic::{GeneticConfig, GeneticPolicy, GeneticTrainer};
 
 #[derive(Serialize, Deserialize, Default)]
-pub struct DelayMultiplierConfig {
+pub struct DelayMultiplierTrainer {
     genetic_config: GeneticConfig,
 }
 
@@ -35,10 +34,6 @@ impl WithLifetime for DelayMultiplierCcaTemplate {
     type Type<'a> = DelayMultiplierCcaTemplate;
 }
 
-pub struct DelayMultiplierTrainer {
-    genetic_trainer: GeneticTrainer<DelayMultiplierTrainer>,
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DelayMultiplierDna {
     pub multiplier: f64,
@@ -56,7 +51,7 @@ impl Dna for DelayMultiplierDna {
     }
 }
 
-impl GeneticDna for DelayMultiplierDna {
+impl GeneticPolicy for DelayMultiplierDna {
     fn new_random(rng: &mut Rng) -> Self {
         DelayMultiplierDna {
             multiplier: rng.sample(&ContinuousDistribution::Uniform { min: 0.0, max: 5.0 }),
@@ -71,35 +66,11 @@ impl GeneticDna for DelayMultiplierDna {
     }
 }
 
-impl Trainer for DelayMultiplierTrainer {
-    type Config = DelayMultiplierConfig;
-    type Dna = DelayMultiplierDna;
+impl GeneticTrainer for DelayMultiplierTrainer {
+    type Policy = DelayMultiplierDna;
     type CcaTemplate<'a> = DelayMultiplierCcaTemplate;
 
-    fn new(config: &Self::Config) -> Self {
-        DelayMultiplierTrainer {
-            genetic_trainer: GeneticTrainer::new(&config.genetic_config),
-        }
-    }
-
-    fn train<G, H>(
-        &self,
-        starting_point: Option<DelayMultiplierDna>,
-        network_config: &impl NetworkConfig<G>,
-        utility_function: &dyn UtilityFunction,
-        progress_handler: &mut H,
-        rng: &mut Rng,
-    ) -> DelayMultiplierDna
-    where
-        H: crate::ProgressHandler<DelayMultiplierDna>,
-        G: WithLifetime,
-    {
-        self.genetic_trainer.train(
-            starting_point,
-            network_config,
-            utility_function,
-            progress_handler,
-            rng,
-        )
+    fn genetic_config(&self) -> GeneticConfig {
+        todo!()
     }
 }

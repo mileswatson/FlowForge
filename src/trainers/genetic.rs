@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, iter::repeat, marker::PhantomData};
+use std::{cmp::Reverse, iter::repeat};
 
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -28,64 +28,54 @@ impl Default for GeneticConfig {
     }
 }
 
-pub struct GeneticTrainer<T> {
-    iters: u32,
-    population_size: u32,
-    child_eval_config: EvaluationConfig,
-    trainer: PhantomData<T>,
-}
-
-pub trait GeneticDna: Dna + Sync {
+pub trait GeneticPolicy: Dna + Sync {
     fn new_random(rng: &mut Rng) -> Self;
 
     #[must_use]
     fn spawn_child(&self, rng: &mut Rng) -> Self;
 }
 
-impl<T> Trainer for GeneticTrainer<T>
-where
-    T: Trainer,
-    T::Dna: GeneticDna,
-{
-    type Config = GeneticConfig;
-    type Dna = T::Dna;
-    type CcaTemplate<'a> = T::CcaTemplate<'a>;
+pub trait GeneticTrainer {
+    type Policy: GeneticPolicy;
+    type CcaTemplate<'a>: CcaTemplate<'a, Policy = &'a Self::Policy>;
 
-    fn new(config: &Self::Config) -> Self {
-        GeneticTrainer {
-            iters: config.iters,
-            population_size: config.population_size,
-            child_eval_config: config.evaluation_config.clone(),
-            trainer: PhantomData,
-        }
-    }
+    fn genetic_config(&self) -> GeneticConfig;
+}
+
+impl<T> Trainer for T
+where
+    T: GeneticTrainer,
+{
+    type Policy = T::Policy;
+    type CcaTemplate<'a> = T::CcaTemplate<'a>;
 
     fn train<G, H>(
         &self,
-        starting_point: Option<T::Dna>,
+        starting_point: Option<T::Policy>,
         network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
-    ) -> T::Dna
+    ) -> T::Policy
     where
-        H: ProgressHandler<T::Dna>,
+        H: ProgressHandler<T::Policy>,
         G: WithLifetime,
     {
         assert!(
             starting_point.is_none(),
             "Starting point not supported for genetic trainer!"
         );
-        let mut population = (0..self.population_size)
-            .map(|_| T::Dna::new_random(rng))
+        let config = self.genetic_config();
+        let mut population = (0..config.population_size)
+            .map(|_| T::Policy::new_random(rng))
             .collect_vec();
-        for i in 0..self.iters {
-            let frac = f64::from(i) / f64::from(self.iters);
+        for i in 0..config.iters {
+            let frac = f64::from(i) / f64::from(config.iters);
             let mut scores = population
                 .into_iter()
                 .map(|d| (d, rng.create_child()))
                 .filter_map(|(d, mut rng)| {
-                    let score = self.child_eval_config.evaluate::<_, G, _>(
+                    let score = config.evaluation_config.evaluate::<_, G, _>(
                         T::CcaTemplate::default().with(&d),
                         network_config,
                         utility_function,
@@ -98,7 +88,7 @@ where
 
             println!("Score: {}", scores.first().unwrap().1);
             progress_handler.update_progress(frac, &scores.first().unwrap().0);
-            scores.truncate(self.population_size as usize / 2);
+            scores.truncate(config.population_size as usize / 2);
             population = scores
                 .iter()
                 .flat_map(|x| repeat(&x.0).take(2))

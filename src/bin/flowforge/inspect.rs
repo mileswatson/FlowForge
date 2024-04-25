@@ -2,7 +2,7 @@ use std::{fs::File, io::Write, path::Path};
 
 use flowforge::{
     ccas::{
-        remy::{action::Action, dna::RemyDna, point::Point, rule_tree::RuleTree},
+        remy::{action::Action, dna::RemyDna, point::Point, RemyPolicy},
         remyr::{
             dna::RemyrDna,
             net::{HiddenLayers, PolicyNet},
@@ -35,7 +35,7 @@ struct RemyrInspection {
     policy: PolicySummary,
 }
 
-fn inspect_rule_tree(rule_tree: &(impl RuleTree + Sync)) -> PolicySummary {
+fn inspect_rule_tree(rule_tree: &(impl RemyPolicy + Sync)) -> PolicySummary {
     let resolution = 100;
     let range = |min, max| {
         (0..resolution).map(move |x| (Float::from(x) / Float::from(resolution)) * (max - min) + min)

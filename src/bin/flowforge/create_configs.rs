@@ -7,7 +7,7 @@ use flowforge::{
     networks::{remy::RemyNetworkConfig, DefaultNetworkConfig},
     quantities::seconds,
     trainers::{
-        delay_multiplier::DelayMultiplierConfig, remy::RemyConfig, remyr::RemyrConfig,
+        delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
         TrainerConfig,
     },
     Config,
@@ -36,10 +36,10 @@ pub fn create_all_configs(folder: &Path) -> Result<()> {
     DefaultNetworkConfig::Remy(RemyNetworkConfig::default())
         .save(&folder.join("network/remy/default.json"))?;
 
-    TrainerConfig::Remy(RemyConfig::default()).save(&folder.join("trainer/remy/default.json"))?;
-    TrainerConfig::Remyr(RemyrConfig::default())
+    TrainerConfig::Remy(RemyTrainer::default()).save(&folder.join("trainer/remy/default.json"))?;
+    TrainerConfig::Remyr(RemyrTrainer::default())
         .save(&folder.join("trainer/remyr/default.json"))?;
-    TrainerConfig::DelayMultiplier(DelayMultiplierConfig::default())
+    TrainerConfig::DelayMultiplier(DelayMultiplierTrainer::default())
         .save(&folder.join("trainer/delay_multiplier/default.json"))?;
 
     UtilityConfig::AlphaFairness(AlphaFairness::MINIMISE_FIXED_LENGTH_FILE_TRANSFER)
