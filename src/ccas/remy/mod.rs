@@ -12,7 +12,7 @@ use crate::{
     AckReceived, Cca, CcaTemplate,
 };
 
-use self::{action::Action, dna::RemyDna, point::Point, rule_tree::DynRuleTree};
+use self::{action::Action, point::Point};
 
 pub mod action;
 pub mod cube;
@@ -63,7 +63,7 @@ impl<T> Debug for RemyCca<T> {
 
 impl<T> RemyCca<T>
 where
-    T: DynRuleTree,
+    T: DynRemyPolicy,
 {
     pub fn new(rule_tree: T, repeat_actions: Option<DiscreteDistribution<u32>>) -> RemyCca<T> {
         let settings = RemyCwndSettings::default();
@@ -121,7 +121,7 @@ impl Default for RemyCwndSettings {
 
 impl<T> Cca for RemyCca<T>
 where
-    T: DynRuleTree,
+    T: DynRemyPolicy,
 {
     fn initial_cwnd(&self, _time: Time) -> u32 {
         self.get_cwnd()
@@ -209,24 +209,24 @@ where
 }
 
 #[derive_where(Default, Debug)]
-pub struct RuleTreeCcaTemplate<T> {
+pub struct RemyCcaTemplate<T> {
     repeat_actions: Option<DiscreteDistribution<u32>>,
     rule_tree: PhantomData<T>,
 }
 
-impl<T> RuleTreeCcaTemplate<T> {
+impl<T> RemyCcaTemplate<T> {
     #[must_use]
-    pub const fn new(repeat_actions: Option<DiscreteDistribution<u32>>) -> RuleTreeCcaTemplate<T> {
-        RuleTreeCcaTemplate {
+    pub const fn new(repeat_actions: Option<DiscreteDistribution<u32>>) -> RemyCcaTemplate<T> {
+        RemyCcaTemplate {
             repeat_actions,
             rule_tree: PhantomData,
         }
     }
 }
 
-impl<T> RuleTreeCcaTemplate<T>
+impl<T> RemyCcaTemplate<T>
 where
-    T: DynRuleTree,
+    T: DynRemyPolicy,
 {
     pub fn with_not_sync(&self, policy: T) -> impl Fn() -> RemyCca<T> {
         let repeat_actions = self.repeat_actions.clone();
@@ -234,9 +234,9 @@ where
     }
 }
 
-impl<'a, T> CcaTemplate<'a> for RuleTreeCcaTemplate<T>
+impl<'a, T> CcaTemplate<'a> for RemyCcaTemplate<T>
 where
-    T: DynRuleTree + Sync + 'a,
+    T: DynRemyPolicy + Sync + 'a,
 {
     type Policy = T;
 
@@ -248,14 +248,19 @@ where
     }
 }
 
-#[derive(Default, Debug)]
-pub struct RemyCcaTemplate<'a>(RuleTreeCcaTemplate<&'a RemyDna>);
+pub trait RemyPolicy<const TESTING: bool = false>: Debug {
+    fn action(&self, point: &Point, time: Time) -> Option<Action>;
+}
 
-impl<'a> CcaTemplate<'a> for RemyCcaTemplate<'a> {
-    type Policy = &'a RemyDna;
-    type Cca = RemyCca<&'a RemyDna>;
+pub trait DynRemyPolicy: Clone {
+    fn as_ref(&self) -> &dyn RemyPolicy;
+}
 
-    fn with(&self, policy: &'a RemyDna) -> impl Fn() -> RemyCca<&'a RemyDna> + Sync {
-        self.0.with(policy)
+impl<T> DynRemyPolicy for &T
+where
+    T: RemyPolicy,
+{
+    fn as_ref(&self) -> &dyn RemyPolicy {
+        *self
     }
 }

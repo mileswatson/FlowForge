@@ -109,12 +109,12 @@ impl<D: Dna> Config<Custom> for D {
     }
 }
 
-pub trait ProgressHandler<D: Dna>: Send {
-    fn update_progress(&mut self, frac_complete: Float, current: &D);
+pub trait ProgressHandler<P>: Send {
+    fn update_progress(&mut self, frac_complete: Float, current: &P);
 }
 
-impl<D: Dna, F: FnMut(Float, &D) + Send> ProgressHandler<D> for F {
-    fn update_progress(&mut self, frac_complete: Float, current: &D) {
+impl<P, F: FnMut(Float, &P) + Send> ProgressHandler<P> for F {
+    fn update_progress(&mut self, frac_complete: Float, current: &P) {
         self(frac_complete, current);
     }
 }
@@ -171,21 +171,18 @@ pub struct PacketSent {
 }
 
 pub trait Trainer {
-    type Config: Config<Json>;
-    type Dna: Dna;
-    type CcaTemplate<'a>: CcaTemplate<'a, Policy = &'a Self::Dna>;
-
-    fn new(config: &Self::Config) -> Self;
+    type Policy: Dna;
+    type CcaTemplate<'a>: CcaTemplate<'a, Policy = &'a Self::Policy>;
 
     fn train<G, H>(
         &self,
-        starting_point: Option<Self::Dna>,
+        starting_point: Option<Self::Policy>,
         network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
         progress_handler: &mut H,
         rng: &mut Rng,
-    ) -> Self::Dna
+    ) -> Self::Policy
     where
-        H: ProgressHandler<Self::Dna>,
+        H: ProgressHandler<Self::Policy>,
         G: WithLifetime;
 }

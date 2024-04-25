@@ -3,7 +3,6 @@ use dfdx::prelude::*;
 use crate::{
     quantities::{Time, TimeSpan},
     util::rand::Wrapper,
-    CcaTemplate,
 };
 
 use self::{
@@ -11,9 +10,7 @@ use self::{
     net::{AsPolicyNetRef, ACTION, OBSERVATION},
 };
 
-use super::remy::{
-    action::Action, point::Point, rule_tree::RuleTree, RemyCca, RuleTreeCcaTemplate,
-};
+use super::remy::{action::Action, point::Point, RemyPolicy};
 
 pub mod dna;
 pub mod net;
@@ -71,20 +68,8 @@ impl RemyrDna {
     }
 }
 
-impl RuleTree for RemyrDna {
+impl RemyPolicy for RemyrDna {
     fn action(&self, point: &Point, _time: Time) -> Option<Action> {
         Some(self.deterministic_action(point))
-    }
-}
-
-#[derive(Default, Debug)]
-pub struct RemyrCcaTemplate<'a>(RuleTreeCcaTemplate<&'a RemyrDna>);
-
-impl<'a> CcaTemplate<'a> for RemyrCcaTemplate<'a> {
-    type Policy = &'a RemyrDna;
-    type Cca = RemyCca<&'a RemyrDna>;
-
-    fn with(&self, policy: &'a RemyrDna) -> impl Fn() -> RemyCca<&'a RemyrDna> + Sync {
-        self.0.with_not_sync(policy)
     }
 }

@@ -10,9 +10,7 @@ use clap::{Parser, ValueEnum};
 
 use flowforge::{
     ccas::{
-        remy::{
-            action::Action, dna::RemyDna, point::Point, rule_tree::RuleTree, RuleTreeCcaTemplate,
-        },
+        remy::{action::Action, dna::RemyDna, point::Point, RemyCcaTemplate, RemyPolicy},
         remyr::dna::RemyrDna,
     },
     eval::EvaluationConfig,
@@ -45,11 +43,11 @@ pub enum Mode {
 
 #[derive(Clone, Debug)]
 pub struct TimerWrapper<'a> {
-    dna: &'a (dyn RuleTree + Sync),
+    dna: &'a (dyn RemyPolicy + Sync),
     durations: &'a Mutex<Vec<Duration>>,
 }
 
-impl<'a> RuleTree<false> for TimerWrapper<'a> {
+impl<'a> RemyPolicy<false> for TimerWrapper<'a> {
     fn action(&self, point: &Point, time: Time) -> Option<Action> {
         let start = Instant::now();
         let action = self.dna.action(point, time);
@@ -69,7 +67,7 @@ pub fn main() {
     };
     let network = RemyNetworkConfig::default();
     let utility = AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS;
-    let cca_template = RuleTreeCcaTemplate::default();
+    let cca_template = RemyCcaTemplate::default();
     match args.mode {
         Mode::Remy => {
             let dna: RemyDna<false> = RemyDna::load(&args.dna).unwrap();

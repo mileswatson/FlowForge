@@ -55,7 +55,7 @@ where
     N: NetworkBuilder<DefaultEffect<'static>>,
     T: Trainer,
 {
-    let dna = T::Dna::load(input_path).unwrap();
+    let dna = T::Policy::load(input_path).unwrap();
     let n = rng.sample(network_config);
     let mut active_senders = Vec::new();
     let mut timestamps = Vec::new();
@@ -137,12 +137,9 @@ pub fn trace(
         FlowAdders::Remy => {
             _trace::<RemyTrainer, _>(&network_config, &utility_config, input_path, rng)
         }
-        FlowAdders::DelayMultiplier => _trace::<DelayMultiplierTrainer, _>(
-            &network_config,
-            &utility_config,
-            input_path,
-           rng,
-        ),
+        FlowAdders::DelayMultiplier => {
+            _trace::<DelayMultiplierTrainer, _>(&network_config, &utility_config, input_path, rng)
+        }
         FlowAdders::Remyr => {
             _trace::<RemyrTrainer, _>(&network_config, &utility_config, input_path, rng)
         }

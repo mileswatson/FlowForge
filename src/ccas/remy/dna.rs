@@ -5,22 +5,19 @@ use serde::Serialize;
 use crate::{quantities::Time, Dna};
 
 use super::{
-    action::Action,
-    autogen::remy_dna::WhiskerTree,
-    point::Point,
-    rule_tree::{BaseRuleTree, RuleTree},
+    action::Action, autogen::remy_dna::WhiskerTree, point::Point, rule_tree::RuleTree, RemyPolicy,
 };
 
 #[derive(Debug, PartialEq, Serialize)]
 pub struct RemyDna<const TESTING: bool = false> {
-    pub tree: BaseRuleTree<TESTING>,
+    pub tree: RuleTree<TESTING>,
 }
 
 impl RemyDna {
     #[must_use]
     pub fn default(action: Action) -> Self {
         RemyDna {
-            tree: BaseRuleTree::default(action),
+            tree: RuleTree::default(action),
         }
     }
 }
@@ -33,12 +30,12 @@ impl<const TESTING: bool> Dna for RemyDna<TESTING> {
 
     fn deserialize(buf: &[u8]) -> Result<RemyDna<TESTING>> {
         Ok(RemyDna {
-            tree: BaseRuleTree::<TESTING>::from_whisker_tree(&WhiskerTree::parse_from_bytes(buf)?),
+            tree: RuleTree::<TESTING>::from_whisker_tree(&WhiskerTree::parse_from_bytes(buf)?),
         })
     }
 }
 
-impl RuleTree for RemyDna {
+impl RemyPolicy for RemyDna {
     fn action(&self, point: &Point, time: Time) -> Option<Action> {
         self.tree.action(point, time)
     }

@@ -1,18 +1,13 @@
 use std::{
     fmt::{Debug, Display},
-    iter::successors,
     ops::{Add, Mul},
 };
 
 use format_num::format_num;
-use itertools::Itertools;
 use protobuf::MessageField;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    quantities::{milliseconds, seconds, Float, TimeSpan},
-    trainers::remy::RemyConfig,
-};
+use crate::quantities::{milliseconds, seconds, Float, TimeSpan};
 
 use super::{
     autogen::remy_dna::{MemoryRange, Whisker},
@@ -44,70 +39,7 @@ impl<const TESTING: bool> Display for Action<TESTING> {
     }
 }
 
-fn changes<T, U>(
-    initial_change: T,
-    max_change: T,
-    multiplier: i32,
-) -> impl Iterator<Item = T> + Clone
-where
-    T: PartialOrd + Copy + 'static,
-    U: From<i32> + Mul<T, Output = T>,
-{
-    successors(Some(initial_change), move |x| {
-        Some(U::from(multiplier) * *x)
-    })
-    .take_while(move |x| x <= &max_change)
-    .flat_map(|x| [x, U::from(-1) * x])
-}
-
 impl<const TESTING: bool> Action<TESTING> {
-    pub fn possible_improvements<'a>(
-        &self,
-        RemyConfig {
-            initial_action_change,
-            max_action_change,
-            action_change_multiplier,
-            min_action,
-            max_action,
-            ..
-        }: &'a RemyConfig,
-    ) -> impl Iterator<Item = Action> + 'a {
-        let cloned = self.clone();
-        changes::<Float, Float>(
-            initial_action_change.window_multiplier,
-            max_action_change.window_multiplier,
-            *action_change_multiplier,
-        )
-        .cartesian_product(changes::<i32, i32>(
-            initial_action_change.window_increment,
-            max_action_change.window_increment,
-            *action_change_multiplier,
-        ))
-        .cartesian_product(changes::<TimeSpan, Float>(
-            initial_action_change.intersend_delay,
-            max_action_change.intersend_delay,
-            *action_change_multiplier,
-        ))
-        .map(
-            move |((window_multiplier, window_increment), intersend_ms)| {
-                &cloned
-                    + &Action::<TESTING> {
-                        window_multiplier,
-                        window_increment,
-                        intersend_delay: intersend_ms,
-                    }
-            },
-        )
-        .filter(move |x| {
-            min_action.window_multiplier <= x.window_multiplier
-                && x.window_multiplier <= max_action.window_multiplier
-                && min_action.window_increment <= x.window_increment
-                && x.window_increment <= max_action.window_increment
-                && min_action.intersend_delay <= x.intersend_delay
-                && x.intersend_delay <= max_action.intersend_delay
-        })
-    }
-
     #[must_use]
     pub fn from_whisker(whisker: &MessageField<Whisker>) -> Action<TESTING> {
         Action {

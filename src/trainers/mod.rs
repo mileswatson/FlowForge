@@ -6,7 +6,7 @@ use crate::{
     util::{never::Never, WithLifetime},
 };
 
-use self::{delay_multiplier::DelayMultiplierConfig, remy::RemyConfig, remyr::RemyrConfig};
+use self::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer};
 
 pub mod delay_multiplier;
 pub mod genetic;
@@ -16,9 +16,9 @@ pub mod remyr;
 #[derive(Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TrainerConfig {
-    Remy(RemyConfig),
-    Remyr(RemyrConfig),
-    DelayMultiplier(DelayMultiplierConfig),
+    Remy(RemyTrainer),
+    Remyr(RemyrTrainer),
+    DelayMultiplier(DelayMultiplierTrainer),
 }
 
 #[derive(From, TryInto)]
