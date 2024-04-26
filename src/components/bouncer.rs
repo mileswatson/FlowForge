@@ -1,9 +1,9 @@
 use derive_where::derive_where;
 
 use crate::{
-    util::logging::Logger,
     quantities::Time,
-    simulation::{Component, EffectContext, Message},
+    simulation::{Component, Message},
+    util::logging::Logger,
 };
 
 use super::packet::{Packet, PacketAddress};
@@ -26,11 +26,11 @@ where
 {
     type Receive = Packet<'sim, E>;
 
-    fn tick(&mut self, _: EffectContext) -> Vec<Message<'sim, E>> {
+    fn tick(&mut self, _: Time) -> Vec<Message<'sim, E>> {
         vec![]
     }
 
-    fn receive(&mut self, packet: Self::Receive, _: EffectContext) -> Vec<Message<'sim, E>> {
+    fn receive(&mut self, packet: Self::Receive, _: Time) -> Vec<Message<'sim, E>> {
         let seq = packet.seq;
         let message = self.link.create_message(Packet {
             source: packet.destination,

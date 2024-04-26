@@ -95,16 +95,11 @@ impl<'sim, E> Message<'sim, E> {
     }
 }
 
-#[derive(Debug)]
-pub struct EffectContext {
-    pub time: Time,
-}
-
 pub trait Component<'sim, E>: Debug {
     type Receive;
     fn next_tick(&self, time: Time) -> Option<Time>;
-    fn tick(&mut self, context: EffectContext) -> Vec<Message<'sim, E>>;
-    fn receive(&mut self, e: Self::Receive, context: EffectContext) -> Vec<Message<'sim, E>>;
+    fn tick(&mut self, time: Time) -> Vec<Message<'sim, E>>;
+    fn receive(&mut self, e: Self::Receive, time: Time) -> Vec<Message<'sim, E>>;
 }
 
 #[derive(Debug)]
@@ -275,22 +270,22 @@ where
         }
     }
 
-    fn tick(&mut self, context: EffectContext) -> Vec<Message<'sim, E>> {
+    fn tick(&mut self, time: Time) -> Vec<Message<'sim, E>> {
         match self {
-            DynComponent::Owned(x) => x.tick(context),
-            DynComponent::Shared(x) => x.borrow_mut().tick(context),
-            DynComponent::Ref(x) => x.tick(context),
+            DynComponent::Owned(x) => x.tick(time),
+            DynComponent::Shared(x) => x.borrow_mut().tick(time),
+            DynComponent::Ref(x) => x.tick(time),
         }
     }
 
-    fn receive(&mut self, e: E, context: EffectContext) -> Vec<Message<'sim, E>> {
+    fn receive(&mut self, e: E, time: Time) -> Vec<Message<'sim, E>> {
         let e = e
             .try_into()
             .map_or_else(|_| panic!("Incorrect message type!"), |x| x);
         match self {
-            DynComponent::Owned(x) => x.receive(e, context),
-            DynComponent::Shared(x) => x.borrow_mut().receive(e, context),
-            DynComponent::Ref(x) => x.receive(e, context),
+            DynComponent::Owned(x) => x.receive(e, time),
+            DynComponent::Shared(x) => x.borrow_mut().receive(e, time),
+            DynComponent::Ref(x) => x.receive(e, time),
         }
     }
 }
@@ -314,7 +309,7 @@ where
         {
             assert_eq!(component_id.sim_id, self.id);
             let component = &mut self.components[component_id.index];
-            let messages = component.receive(effect, EffectContext { time });
+            let messages = component.receive(effect, time);
             let next_tick = component.next_tick(time);
             self.tick_queue.update(component_id.index, next_tick);
             effects.push_all(messages);
@@ -328,7 +323,7 @@ where
         effects: &mut EffectQueue<'sim, E>,
     ) {
         let component = &mut self.components[component_id.index];
-        let messages = component.tick(EffectContext { time });
+        let messages = component.tick(time);
         let next_tick = component.next_tick(time);
         self.tick_queue.update(component_id.index, next_tick);
         effects.push_all(messages);

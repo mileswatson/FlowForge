@@ -8,7 +8,7 @@ use crate::{
         toggler::Toggle,
     },
     quantities::{earliest_opt, Time},
-    simulation::{Component, EffectContext, Message},
+    simulation::{Component, Message},
     util::{logging::Logger, meters::FlowMeter, rand::Rng},
     AckReceived, Cca, PacketSent,
 };
@@ -125,7 +125,7 @@ where
         }
     }
 
-    fn receive_toggle(&mut self, toggle: Toggle, EffectContext { time, .. }: EffectContext) {
+    fn receive_toggle(&mut self, toggle: Toggle, time: Time) {
         match (&mut self.state, toggle) {
             (State::WaitingForEnable(Disabled { packets_sent, .. }), Toggle::Enable) => {
                 log!(self.logger, "Enabled");
@@ -144,11 +144,7 @@ where
         }
     }
 
-    fn receive_packet(
-        &mut self,
-        packet: &Packet<'sim, E>,
-        EffectContext { time, .. }: EffectContext,
-    ) {
+    fn receive_packet(&mut self, packet: &Packet<'sim, E>, time: Time) {
         match &mut self.state {
             State::WaitingForEnable(_) => {
                 log!(
@@ -203,7 +199,7 @@ where
         }
     }
 
-    fn tick(&mut self, EffectContext { time }: EffectContext) -> Vec<Message<'sim, E>> {
+    fn tick(&mut self, time: Time) -> Vec<Message<'sim, E>> {
         match &mut self.state {
             State::Enabled(s) => {
                 if s.cca.next_tick(time) == Some(time) {
@@ -239,10 +235,10 @@ where
         }
     }
 
-    fn receive(&mut self, e: Self::Receive, ctx: EffectContext) -> Vec<Message<'sim, E>> {
+    fn receive(&mut self, e: Self::Receive, time: Time) -> Vec<Message<'sim, E>> {
         match e {
-            LossySenderEffect::Packet(packet) => self.receive_packet(&packet, ctx),
-            LossySenderEffect::Toggle(toggle) => self.receive_toggle(toggle, ctx),
+            LossySenderEffect::Packet(packet) => self.receive_packet(&packet, time),
+            LossySenderEffect::Toggle(toggle) => self.receive_toggle(toggle, time),
         }
         vec![]
     }

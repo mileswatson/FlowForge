@@ -1,10 +1,10 @@
 use derive_where::derive_where;
 
 use crate::{
+    quantities::{Time, TimeSpan},
+    simulation::{Address, Component, Message},
     util::never::Never,
     util::rand::{PositiveContinuousDistribution, Rng},
-    quantities::{Time, TimeSpan},
-    simulation::{Address, Component, EffectContext, Message},
 };
 
 #[derive(PartialEq, Eq, Debug)]
@@ -45,13 +45,10 @@ impl<'sim, E> Toggler<'sim, E> {
 impl<'sim, E> Component<'sim, E> for Toggler<'sim, E> {
     type Receive = Never;
 
-    fn tick(&mut self, context: EffectContext) -> Vec<Message<'sim, E>> {
-        assert_eq!(
-            Some(context.time),
-            Component::<E>::next_tick(self, context.time)
-        );
+    fn tick(&mut self, time: Time) -> Vec<Message<'sim, E>> {
+        assert_eq!(Some(time), Component::<E>::next_tick(self, time));
         let mut effects = Vec::new();
-        if context.time == self.next_toggle {
+        if time == self.next_toggle {
             self.enabled = !self.enabled;
             let dist = if self.enabled {
                 effects.push(self.target.create_message(Toggle::Enable));
@@ -60,12 +57,12 @@ impl<'sim, E> Component<'sim, E> for Toggler<'sim, E> {
                 effects.push(self.target.create_message(Toggle::Disable));
                 &self.off_distribution
             };
-            self.next_toggle = context.time + self.rng.sample(dist);
+            self.next_toggle = time + self.rng.sample(dist);
         }
         effects
     }
 
-    fn receive(&mut self, _e: Never, _context: EffectContext) -> Vec<Message<'sim, E>> {
+    fn receive(&mut self, _e: Never, _time: Time) -> Vec<Message<'sim, E>> {
         panic!()
     }
 

@@ -6,7 +6,7 @@ use crate::{
     util::logging::Logger,
     util::rand::{ContinuousDistribution, Rng},
     quantities::{earliest_opt, latest, Information, InformationRate, Time, TimeSpan},
-    simulation::{Component, EffectContext, Message},
+    simulation::{Component, Message},
 };
 
 use super::packet::Packet;
@@ -100,7 +100,7 @@ where
 {
     type Receive = Packet<'sim, E>;
 
-    fn tick(&mut self, EffectContext { time, .. }: EffectContext) -> Vec<Message<'sim, E>> {
+    fn tick(&mut self, time: Time) -> Vec<Message<'sim, E>> {
         assert_eq!(Some(time), Component::next_tick(self, time));
         let mut effects = Vec::new();
         if let Some(msg) = self.try_deliver(time) {
@@ -110,7 +110,7 @@ where
         effects
     }
 
-    fn receive(&mut self, packet: Self::Receive, _ctx: EffectContext) -> Vec<Message<'sim, E>> {
+    fn receive(&mut self, packet: Self::Receive, _time: Time) -> Vec<Message<'sim, E>> {
         if self
             .buffer_size
             .is_some_and(|limit| self.buffer_contains + packet.size() > limit)
