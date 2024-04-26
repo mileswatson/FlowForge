@@ -49,16 +49,15 @@ where
     type Dna = T::Policy;
     type CcaTemplate<'a> = T::CcaTemplate<'a>;
 
-    fn train<G, H>(
+    fn train<G>(
         &self,
         starting_point: Option<T::Policy>,
         network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
-        progress_handler: &mut H,
+        progress_handler: &mut impl ProgressHandler<Self::Dna>,
         rng: &mut Rng,
     ) -> T::Policy
     where
-        H: ProgressHandler<T::Policy>,
         G: WithLifetime,
     {
         assert!(

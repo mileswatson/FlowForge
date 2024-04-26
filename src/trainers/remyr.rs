@@ -33,7 +33,7 @@ use crate::{
         rand::{ContinuousDistribution, DiscreteDistribution, Rng},
         WithLifetime,
     },
-    NetworkBuilder, NetworkConfig, Trainer,
+    NetworkBuilder, NetworkConfig, ProgressHandler, Trainer,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -410,17 +410,16 @@ impl Trainer for RemyrTrainer {
     type CcaTemplate<'a> = RemyCcaTemplate<&'a RemyrDna>;
 
     #[allow(clippy::too_many_lines)]
-    fn train<G, H>(
+    fn train<G>(
         &self,
         starting_point: Option<Self::Dna>,
         network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
-        progress_handler: &mut H,
+        progress_handler: &mut impl ProgressHandler<Self::Dna>,
         rng: &mut crate::util::rand::Rng,
     ) -> Self::Dna
     where
         G: WithLifetime,
-        H: crate::ProgressHandler<Self::Dna>,
     {
         assert!(
             starting_point.is_none(),
@@ -601,7 +600,7 @@ mod tests {
             ..RemyrTrainer::default()
         };
         let mut rng = Rng::from_seed(5_243_533);
-        let result = trainer.train::<DefaultEffect, _>(
+        let result = trainer.train::<DefaultEffect>(
             None,
             &DefaultNetworkConfig::default(),
             &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,

@@ -109,7 +109,7 @@ pub fn _train<T>(
                     print!("Evaluating... ");
                     io::stdout().flush().unwrap();
                     let (utility, props) = evaluation_config
-                        .evaluate::<_, DefaultEffect<'static>, _>(
+                        .evaluate::<_, DefaultEffect, _>(
                             &T::CcaTemplate::default().with(dna),
                             network_config,
                             utility_config,

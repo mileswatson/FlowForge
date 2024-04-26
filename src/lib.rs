@@ -174,15 +174,14 @@ pub trait Trainer {
     type Dna: Dna;
     type CcaTemplate<'a>: CcaTemplate<'a, Policy = &'a Self::Dna>;
 
-    fn train<G, H>(
+    fn train<G>(
         &self,
         starting_point: Option<Self::Dna>,
         network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
-        progress_handler: &mut H,
+        progress_handler: &mut impl ProgressHandler<Self::Dna>,
         rng: &mut Rng,
     ) -> Self::Dna
     where
-        H: ProgressHandler<Self::Dna>,
         G: WithLifetime;
 }

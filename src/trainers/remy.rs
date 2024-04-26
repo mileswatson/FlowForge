@@ -153,12 +153,12 @@ impl Trainer for RemyTrainer {
     type CcaTemplate<'a> = RemyCcaTemplate<&'a RemyDna>;
 
     #[allow(clippy::too_many_lines)]
-    fn train<G: WithLifetime, H: ProgressHandler<RemyDna>>(
+    fn train<G: WithLifetime>(
         &self,
         starting_point: Option<RemyDna>,
         network_config: &impl NetworkConfig<G>,
         utility_function: &dyn UtilityFunction,
-        progress_handler: &mut H,
+        progress_handler: &mut impl ProgressHandler<Self::Dna>,
         rng: &mut Rng,
     ) -> RemyDna {
         let new_eval_rng = rng.identical_child_factory();
@@ -304,7 +304,7 @@ mod tests {
             },
             ..RemyTrainer::default()
         };
-        let result = trainer.train::<DefaultEffect<'static>, _>(
+        let result = trainer.train::<DefaultEffect>(
             None,
             &DefaultNetworkConfig::default(),
             &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
