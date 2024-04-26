@@ -63,20 +63,18 @@ pub fn _train<T>(
     T: Trainer + Serialize + Sync,
 {
     assert!(T::Dna::valid_path(dna_path));
-    let starting_point = if force {
-        None
-    } else {
-        T::Dna::load(dna_path).ok().and_then(|d| loop {
-        let mut buf = String::new();
-        println!("There is already valid DNA in the output path. Would you like to use it as a starting point? Y/N");
-        std::io::stdin().read_line(&mut buf).unwrap();
-        if buf.to_lowercase().trim() == "y" {
-            return Some(d)
-        } else if buf.to_lowercase().trim() == "n" { 
-            return None
+    if dna_path.exists() && !force {
+        loop {
+            let mut buf = String::new();
+            println!("There is already DNA in the output path. Are you sure you want to overwrite it? y/n");
+            std::io::stdin().read_line(&mut buf).unwrap();
+            if buf.to_lowercase().trim() == "y" {
+                break;
+            } else if buf.to_lowercase().trim() == "n" {
+                return;
+            }
         }
-    })
-    };
+    }
     let mut output_file = evaluation_config
         .as_ref()
         .and_then(|x| x.2)
@@ -91,7 +89,6 @@ pub fn _train<T>(
     let mut best_score: Float = Float::MIN;
     trainer
         .train(
-            starting_point,
             network_config,
             utility_config,
             &mut |frac: Float, dna: &T::Dna| {

@@ -176,9 +176,8 @@ pub trait Trainer {
 
     fn train<G>(
         &self,
-        starting_point: Option<Self::Dna>,
         network_config: &impl NetworkConfig<G>,
-        utility_function: &dyn UtilityFunction,
+        utility_function: &impl UtilityFunction,
         progress_handler: &mut impl ProgressHandler<Self::Dna>,
         rng: &mut Rng,
     ) -> Self::Dna

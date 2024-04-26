@@ -63,7 +63,7 @@ impl<T> Debug for RemyCca<T> {
 
 impl<T> RemyCca<T>
 where
-    T: DynRemyPolicy,
+    T: RemyPolicy,
 {
     pub fn new(rule_tree: T, repeat_actions: Option<DiscreteDistribution<u32>>) -> RemyCca<T> {
         let settings = RemyCwndSettings::default();
@@ -91,7 +91,6 @@ where
 
     fn action(&self, time: Time) -> Action {
         self.rule_tree
-            .as_ref()
             .action(&self.point(), time)
             .unwrap_or_else(|| panic!("Expected {} to map to an action", self.point()))
     }
@@ -121,7 +120,7 @@ impl Default for RemyCwndSettings {
 
 impl<T> Cca for RemyCca<T>
 where
-    T: DynRemyPolicy,
+    T: RemyPolicy,
 {
     fn initial_cwnd(&self, _time: Time) -> u32 {
         self.get_cwnd()
@@ -223,7 +222,7 @@ impl<T> RemyCcaTemplate<T> {
 
 impl<T> RemyCcaTemplate<T>
 where
-    T: DynRemyPolicy,
+    T: RemyPolicy + Clone,
 {
     pub fn with_not_sync(&self, policy: T) -> impl Fn() -> RemyCca<T> {
         let repeat_actions = self.repeat_actions.clone();
@@ -233,7 +232,7 @@ where
 
 impl<'a, T> CcaTemplate<'a> for RemyCcaTemplate<T>
 where
-    T: DynRemyPolicy + Sync + 'a,
+    T: RemyPolicy + Clone + Sync + 'a,
 {
     type Policy = T;
 
@@ -249,15 +248,11 @@ pub trait RemyPolicy<const TESTING: bool = false>: Debug {
     fn action(&self, point: &Point, time: Time) -> Option<Action>;
 }
 
-pub trait DynRemyPolicy: Clone {
-    fn as_ref(&self) -> &dyn RemyPolicy;
-}
-
-impl<T> DynRemyPolicy for &T
+impl<T> RemyPolicy for &T
 where
     T: RemyPolicy,
 {
-    fn as_ref(&self) -> &dyn RemyPolicy {
-        *self
+    fn action(&self, point: &Point, time: Time) -> Option<Action> {
+        T::action(self, point, time)
     }
 }

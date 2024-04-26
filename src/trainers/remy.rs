@@ -155,9 +155,8 @@ impl Trainer for RemyTrainer {
     #[allow(clippy::too_many_lines)]
     fn train<G: WithLifetime>(
         &self,
-        starting_point: Option<RemyDna>,
         network_config: &impl NetworkConfig<G>,
-        utility_function: &dyn UtilityFunction,
+        utility_function: &impl UtilityFunction,
         progress_handler: &mut impl ProgressHandler<Self::Dna>,
         rng: &mut Rng,
     ) -> RemyDna {
@@ -184,8 +183,7 @@ impl Trainer for RemyTrainer {
                 )
                 .expect("Simulation to have active flows")
         };
-        let mut dna =
-            starting_point.unwrap_or_else(|| RemyDna::default(self.default_action.clone()));
+        let mut dna = RemyDna::default(self.default_action.clone());
         for i in 0..=self.rule_splits {
             let frac = f64::from(i) / f64::from(self.rule_splits + 1);
             progress_handler.update_progress(frac, &dna);
@@ -305,7 +303,6 @@ mod tests {
             ..RemyTrainer::default()
         };
         let result = trainer.train::<DefaultEffect>(
-            None,
             &DefaultNetworkConfig::default(),
             &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
             &mut |_, _: &RemyDna| {},

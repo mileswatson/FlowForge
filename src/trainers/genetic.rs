@@ -51,19 +51,14 @@ where
 
     fn train<G>(
         &self,
-        starting_point: Option<T::Policy>,
         network_config: &impl NetworkConfig<G>,
-        utility_function: &dyn UtilityFunction,
+        utility_function: &impl UtilityFunction,
         progress_handler: &mut impl ProgressHandler<Self::Dna>,
         rng: &mut Rng,
     ) -> T::Policy
     where
         G: WithLifetime,
     {
-        assert!(
-            starting_point.is_none(),
-            "Starting point not supported for genetic trainer!"
-        );
         let config = self.genetic_config();
         let mut population = (0..config.population_size)
             .map(|_| T::Policy::new_random(rng))

@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     ccas::{
-        remy::{action::Action, point::Point, DynRemyPolicy, RemyCcaTemplate, RemyPolicy},
+        remy::{action::Action, point::Point, RemyCcaTemplate, RemyPolicy},
         remyr::{
             dna::RemyrDna,
             net::{
@@ -264,16 +264,6 @@ pub struct RolloutWrapper<'a, F, S> {
     f: &'a F,
 }
 
-impl<'a, F, S> DynRemyPolicy for RolloutWrapper<'a, F, S>
-where
-    F: Fn(Record, Time),
-    S: Fn() -> usize,
-{
-    fn as_ref(&self) -> &dyn RemyPolicy {
-        self
-    }
-}
-
 impl<'a, F, S> std::fmt::Debug for RolloutWrapper<'a, F, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RolloutWrapper")
@@ -412,19 +402,14 @@ impl Trainer for RemyrTrainer {
     #[allow(clippy::too_many_lines)]
     fn train<G>(
         &self,
-        starting_point: Option<Self::Dna>,
         network_config: &impl NetworkConfig<G>,
-        utility_function: &dyn UtilityFunction,
+        utility_function: &impl UtilityFunction,
         progress_handler: &mut impl ProgressHandler<Self::Dna>,
         rng: &mut crate::util::rand::Rng,
     ) -> Self::Dna
     where
         G: WithLifetime,
     {
-        assert!(
-            starting_point.is_none(),
-            "Starting point not supported for remyr trainer!"
-        );
         let dev = AutoDevice::default();
         let mut nets = dev.build_module((
             self.hidden_layers.policy_arch(),
@@ -601,7 +586,6 @@ mod tests {
         };
         let mut rng = Rng::from_seed(5_243_533);
         let result = trainer.train::<DefaultEffect>(
-            None,
             &DefaultNetworkConfig::default(),
             &AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS,
             &mut |_: Float, _: &RemyrDna| {},
