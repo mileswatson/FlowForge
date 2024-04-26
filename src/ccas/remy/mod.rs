@@ -132,23 +132,20 @@ where
             .map(|t| time.max(t + self.current_settings.intersend_delay))
     }
 
-    fn tick<L: Logger>(&mut self, _rng: &mut Rng, _logger: &mut L) -> u32 {
+    fn tick(&mut self, _rng: &mut Rng, _logger: &mut impl Logger) -> u32 {
         self.last_send = None;
         self.get_cwnd()
     }
 
-    fn ack_received<L>(
+    fn ack_received(
         &mut self,
         AckReceived {
             sent_time,
             received_time,
         }: AckReceived,
         rng: &mut Rng,
-        logger: &mut L,
-    ) -> u32
-    where
-        L: Logger,
-    {
+        logger: &mut impl Logger,
+    ) -> u32 {
         if let Some(last_ack) = self.last_ack {
             self.ack_ewma.update(received_time - last_ack);
         }
@@ -197,11 +194,11 @@ where
         self.get_cwnd()
     }
 
-    fn packet_sent<L: Logger>(
+    fn packet_sent(
         &mut self,
         packet: crate::PacketSent,
         _rng: &mut Rng,
-        _logger: &mut L,
+        _logger: &mut impl Logger,
     ) -> u32 {
         self.last_send = Some(packet.sent_time);
         self.get_cwnd()

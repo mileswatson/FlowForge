@@ -148,11 +148,11 @@ pub trait Cca: Debug {
     fn initial_cwnd(&self, time: Time) -> u32;
     fn next_tick(&self, time: Time) -> Option<Time>;
     #[must_use]
-    fn tick<L: Logger>(&mut self, rng: &mut Rng, logger: &mut L) -> u32;
+    fn tick(&mut self, rng: &mut Rng, logger: &mut impl Logger) -> u32;
     #[must_use]
-    fn packet_sent<L: Logger>(&mut self, packet: PacketSent, rng: &mut Rng, logger: &mut L) -> u32;
+    fn packet_sent(&mut self, packet: PacketSent, rng: &mut Rng, logger: &mut impl Logger) -> u32;
     #[must_use]
-    fn ack_received<L: Logger>(&mut self, ack: AckReceived, rng: &mut Rng, logger: &mut L) -> u32;
+    fn ack_received(&mut self, ack: AckReceived, rng: &mut Rng, logger: &mut impl Logger) -> u32;
 }
 
 pub trait CcaTemplate<'a>: Default + Debug {

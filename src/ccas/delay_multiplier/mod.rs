@@ -37,34 +37,31 @@ impl Cca for DelayMultiplierCca {
         })
     }
 
-    fn tick<L: Logger>(&mut self, _rng: &mut Rng, _logger: &mut L) -> u32 {
+    fn tick(&mut self, _rng: &mut Rng, _logger: &mut impl Logger) -> u32 {
         self.last_send = None;
         1
     }
 
-    fn ack_received<L>(
+    fn ack_received(
         &mut self,
         AckReceived {
             sent_time,
             received_time,
         }: AckReceived,
         _rng: &mut Rng,
-        logger: &mut L,
-    ) -> u32
-    where
-        L: Logger,
-    {
+        logger: &mut impl Logger,
+    ) -> u32 {
         let rtt = self.rtt.update(received_time - sent_time);
         let intersend_delay = self.multiplier * rtt;
         log!(logger, "Updated intersend_delay to {}", intersend_delay);
         0
     }
 
-    fn packet_sent<L: Logger>(
+    fn packet_sent(
         &mut self,
         packet: PacketSent,
         _rng: &mut Rng,
-        _logger: &mut L,
+        _logger: &mut impl Logger,
     ) -> u32 {
         self.last_send = Some(packet.sent_time);
         0
