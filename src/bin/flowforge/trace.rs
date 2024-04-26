@@ -10,7 +10,7 @@ use flowforge::{
         delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
         DefaultEffect,
     },
-    util::{logging::NothingLogger, meters::CurrentFlowMeter, never::Never, rand::Rng},
+    util::{logging::NothingLogger, meters::CurrentFlowMeter, rand::Rng},
     CcaTemplate, Config, Network, NetworkDistribution, Trainer,
 };
 use generativity::make_guard;
@@ -66,41 +66,38 @@ where
     let cca_template = T::CcaTemplate::default();
     let cca_gen = cca_template.with(&dna);
     let builder = SimulatorBuilder::new(guard);
-    builder.insert(DynComponent::<Never, _>::new(Ticker::new(
-        milliseconds(1.),
-        |time| {
-            timestamps.push((time - Time::SIM_START).seconds());
-            let properties = flows
-                .iter()
-                .map(|x: &RefCell<_>| x.borrow().current_properties(time))
-                .collect_vec();
-            let active_properties = properties
-                .iter()
-                .filter_map(|x| x.clone().ok())
-                .collect_vec();
-            active_senders.push(active_properties.len());
-            flows
-                .iter()
-                .zip(properties)
-                .map(|(f, p)| {
-                    (
-                        f.borrow().current_bandwidth(time),
-                        f.borrow().current_rtt(time).unwrap_or(seconds(Float::NAN)),
-                        p.map(|p| utility_config.utility(&[p]).unwrap())
-                            .unwrap_or(Float::NAN),
-                    )
-                })
-                .enumerate()
-                .for_each(|(i, (throughput, rtt, utility))| {
-                    result_flows.borrow_mut()[i].add(throughput, rtt, utility)
-                });
-            aggregate_utility.push(
-                utility_config
-                    .utility(&active_properties)
-                    .unwrap_or(Float::NAN),
-            );
-        },
-    )));
+    builder.insert(DynComponent::Owned(Ticker::new(milliseconds(1.), |time| {
+        timestamps.push((time - Time::SIM_START).seconds());
+        let properties = flows
+            .iter()
+            .map(|x: &RefCell<_>| x.borrow().current_properties(time))
+            .collect_vec();
+        let active_properties = properties
+            .iter()
+            .filter_map(|x| x.clone().ok())
+            .collect_vec();
+        active_senders.push(active_properties.len());
+        flows
+            .iter()
+            .zip(properties)
+            .map(|(f, p)| {
+                (
+                    f.borrow().current_bandwidth(time),
+                    f.borrow().current_rtt(time).unwrap_or(seconds(Float::NAN)),
+                    p.map(|p| utility_config.utility(&[p]).unwrap())
+                        .unwrap_or(Float::NAN),
+                )
+            })
+            .enumerate()
+            .for_each(|(i, (throughput, rtt, utility))| {
+                result_flows.borrow_mut()[i].add(throughput, rtt, utility)
+            });
+        aggregate_utility.push(
+            utility_config
+                .utility(&active_properties)
+                .unwrap_or(Float::NAN),
+        );
+    })));
     let new_flow = || {
         let index = flows.push(RefCell::new(CurrentFlowMeter::new_disabled(
             Time::SIM_START,

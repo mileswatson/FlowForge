@@ -70,7 +70,7 @@ where
         F: FlowMeter + 'a,
         'sim: 'a,
     {
-        let sender_link_id = builder.insert(DynComponent::new(Link::create(
+        let sender_link_id = builder.insert(DynComponent::Owned(Link::create(
             self.rtt,
             self.packet_rate,
             self.loss_rate,
@@ -82,7 +82,7 @@ where
             let slot = builder.reserve_slot();
             let address = slot.address();
             let packet_address = address.clone().cast();
-            slot.set(DynComponent::new(LossySender::new(
+            slot.set(DynComponent::Owned(LossySender::new(
                 packet_address.clone(),
                 sender_link_id.clone(),
                 packet_address,
@@ -92,7 +92,7 @@ where
                 rng.create_child(),
                 NothingLogger,
             )));
-            builder.insert(DynComponent::new(Toggler::new(
+            builder.insert(DynComponent::Owned(Toggler::new(
                 address.cast(),
                 self.on_time.clone(),
                 self.off_time.clone(),

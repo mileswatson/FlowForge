@@ -1,7 +1,7 @@
 use derive_where::derive_where;
 use generativity::{Guard, Id};
 use itertools::Itertools;
-use std::{cell::RefCell, collections::VecDeque, fmt::Debug, marker::PhantomData, rc::Rc};
+use std::{cell::RefCell, collections::VecDeque, fmt::Debug, rc::Rc};
 use vec_map::VecMap;
 
 use crate::{quantities::Time, util::logging::Logger};
@@ -10,39 +10,11 @@ pub trait HasSubEffect<P>: From<P> + TryInto<P> {}
 
 impl<E, P> HasSubEffect<P> for E where E: From<P> + TryInto<P> {}
 
-#[derive_where(Debug)]
-pub enum DynComponent<'sim, 'a, P, E> {
-    Owned(Box<dyn Component<'sim, E, Receive = P> + 'a>),
-    Shared(Rc<RefCell<dyn Component<'sim, E, Receive = P> + 'a>>),
-    Ref(&'a mut (dyn Component<'sim, E, Receive = P> + 'a)),
-}
-
-impl<'sim, 'a, P, E> DynComponent<'sim, 'a, P, E> {
-    #[must_use]
-    pub fn new<T: Component<'sim, E, Receive = P> + 'a>(value: T) -> DynComponent<'sim, 'a, P, E> {
-        DynComponent::Owned(Box::new(value))
-    }
-
-    #[must_use]
-    pub fn owned(
-        value: Box<dyn Component<'sim, E, Receive = P> + 'a>,
-    ) -> DynComponent<'sim, 'a, P, E> {
-        DynComponent::Owned(value)
-    }
-
-    #[must_use]
-    pub fn shared(
-        value: Rc<RefCell<dyn Component<'sim, E, Receive = P> + 'a>>,
-    ) -> DynComponent<'sim, 'a, P, E> {
-        DynComponent::Shared(value)
-    }
-
-    #[must_use]
-    pub fn reference(
-        value: &'a mut (dyn Component<'sim, E, Receive = P> + 'a),
-    ) -> DynComponent<'sim, 'a, P, E> {
-        DynComponent::Ref(value)
-    }
+#[derive(Debug)]
+pub enum DynComponent<'a, C> {
+    Owned(C),
+    Shared(Rc<RefCell<C>>),
+    Ref(&'a mut C),
 }
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
@@ -201,27 +173,27 @@ impl<'sim, E> EffectQueue<'sim, E> {
     }
 }
 
-pub struct ComponentSlot<'sim, 'a, 'b, P, E> {
+pub struct ComponentSlot<'sim, 'a, 'b, C, E>
+where
+    C: Component<'sim, E>,
+{
     index: usize,
     builder: &'b SimulatorBuilder<'sim, 'a, E>,
-    receive: PhantomData<P>,
-    address: Address<'sim, P, E>,
+    address: Address<'sim, C::Receive, E>,
 }
 
-impl<'sim, 'a, 'b, P, E> ComponentSlot<'sim, 'a, 'b, P, E>
+impl<'sim, 'a, 'b, C, E> ComponentSlot<'sim, 'a, 'b, C, E>
 where
-    E: HasSubEffect<P>,
+    C: Component<'sim, E>,
+    E: HasSubEffect<C::Receive>,
 {
     #[must_use]
-    pub fn address(&self) -> Address<'sim, P, E>
-    where
-        E: HasSubEffect<P>,
-    {
+    pub fn address(&self) -> Address<'sim, C::Receive, E> {
         self.address.clone()
     }
 
     #[allow(clippy::must_use_candidate)]
-    pub fn set(self, component: DynComponent<'sim, 'a, P, E>) -> Address<'sim, P, E> {
+    pub fn set(self, component: DynComponent<'a, C>) -> Address<'sim, C::Receive, E> {
         let mut components = self.builder.components.borrow_mut();
         assert!(components[self.index].is_none());
         components[self.index] = Some(Box::new(component));
@@ -244,10 +216,11 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         }
     }
 
-    pub fn insert<P>(&self, component: DynComponent<'sim, 'a, P, E>) -> Address<'sim, P, E>
+    pub fn insert<C>(&self, component: DynComponent<'a, C>) -> Address<'sim, C::Receive, E>
     where
-        P: 'sim,
-        E: HasSubEffect<P> + 'sim,
+        C: Component<'sim, E>,
+        C::Receive: 'sim,
+        E: HasSubEffect<C::Receive> + 'sim,
     {
         let mut components = self.components.borrow_mut();
         let id = ComponentId::new(components.len(), self.id);
@@ -255,10 +228,11 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         Address::new(id).cast()
     }
 
-    pub fn reserve_slot<'b, P>(&'b self) -> ComponentSlot<'sim, 'a, 'b, P, E>
+    pub fn reserve_slot<'b, C>(&'b self) -> ComponentSlot<'sim, 'a, 'b, C, E>
     where
-        P: 'sim,
-        E: From<P> + 'sim,
+        C: Component<'sim, E>,
+        C::Receive: 'sim,
+        E: From<C::Receive> + 'sim,
     {
         let mut components = self.components.borrow_mut();
         let index = components.len();
@@ -266,7 +240,6 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         ComponentSlot {
             index,
             builder: self,
-            receive: PhantomData,
             address: Address::new(ComponentId::new(index, self.id)).cast(),
         }
     }
@@ -287,9 +260,10 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
     }
 }
 
-impl<'sim, 'a, P, E> Component<'sim, E> for DynComponent<'sim, 'a, P, E>
+impl<'sim, 'a, C, E> Component<'sim, E> for DynComponent<'a, C>
 where
-    E: HasSubEffect<P>,
+    C: Component<'sim, E>,
+    E: HasSubEffect<C::Receive>,
 {
     type Receive = E;
 

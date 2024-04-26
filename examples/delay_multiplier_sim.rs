@@ -39,7 +39,7 @@ fn main() {
         CurrentFlowMeter::new_disabled(Time::SIM_START, seconds(10.)),
     );
 
-    sender_slot.set(DynComponent::new(LossySender::new(
+    sender_slot.set(DynComponent::Owned(LossySender::new(
         sender_address,
         link1_slot.address().cast(),
         receiver_slot.address().cast(),
