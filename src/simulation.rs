@@ -11,7 +11,7 @@ use std::{
 };
 use vec_map::VecMap;
 
-use crate::{util::logging::Logger, quantities::Time};
+use crate::{quantities::Time, util::logging::Logger};
 
 pub trait HasSubEffect<P>: From<P> + TryInto<P> {}
 
@@ -292,7 +292,7 @@ where
     pub fn set(self, component: DynComponent<'sim, 'a, P, E>) -> Address<'sim, P, E> {
         let mut components = self.builder.components.borrow_mut();
         assert!(components[self.index].is_none());
-        components[self.index] = Some(Box::new(ComponentWrapper::new(component)));
+        components[self.index] = Some(Box::new(component));
         self.address
     }
 }
@@ -319,7 +319,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
     {
         let mut components = self.components.borrow_mut();
         let id = ComponentId::new(components.len(), self.id);
-        components.push(Some(Box::new(ComponentWrapper::new(component))));
+        components.push(Some(Box::new(component)));
         Address::new(id).cast()
     }
 
@@ -355,33 +355,22 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
     }
 }
 
-#[derive_where(Debug)]
-struct ComponentWrapper<'sim, 'a, P, E> {
-    inner: DynComponent<'sim, 'a, P, E>,
-}
-
-impl<'sim, 'a, P, E> ComponentWrapper<'sim, 'a, P, E> {
-    pub const fn new(inner: DynComponent<'sim, 'a, P, E>) -> ComponentWrapper<'sim, 'a, P, E> {
-        ComponentWrapper { inner }
-    }
-}
-
-impl<'sim, 'a, P, E> Component<'sim, E> for ComponentWrapper<'sim, 'a, P, E>
+impl<'sim, 'a, P, E> Component<'sim, E> for DynComponent<'sim, 'a, P, E>
 where
     E: HasSubEffect<P>,
 {
     type Receive = E;
 
     fn next_tick(&self, time: Time) -> Option<Time> {
-        self.inner.borrow().next_tick(time)
+        self.borrow().next_tick(time)
     }
 
     fn tick(&mut self, context: EffectContext) -> Vec<Message<'sim, E>> {
-        self.inner.borrow_mut().tick(context)
+        self.borrow_mut().tick(context)
     }
 
     fn receive(&mut self, e: E, context: EffectContext) -> Vec<Message<'sim, E>> {
-        self.inner.borrow_mut().receive(
+        self.borrow_mut().receive(
             e.try_into()
                 .map_or_else(|_| panic!("Incorrect message type!"), |x| x),
             context,

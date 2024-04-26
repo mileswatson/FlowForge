@@ -11,7 +11,7 @@ use crate::{
     quantities::{seconds, Float, Time, TimeSpan},
     simulation::SimulatorBuilder,
     util::{
-        average::{AveragePair, IterAverage, SameEmptiness},
+        average::{AveragePair, IterAverage, NoItems, SameEmptiness},
         logging::NothingLogger,
         meters::AverageFlowMeter,
         rand::Rng,
@@ -65,7 +65,14 @@ impl EvaluationConfig {
                 .iter()
                 .filter_map(|x| x.borrow().average_properties(sim_end).ok())
                 .collect_vec();
-            utility_function.total_utility(&flow_stats)
+
+            (
+                utility_function
+                    .total_utility(&flow_stats)
+                    .map_err(|_| NoItems),
+                flow_stats.average(),
+            )
+                .assert_same_emptiness()
         };
 
         let networks: Vec<_> = (0..self.network_samples)

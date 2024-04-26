@@ -97,7 +97,6 @@ where
             aggregate_utility.push(
                 utility_config
                     .total_utility(&active_properties)
-                    .map(|(u, _)| u)
                     .unwrap_or(Float::NAN),
             );
         },

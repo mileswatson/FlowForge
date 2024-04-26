@@ -160,8 +160,8 @@ mod tests {
     use std::iter::once;
 
     use crate::{
-        util::average::{AverageIfSome, IterAverage, NoItems},
         quantities::Float,
+        util::average::{AverageIfSome, IterAverage, NoItems},
     };
 
     use super::{AveragePair, SameEmptiness};

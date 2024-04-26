@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     quantities::{seconds, Float, InformationRate, TimeSpan},
-    util::average::{Average, AverageIfSome, AveragePair, IterAverage, NoItems, SameEmptiness},
+    util::average::{Average, AverageIfSome, AveragePair, IterAverage, NoItems},
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -82,10 +82,7 @@ fn alpha_fairness(x: Float, alpha: Float) -> Float {
 pub struct NoActiveFlows;
 
 pub trait UtilityFunction: Sync {
-    fn total_utility(
-        &self,
-        flows: &[FlowProperties],
-    ) -> Result<(Float, FlowProperties), NoActiveFlows>;
+    fn total_utility(&self, flows: &[FlowProperties]) -> Result<Float, NoActiveFlows>;
 
     fn flow_utility(&self, flow: &FlowProperties) -> Float;
 }
@@ -96,10 +93,7 @@ pub enum UtilityConfig {
 }
 
 impl UtilityFunction for UtilityConfig {
-    fn total_utility(
-        &self,
-        flows: &[FlowProperties],
-    ) -> Result<(Float, FlowProperties), NoActiveFlows> {
+    fn total_utility(&self, flows: &[FlowProperties]) -> Result<Float, NoActiveFlows> {
         match self {
             UtilityConfig::AlphaFairness(x) => x.total_utility(flows),
         }
@@ -123,21 +117,17 @@ impl FlowUtilityAggregator {
         &self,
         flows: &[FlowProperties],
         flow_utility: F,
-    ) -> Result<(Float, FlowProperties), NoActiveFlows>
+    ) -> Result<Float, NoActiveFlows>
     where
         F: Fn(&FlowProperties) -> Float,
     {
-        let scores = flows.iter().map(|flow| (flow_utility(flow), flow.clone()));
+        let scores = flows.iter().map(flow_utility);
         match self {
-            FlowUtilityAggregator::Mean => scores
-                .map(AveragePair::new)
-                .average()
-                .assert_same_emptiness()
-                .map_err(|_| NoActiveFlows),
+            FlowUtilityAggregator::Mean => scores.average().map_err(|_| NoActiveFlows),
             FlowUtilityAggregator::Minimum => scores
-                .map(|(score, properties)| (NotNan::new(score).unwrap(), properties))
-                .min_by_key(|(score, _)| *score)
-                .map(|(score, properties)| (score.into_inner(), properties))
+                .map(|score| NotNan::new(score).unwrap())
+                .min()
+                .map(NotNan::into_inner)
                 .ok_or(NoActiveFlows),
         }
     }
@@ -176,10 +166,7 @@ impl AlphaFairness {
 }
 
 impl UtilityFunction for AlphaFairness {
-    fn total_utility(
-        &self,
-        flows: &[FlowProperties],
-    ) -> Result<(Float, FlowProperties), NoActiveFlows> {
+    fn total_utility(&self, flows: &[FlowProperties]) -> Result<Float, NoActiveFlows> {
         self.flow_utility_aggregator
             .total_utility(flows, |flow| self.flow_utility(flow))
     }
@@ -267,23 +254,11 @@ mod tests {
             .collect_vec();
         assert_eq!(
             FlowUtilityAggregator::Mean.total_utility(&flows, |props| props.throughput.value(),),
-            Ok((
-                2.,
-                FlowProperties {
-                    throughput: bits_per_second(2.),
-                    rtt: Err(NoPacketsAcked)
-                }
-            ))
+            Ok(2.)
         );
         assert_eq!(
             FlowUtilityAggregator::Minimum.total_utility(&flows, |props| props.throughput.value(),),
-            Ok((
-                0.,
-                FlowProperties {
-                    throughput: bits_per_second(0.),
-                    rtt: Err(NoPacketsAcked)
-                }
-            ))
+            Ok(0.)
         );
     }
 }
