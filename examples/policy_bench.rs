@@ -42,12 +42,15 @@ pub enum Mode {
 }
 
 #[derive(Clone, Debug)]
-pub struct TimerWrapper<'a> {
-    dna: &'a (dyn RemyPolicy + Sync),
+pub struct TimerWrapper<'a, P> {
+    dna: &'a P,
     durations: &'a Mutex<Vec<Duration>>,
 }
 
-impl<'a> RemyPolicy<false> for TimerWrapper<'a> {
+impl<'a, P> RemyPolicy<false> for TimerWrapper<'a, P>
+where
+    P: RemyPolicy,
+{
     fn action(&self, point: &Point, time: Time) -> Option<Action> {
         let start = Instant::now();
         let action = self.dna.action(point, time);
@@ -67,7 +70,6 @@ pub fn main() {
     };
     let network = RemyNetworkConfig::default();
     let utility = AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS;
-    let cca_template = RemyCcaTemplate::default();
     match args.mode {
         Mode::Remy => {
             let dna: RemyDna<false> = RemyDna::load(&args.dna).unwrap();
@@ -76,7 +78,7 @@ pub fn main() {
                 durations: &durations,
             };
             let _ = eval.evaluate::<_, DefaultEffect, _>(
-                cca_template.with(&policy),
+                RemyCcaTemplate::default().with(&policy),
                 &network,
                 &utility,
                 &mut rng,
@@ -89,7 +91,7 @@ pub fn main() {
                 durations: &durations,
             };
             let _ = eval.evaluate::<_, DefaultEffect, _>(
-                cca_template.with(&policy),
+                RemyCcaTemplate::default().with(&policy),
                 &network,
                 &utility,
                 &mut rng,

@@ -332,7 +332,7 @@ fn rollout<G: WithLifetime>(
     dna: &RemyrDna,
     stddev: &Tensor1D<ACTION>,
     network_config: &impl NetworkConfig<G>,
-    utility_function: &dyn UtilityFunction,
+    utility_function: &impl UtilityFunction,
     training_config: &EvaluationConfig,
     half_life: TimeSpan,
     discounting_mode: &DiscountingMode,
