@@ -49,13 +49,15 @@ impl<'a, T, N> TrainResult<'a, T, N> {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn _train<T>(
     trainer: &T,
     evaluation_config: Option<(u32, EvaluationConfig, Option<&Path>)>,
     network_config: &impl NetworkConfig<DefaultEffect<'static>>,
     utility_config: &UtilityConfig,
     dna_path: &Path,
-    rng: &mut Rng,
+    training_rng: &mut Rng,
+    eval_rng: &mut Rng,
     force: bool,
 ) where
     T: Trainer + Serialize + Sync,
@@ -84,7 +86,7 @@ pub fn _train<T>(
     let mut last_resumed = Instant::now();
     let mut total_training_time = Duration::ZERO;
 
-    let new_eval_rng = rng.identical_child_factory();
+    let new_eval_rng = eval_rng.identical_child_factory();
     let mut last_percent = -1;
     let mut best_score: Float = Float::MIN;
     trainer
@@ -137,7 +139,7 @@ pub fn _train<T>(
                     last_resumed = Instant::now();
                 }
             },
-            rng,
+            training_rng,
         )
         .save(dna_path)
         .unwrap();
@@ -153,7 +155,8 @@ pub fn train(
     evaluation_config: Option<&Path>,
     output_path: Option<&Path>,
     force: bool,
-    rng: &mut Rng,
+    training_seed: u64,
+    eval_seed: u64,
 ) -> Result<()> {
     if output_path.is_some() {
         assert!(evaluation_config.is_some());
@@ -171,6 +174,9 @@ pub fn train(
     let network_config = DefaultNetworkConfig::load(network_config)?;
     let utility_config = UtilityConfig::load(utility_config)?;
 
+    let mut training_rng = Rng::from_seed(training_seed);
+    let mut eval_rng = Rng::from_seed(eval_seed);
+
     match trainer_config {
         TrainerConfig::Remy(cfg) => _train::<RemyTrainer>(
             &cfg,
@@ -178,7 +184,8 @@ pub fn train(
             &network_config,
             &utility_config,
             dna_path,
-            rng,
+            &mut training_rng,
+            &mut eval_rng,
             force,
         ),
         TrainerConfig::Remyr(cfg) => _train::<RemyrTrainer>(
@@ -187,7 +194,8 @@ pub fn train(
             &network_config,
             &utility_config,
             dna_path,
-            rng,
+            &mut training_rng,
+            &mut eval_rng,
             force,
         ),
         TrainerConfig::DelayMultiplier(cfg) => _train::<DelayMultiplierTrainer>(
@@ -196,7 +204,8 @@ pub fn train(
             &network_config,
             &utility_config,
             dna_path,
-            rng,
+            &mut training_rng,
+            &mut eval_rng,
             force,
         ),
     };

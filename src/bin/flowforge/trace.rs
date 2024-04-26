@@ -127,20 +127,24 @@ pub fn trace(
     utility_config: &Path,
     input_path: &Path,
     output_path: Option<&Path>,
-    rng: &mut Rng,
+    seed: u64,
 ) -> Result<()> {
+    let mut rng = Rng::from_seed(seed);
     let network_config = DefaultNetworkConfig::load(network_config)?;
     let utility_config = UtilityConfig::load(utility_config)?;
 
     let result = match mode {
         FlowAdders::Remy => {
-            _trace::<RemyTrainer, _>(&network_config, &utility_config, input_path, rng)
+            _trace::<RemyTrainer, _>(&network_config, &utility_config, input_path, &mut rng)
         }
-        FlowAdders::DelayMultiplier => {
-            _trace::<DelayMultiplierTrainer, _>(&network_config, &utility_config, input_path, rng)
-        }
+        FlowAdders::DelayMultiplier => _trace::<DelayMultiplierTrainer, _>(
+            &network_config,
+            &utility_config,
+            input_path,
+            &mut rng,
+        ),
         FlowAdders::Remyr => {
-            _trace::<RemyrTrainer, _>(&network_config, &utility_config, input_path, rng)
+            _trace::<RemyrTrainer, _>(&network_config, &utility_config, input_path, &mut rng)
         }
     };
 

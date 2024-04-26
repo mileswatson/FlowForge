@@ -46,8 +46,9 @@ pub fn evaluate(
     network_config: &Path,
     utility_config: &Path,
     input_path: &Path,
-    rng: &mut Rng,
+    eval_seed: u64,
 ) -> Result<()> {
+    let mut rng = Rng::from_seed(eval_seed);
     let evaluation_config = EvaluationConfig::load(evaluation_config)?;
     let network_config = DefaultNetworkConfig::load(network_config)?;
     let utility_config = UtilityConfig::load(utility_config)?;
@@ -58,21 +59,21 @@ pub fn evaluate(
             &network_config,
             &utility_config,
             input_path,
-            rng,
+            &mut rng,
         ),
         FlowAdders::DelayMultiplier => _evaluate::<DelayMultiplierTrainer>(
             &evaluation_config,
             &network_config,
             &utility_config,
             input_path,
-            rng,
+            &mut rng,
         ),
         FlowAdders::Remyr => _evaluate::<RemyrTrainer>(
             &evaluation_config,
             &network_config,
             &utility_config,
             input_path,
-            rng,
+            &mut rng,
         ),
     };
 

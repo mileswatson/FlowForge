@@ -5,7 +5,6 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 use create_configs::create_all_configs;
 use evaluate::evaluate;
-use flowforge::util::rand::Rng;
 use inspect::inspect;
 use trace::trace;
 use train::train;
@@ -57,6 +56,14 @@ enum Command {
         /// OPTIONAL Force overwrite the DNA file if it exists
         #[arg(short, long)]
         force: bool,
+
+        /// OPTIONAL Seed for training RNG
+        #[arg(long, default_value_t = 5871837)]
+        training_seed: u64,
+
+        /// OPTIONAL Seed for evaluation RNG
+        #[arg(long, default_value_t = 534522)]
+        eval_seed: u64,
     },
     /// Evaluate a congestion control algorithm for a given network
     Evaluate {
@@ -79,6 +86,10 @@ enum Command {
         /// File to read congestion control algorithm DNA from
         #[arg(short, long)]
         dna: PathBuf,
+
+        /// OPTIONAL Seed for evaluation RNG
+        #[arg(long, default_value_t = 534522)]
+        eval_seed: u64,
     },
     /// Trace the execution of a particular sender
     Trace {
@@ -101,6 +112,10 @@ enum Command {
         /// OPTIONAL File to output trace to (JSON)
         #[arg(short, long)]
         output: Option<PathBuf>,
+
+        /// OPTIONAL Random seed
+        #[arg(long, default_value_t = 534522)]
+        seed: u64,
     },
     Inspect {
         /// Flow mode
@@ -130,8 +145,6 @@ struct Args {
     /// The maximum number of threads to use
     #[arg(short, long)]
     threads: Option<usize>,
-    #[arg(long, default_value_t = 534522)]
-    seed: u64,
     #[command(subcommand)]
     pub command: Command,
 }
@@ -145,7 +158,6 @@ fn main() -> Result<()> {
             .build_global()
             .unwrap();
     }
-    let mut rng = Rng::from_seed(args.seed);
     match args.command {
         Command::GenConfigs { output_folder } => create_all_configs(&output_folder),
         Command::Train {
@@ -157,6 +169,8 @@ fn main() -> Result<()> {
             progress,
             eval_times,
             force,
+            training_seed,
+            eval_seed,
         } => train(
             &config,
             &net,
@@ -166,7 +180,8 @@ fn main() -> Result<()> {
             eval.as_deref(),
             progress.as_deref(),
             force,
-            &mut rng,
+            training_seed,
+            eval_seed,
         ),
         Command::Evaluate {
             config,
@@ -174,14 +189,16 @@ fn main() -> Result<()> {
             util,
             dna,
             mode,
-        } => evaluate(&mode, &config, &net, &util, &dna, &mut rng),
+            eval_seed,
+        } => evaluate(&mode, &config, &net, &util, &dna, eval_seed),
         Command::Trace {
             mode,
             network,
             utility,
             input,
             output,
-        } => trace(&mode, &network, &utility, &input, output.as_deref(), &mut rng),
+            seed,
+        } => trace(&mode, &network, &utility, &input, output.as_deref(), seed),
         Command::Inspect { mode, dna, output } => {
             inspect(&dna, &mode, output.as_deref());
             Ok(())
