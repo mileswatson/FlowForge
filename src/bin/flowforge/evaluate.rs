@@ -11,14 +11,14 @@ use flowforge::{
         DefaultEffect,
     },
     util::rand::Rng,
-    CcaTemplate, Config, NetworkConfig, Trainer,
+    CcaTemplate, Config, NetworkDistribution, Trainer,
 };
 
 use crate::FlowAdders;
 
 pub fn _evaluate<T>(
     evaluation_config: &EvaluationConfig,
-    network_config: &impl NetworkConfig<DefaultEffect<'static>>,
+    network_config: &impl NetworkDistribution<DefaultEffect<'static>>,
     utility_config: &UtilityConfig,
     input_path: &Path,
     rng: &mut Rng,

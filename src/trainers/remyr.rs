@@ -33,7 +33,7 @@ use crate::{
         rand::{ContinuousDistribution, DiscreteDistribution, Rng},
         WithLifetime,
     },
-    NetworkBuilder, NetworkConfig, ProgressHandler, Trainer,
+    Network, NetworkDistribution, ProgressHandler, Trainer,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -331,7 +331,7 @@ where
 fn rollout<G: WithLifetime>(
     dna: &RemyrDna,
     stddev: &Tensor1D<ACTION>,
-    network_config: &impl NetworkConfig<G>,
+    network_config: &impl NetworkDistribution<G>,
     utility_function: &impl UtilityFunction,
     training_config: &EvaluationConfig,
     half_life: TimeSpan,
@@ -402,7 +402,7 @@ impl Trainer for RemyrTrainer {
     #[allow(clippy::too_many_lines)]
     fn train<G>(
         &self,
-        network_config: &impl NetworkConfig<G>,
+        network_config: &impl NetworkDistribution<G>,
         utility_function: &impl UtilityFunction,
         progress_handler: &mut impl ProgressHandler<Self::Dna>,
         rng: &mut crate::util::rand::Rng,

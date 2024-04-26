@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     simulation::SimulatorBuilder,
     util::{meters::FlowMeter, rand::Rng, WithLifetime},
-    Cca, NetworkBuilder, NetworkConfig,
+    Cca, Network, NetworkDistribution,
 };
 
 use self::remy::{HasRemyNetworkSubEffects, RemyNetworkBuilder, RemyNetworkConfig};
@@ -42,15 +42,15 @@ impl Distribution<DefaultNetworkBuilder> for DefaultNetworkConfig {
     }
 }
 
-impl<G> NetworkConfig<G> for DefaultNetworkConfig
+impl<G> NetworkDistribution<G> for DefaultNetworkConfig
 where
     G: WithLifetime,
     for<'sim> G::Type<'sim>: HasDefaultNetworkSubEffects<'sim, G::Type<'sim>>,
 {
-    type NetworkBuilder = DefaultNetworkBuilder;
+    type Network = DefaultNetworkBuilder;
 }
 
-impl<G> NetworkBuilder<G> for DefaultNetworkBuilder
+impl<G> Network<G> for DefaultNetworkBuilder
 where
     G: WithLifetime,
     for<'sim> G::Type<'sim>: HasDefaultNetworkSubEffects<'sim, G::Type<'sim>>,
@@ -69,7 +69,7 @@ where
     {
         match self {
             DefaultNetworkBuilder::Remy(n) => {
-                <RemyNetworkBuilder as NetworkBuilder<G>>::populate_sim(
+                <RemyNetworkBuilder as Network<G>>::populate_sim(
                     n,
                     builder,
                     new_cca,

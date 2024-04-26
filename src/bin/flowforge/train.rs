@@ -16,7 +16,7 @@ use flowforge::{
         DefaultEffect, TrainerConfig,
     },
     util::rand::Rng,
-    CcaTemplate, Config, NetworkConfig, Trainer,
+    CcaTemplate, Config, NetworkDistribution, Trainer,
 };
 use serde::Serialize;
 
@@ -53,7 +53,7 @@ impl<'a, T, N> TrainResult<'a, T, N> {
 pub fn _train<T>(
     trainer: &T,
     evaluation_config: Option<(u32, EvaluationConfig, Option<&Path>)>,
-    network_config: &impl NetworkConfig<DefaultEffect<'static>>,
+    network_config: &(impl NetworkDistribution<DefaultEffect<'static>> + Serialize),
     utility_config: &UtilityConfig,
     dna_path: &Path,
     training_rng: &mut Rng,

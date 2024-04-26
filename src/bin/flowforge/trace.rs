@@ -11,7 +11,7 @@ use flowforge::{
         DefaultEffect,
     },
     util::{logging::NothingLogger, meters::CurrentFlowMeter, never::Never, rand::Rng},
-    CcaTemplate, Config, NetworkBuilder, NetworkConfig, Trainer,
+    CcaTemplate, Config, Network, NetworkDistribution, Trainer,
 };
 use generativity::make_guard;
 use itertools::Itertools;
@@ -46,13 +46,13 @@ struct TraceResult<N> {
 }
 
 fn _trace<T, N>(
-    network_config: &impl NetworkConfig<DefaultEffect<'static>, NetworkBuilder = N>,
+    network_config: &impl NetworkDistribution<DefaultEffect<'static>, Network = N>,
     utility_config: &UtilityConfig,
     input_path: &Path,
     rng: &mut Rng,
 ) -> TraceResult<N>
 where
-    N: NetworkBuilder<DefaultEffect<'static>>,
+    N: Network<DefaultEffect<'static>>,
     T: Trainer,
 {
     let dna = T::Dna::load(input_path).unwrap();

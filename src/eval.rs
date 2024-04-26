@@ -17,7 +17,7 @@ use crate::{
         rand::Rng,
         WithLifetime,
     },
-    Cca, NetworkBuilder, NetworkConfig,
+    Cca, Network, NetworkDistribution,
 };
 
 #[allow(clippy::unsafe_derive_deserialize)]
@@ -40,12 +40,12 @@ impl EvaluationConfig {
     pub fn evaluate<C, G, B>(
         &self,
         new_cca: impl Fn() -> C + Sync,
-        network_config: &impl NetworkConfig<G, NetworkBuilder = B>,
+        network_config: &impl NetworkDistribution<G, Network = B>,
         utility_function: &(impl UtilityFunction + ?Sized),
         rng: &mut Rng,
     ) -> Result<(Float, FlowProperties), NoActiveFlows>
     where
-        B: NetworkBuilder<G>,
+        B: Network<G>,
         C: Cca,
         G: WithLifetime,
     {

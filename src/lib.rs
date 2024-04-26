@@ -119,7 +119,7 @@ impl<P, F: FnMut(Float, &P) + Send> ProgressHandler<P> for F {
     }
 }
 
-pub trait NetworkBuilder<G>: Clone + Send
+pub trait Network<G>: Clone + Send
 where
     G: WithLifetime,
 {
@@ -135,12 +135,11 @@ where
         'sim: 'a;
 }
 
-pub trait NetworkConfig<G>:
-    Distribution<Self::NetworkBuilder> + Serialize + DeserializeOwned + Sync
+pub trait NetworkDistribution<G>: Distribution<Self::Network> + Sync
 where
     G: WithLifetime,
 {
-    type NetworkBuilder: NetworkBuilder<G>;
+    type Network: Network<G>;
 }
 
 pub trait Cca: Debug {
@@ -176,7 +175,7 @@ pub trait Trainer {
 
     fn train<G>(
         &self,
-        network_config: &impl NetworkConfig<G>,
+        network_config: &impl NetworkDistribution<G>,
         utility_function: &impl UtilityFunction,
         progress_handler: &mut impl ProgressHandler<Self::Dna>,
         rng: &mut Rng,

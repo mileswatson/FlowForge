@@ -8,7 +8,7 @@ use crate::{
     eval::EvaluationConfig,
     flow::UtilityFunction,
     util::{rand::Rng, WithLifetime},
-    CcaTemplate, Dna, NetworkConfig, ProgressHandler, Trainer,
+    CcaTemplate, Dna, NetworkDistribution, ProgressHandler, Trainer,
 };
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -51,7 +51,7 @@ where
 
     fn train<G>(
         &self,
-        network_config: &impl NetworkConfig<G>,
+        network_config: &impl NetworkDistribution<G>,
         utility_function: &impl UtilityFunction,
         progress_handler: &mut impl ProgressHandler<Self::Dna>,
         rng: &mut Rng,

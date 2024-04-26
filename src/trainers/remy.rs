@@ -17,7 +17,7 @@ use crate::{
     flow::UtilityFunction,
     quantities::{milliseconds, seconds, Float, TimeSpan},
     util::{rand::Rng, WithLifetime},
-    NetworkConfig, ProgressHandler, Trainer,
+    NetworkDistribution, ProgressHandler, Trainer,
 };
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -155,7 +155,7 @@ impl Trainer for RemyTrainer {
     #[allow(clippy::too_many_lines)]
     fn train<G: WithLifetime>(
         &self,
-        network_config: &impl NetworkConfig<G>,
+        network_config: &impl NetworkDistribution<G>,
         utility_function: &impl UtilityFunction,
         progress_handler: &mut impl ProgressHandler<Self::Dna>,
         rng: &mut Rng,

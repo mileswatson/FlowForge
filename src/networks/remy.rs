@@ -22,7 +22,7 @@ use crate::{
         },
         WithLifetime,
     },
-    Cca, NetworkBuilder, NetworkConfig,
+    Cca, Network, NetworkDistribution,
 };
 
 #[derive(Debug, Clone, Serialize)]
@@ -54,7 +54,7 @@ impl<'sim, E, T> HasRemyNetworkSubEffects<'sim, E> for T where
 {
 }
 
-impl<G> NetworkBuilder<G> for RemyNetworkBuilder
+impl<G> Network<G> for RemyNetworkBuilder
 where
     G: WithLifetime,
     for<'sim> G::Type<'sim>: HasRemyNetworkSubEffects<'sim, G::Type<'sim>>,
@@ -151,10 +151,10 @@ impl Distribution<RemyNetworkBuilder> for RemyNetworkConfig {
     }
 }
 
-impl<G> NetworkConfig<G> for RemyNetworkConfig
+impl<G> NetworkDistribution<G> for RemyNetworkConfig
 where
     G: WithLifetime,
     for<'sim> G::Type<'sim>: HasRemyNetworkSubEffects<'sim, G::Type<'sim>>,
 {
-    type NetworkBuilder = RemyNetworkBuilder;
+    type Network = RemyNetworkBuilder;
 }
