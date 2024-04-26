@@ -147,7 +147,7 @@ impl<'sim, T> Address<'sim, T, T> {
     fn new(component_id: ComponentId<'sim>) -> Address<'sim, T, T> {
         Address {
             create_message: Rc::new(move |effect| Message {
-                component_id,
+                destination: component_id,
                 effect,
             }),
         }
@@ -181,13 +181,13 @@ impl<'sim, I, E> Address<'sim, I, E> {
 }
 
 pub struct Message<'sim, E> {
-    component_id: ComponentId<'sim>,
+    destination: ComponentId<'sim>,
     effect: E,
 }
 
 impl<'sim, E> Message<'sim, E> {
     pub const fn destination(&self) -> ComponentId<'sim> {
-        self.component_id
+        self.destination
     }
 }
 
@@ -391,7 +391,7 @@ where
 {
     fn handle_messages(&mut self, time: Time, effects: &mut EffectQueue<'sim, E>) {
         while let Some(Message {
-            component_id,
+            destination: component_id,
             effect,
         }) = effects.pop_next()
         {
