@@ -38,7 +38,7 @@ pub struct RemyTrainer {
 impl Default for RemyTrainer {
     fn default() -> Self {
         Self {
-            rule_splits: 100,
+            rule_splits: 12,
             optimization_rounds_per_split: 2,
             min_action: Action {
                 window_multiplier: 0.,

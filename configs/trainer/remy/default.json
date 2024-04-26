@@ -1,6 +1,6 @@
 {
   "type": "remy",
-  "rule_splits": 100,
+  "rule_splits": 12,
   "optimization_rounds_per_split": 2,
   "min_action": {
     "window_multiplier": 0.0,
