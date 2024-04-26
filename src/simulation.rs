@@ -1,14 +1,7 @@
 use derive_where::derive_where;
 use generativity::{Guard, Id};
 use itertools::Itertools;
-use std::{
-    cell::{Ref, RefCell, RefMut},
-    collections::VecDeque,
-    fmt::Debug,
-    marker::PhantomData,
-    ops::{Deref, DerefMut},
-    rc::Rc,
-};
+use std::{cell::RefCell, collections::VecDeque, fmt::Debug, marker::PhantomData, rc::Rc};
 use vec_map::VecMap;
 
 use crate::{quantities::Time, util::logging::Logger};
@@ -49,67 +42,6 @@ impl<'sim, 'a, P, E> DynComponent<'sim, 'a, P, E> {
         value: &'a mut (dyn Component<'sim, E, Receive = P> + 'a),
     ) -> DynComponent<'sim, 'a, P, E> {
         DynComponent::Ref(value)
-    }
-}
-
-pub enum DynComponentRef<'sim, 'a, P, E> {
-    Ref(&'a dyn Component<'sim, E, Receive = P>),
-    ScopedRef(Ref<'a, dyn Component<'sim, E, Receive = P>>),
-}
-
-pub enum DynComponentRefMut<'sim, 'a, P, E> {
-    Ref(&'a mut (dyn Component<'sim, E, Receive = P>)),
-    ScopedRef(RefMut<'a, dyn Component<'sim, E, Receive = P>>),
-}
-
-impl<'sim, 'a, P, E> DynComponent<'sim, 'a, P, E> {
-    #[must_use]
-    pub fn borrow(&self) -> DynComponentRef<'sim, '_, P, E> {
-        match self {
-            DynComponent::Owned(x) => DynComponentRef::Ref(x.as_ref()),
-            DynComponent::Shared(x) => DynComponentRef::ScopedRef(x.borrow()),
-            DynComponent::Ref(r) => DynComponentRef::Ref(*r),
-        }
-    }
-
-    #[must_use]
-    pub fn borrow_mut(&mut self) -> DynComponentRefMut<'sim, '_, P, E> {
-        match self {
-            DynComponent::Owned(x) => DynComponentRefMut::Ref(x.as_mut()),
-            DynComponent::Shared(x) => DynComponentRefMut::ScopedRef(x.borrow_mut()),
-            DynComponent::Ref(r) => DynComponentRefMut::Ref(*r),
-        }
-    }
-}
-
-impl<'sim, 'a, P, E> Deref for DynComponentRef<'sim, 'a, P, E> {
-    type Target = dyn Component<'sim, E, Receive = P> + 'a;
-
-    fn deref(&self) -> &(dyn Component<'sim, E, Receive = P> + 'a) {
-        match self {
-            DynComponentRef::Ref(r) => *r,
-            DynComponentRef::ScopedRef(s) => &**s,
-        }
-    }
-}
-
-impl<'sim, 'a, P, E> Deref for DynComponentRefMut<'sim, 'a, P, E> {
-    type Target = dyn Component<'sim, E, Receive = P> + 'a;
-
-    fn deref(&self) -> &(dyn Component<'sim, E, Receive = P> + 'a) {
-        match self {
-            DynComponentRefMut::Ref(r) => *r,
-            DynComponentRefMut::ScopedRef(s) => &**s,
-        }
-    }
-}
-
-impl<'sim, 'a, P, E> DerefMut for DynComponentRefMut<'sim, 'a, P, E> {
-    fn deref_mut(&mut self) -> &mut (dyn Component<'sim, E, Receive = P> + 'a) {
-        match self {
-            DynComponentRefMut::Ref(r) => *r,
-            DynComponentRefMut::ScopedRef(s) => &mut **s,
-        }
     }
 }
 
@@ -362,19 +294,30 @@ where
     type Receive = E;
 
     fn next_tick(&self, time: Time) -> Option<Time> {
-        self.borrow().next_tick(time)
+        match self {
+            DynComponent::Owned(x) => x.next_tick(time),
+            DynComponent::Shared(x) => x.borrow().next_tick(time),
+            DynComponent::Ref(x) => x.next_tick(time),
+        }
     }
 
     fn tick(&mut self, context: EffectContext) -> Vec<Message<'sim, E>> {
-        self.borrow_mut().tick(context)
+        match self {
+            DynComponent::Owned(x) => x.tick(context),
+            DynComponent::Shared(x) => x.borrow_mut().tick(context),
+            DynComponent::Ref(x) => x.tick(context),
+        }
     }
 
     fn receive(&mut self, e: E, context: EffectContext) -> Vec<Message<'sim, E>> {
-        self.borrow_mut().receive(
-            e.try_into()
-                .map_or_else(|_| panic!("Incorrect message type!"), |x| x),
-            context,
-        )
+        let e = e
+            .try_into()
+            .map_or_else(|_| panic!("Incorrect message type!"), |x| x);
+        match self {
+            DynComponent::Owned(x) => x.receive(e, context),
+            DynComponent::Shared(x) => x.borrow_mut().receive(e, context),
+            DynComponent::Ref(x) => x.receive(e, context),
+        }
     }
 }
 
