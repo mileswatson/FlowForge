@@ -1,7 +1,12 @@
 use derive_where::derive_where;
 use generativity::{Guard, Id};
 use itertools::Itertools;
-use std::{cell::RefCell, collections::VecDeque, fmt::Debug, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::VecDeque,
+    fmt::{Debug, Formatter, Result},
+    rc::Rc,
+};
 use vec_map::VecMap;
 
 use crate::{quantities::Time, util::logging::Logger};
@@ -24,7 +29,7 @@ pub struct ComponentId<'sim> {
 }
 
 impl<'sim> Debug for ComponentId<'sim> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_tuple("ComponentId").field(&self.index).finish()
     }
 }
@@ -42,23 +47,24 @@ pub struct Address<'sim, I, E> {
 }
 
 impl<'sim, I, E> Debug for Address<'sim, I, E> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         f.debug_struct("Address").finish()
     }
 }
 
-impl<'sim, T> Address<'sim, T, T> {
-    fn new(component_id: ComponentId<'sim>) -> Address<'sim, T, T> {
+impl<'sim, I, E> Address<'sim, I, E> {
+    fn new(component_id: ComponentId<'sim>) -> Address<'sim, I, E>
+    where
+        E: From<I>,
+    {
         Address {
             create_message: Rc::new(move |effect| Message {
                 destination: component_id,
-                effect,
+                effect: effect.into(),
             }),
         }
     }
-}
 
-impl<'sim, I, E> Address<'sim, I, E> {
     #[must_use]
     pub fn cast<J>(self) -> Address<'sim, J, E>
     where
@@ -220,7 +226,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         let mut components = self.components.borrow_mut();
         let id = ComponentId::new(components.len(), self.id);
         components.push(Some(Box::new(component)));
-        Address::new(id).cast()
+        Address::new(id)
     }
 
     pub fn reserve_slot<'b, C>(&'b self) -> ComponentSlot<'sim, 'a, 'b, C, E>
@@ -235,7 +241,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         ComponentSlot {
             index,
             builder: self,
-            address: Address::new(ComponentId::new(index, self.id)).cast(),
+            address: Address::new(ComponentId::new(index, self.id)),
         }
     }
 
