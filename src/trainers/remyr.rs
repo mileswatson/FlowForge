@@ -362,7 +362,7 @@ fn rollout<G: WithLifetime>(
                         .iter()
                         .filter_map(|x| x.borrow().current_properties(time).ok())
                         .collect_vec();
-                    utility_function.total_utility(&flow_stats).unwrap_or(0.) as f32
+                    utility_function.utility(&flow_stats).unwrap_or(0.) as f32
                 };
                 let mut policy_rng = rng.create_child();
                 let dna = RolloutWrapper {

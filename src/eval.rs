@@ -67,9 +67,7 @@ impl EvaluationConfig {
                 .collect_vec();
 
             (
-                utility_function
-                    .total_utility(&flow_stats)
-                    .map_err(|_| NoItems),
+                utility_function.utility(&flow_stats).map_err(|_| NoItems),
                 flow_stats.average(),
             )
                 .assert_same_emptiness()

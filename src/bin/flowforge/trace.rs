@@ -86,7 +86,7 @@ where
                     (
                         f.borrow().current_bandwidth(time),
                         f.borrow().current_rtt(time).unwrap_or(seconds(Float::NAN)),
-                        p.map(|p| utility_config.flow_utility(&p))
+                        p.map(|p| utility_config.utility(&[p]).unwrap())
                             .unwrap_or(Float::NAN),
                     )
                 })
@@ -96,7 +96,7 @@ where
                 });
             aggregate_utility.push(
                 utility_config
-                    .total_utility(&active_properties)
+                    .utility(&active_properties)
                     .unwrap_or(Float::NAN),
             );
         },
