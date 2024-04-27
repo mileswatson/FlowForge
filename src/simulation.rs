@@ -11,15 +11,15 @@ use vec_map::VecMap;
 
 use crate::{quantities::Time, util::logging::Logger};
 
-pub trait HasSubEffect<P>: From<P> + TryInto<P> {}
+pub trait HasVariant<P>: From<P> + TryInto<P> {}
 
-impl<E, P> HasSubEffect<P> for E where E: From<P> + TryInto<P> {}
+impl<E, P> HasVariant<P> for E where E: From<P> + TryInto<P> {}
 
 #[derive(Debug)]
 pub enum DynComponent<'a, C> {
     Owned(C),
+    Borrowed(&'a mut C),
     Shared(Rc<RefCell<C>>),
-    Ref(&'a mut C),
 }
 
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
@@ -186,7 +186,7 @@ where
 impl<'sim, 'a, 'b, C, E> ComponentSlot<'sim, 'a, 'b, C, E>
 where
     C: Component<'sim, E>,
-    E: HasSubEffect<C::Receive>,
+    E: HasVariant<C::Receive>,
 {
     #[must_use]
     pub fn address(&self) -> Address<'sim, C::Receive, E> {
@@ -221,7 +221,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
     where
         C: Component<'sim, E>,
         C::Receive: 'sim,
-        E: HasSubEffect<C::Receive> + 'sim,
+        E: HasVariant<C::Receive> + 'sim,
     {
         let mut components = self.components.borrow_mut();
         let id = ComponentId::new(components.len(), self.id);
@@ -264,7 +264,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
 impl<'sim, 'a, C, E> Component<'sim, E> for DynComponent<'a, C>
 where
     C: Component<'sim, E>,
-    E: HasSubEffect<C::Receive>,
+    E: HasVariant<C::Receive>,
 {
     type Receive = E;
 
@@ -272,7 +272,7 @@ where
         match self {
             DynComponent::Owned(x) => x.next_tick(time),
             DynComponent::Shared(x) => x.borrow().next_tick(time),
-            DynComponent::Ref(x) => x.next_tick(time),
+            DynComponent::Borrowed(x) => x.next_tick(time),
         }
     }
 
@@ -280,7 +280,7 @@ where
         match self {
             DynComponent::Owned(x) => x.tick(time),
             DynComponent::Shared(x) => x.borrow_mut().tick(time),
-            DynComponent::Ref(x) => x.tick(time),
+            DynComponent::Borrowed(x) => x.tick(time),
         }
     }
 
@@ -291,7 +291,7 @@ where
         match self {
             DynComponent::Owned(x) => x.receive(e, time),
             DynComponent::Shared(x) => x.borrow_mut().receive(e, time),
-            DynComponent::Ref(x) => x.receive(e, time),
+            DynComponent::Borrowed(x) => x.receive(e, time),
         }
     }
 }

@@ -7,16 +7,13 @@ use crate::{
     Cca, Network, NetworkDistribution,
 };
 
-use self::remy::{HasRemyNetworkSubEffects, RemyNetworkBuilder, RemyNetworkConfig};
+use self::remy::{HasRemyNetworkVariants, RemyNetworkBuilder, RemyNetworkConfig};
 
 pub mod remy;
 
-pub trait HasDefaultNetworkSubEffects<'sim, E>: HasRemyNetworkSubEffects<'sim, E> {}
+pub trait HasDefaultNetworkVariants<'sim, E>: HasRemyNetworkVariants<'sim, E> {}
 
-impl<'sim, E, T> HasDefaultNetworkSubEffects<'sim, E> for T where
-    T: HasRemyNetworkSubEffects<'sim, E>
-{
-}
+impl<'sim, E, T> HasDefaultNetworkVariants<'sim, E> for T where T: HasRemyNetworkVariants<'sim, E> {}
 
 #[derive(Serialize, Deserialize)]
 pub enum DefaultNetworkConfig {
@@ -45,7 +42,7 @@ impl Distribution<DefaultNetworkBuilder> for DefaultNetworkConfig {
 impl<G> NetworkDistribution<G> for DefaultNetworkConfig
 where
     G: WithLifetime,
-    for<'sim> G::Type<'sim>: HasDefaultNetworkSubEffects<'sim, G::Type<'sim>>,
+    for<'sim> G::Type<'sim>: HasDefaultNetworkVariants<'sim, G::Type<'sim>>,
 {
     type Network = DefaultNetworkBuilder;
 }
@@ -53,7 +50,7 @@ where
 impl<G> Network<G> for DefaultNetworkBuilder
 where
     G: WithLifetime,
-    for<'sim> G::Type<'sim>: HasDefaultNetworkSubEffects<'sim, G::Type<'sim>>,
+    for<'sim> G::Type<'sim>: HasDefaultNetworkVariants<'sim, G::Type<'sim>>,
 {
     fn populate_sim<'sim, 'a, C, F>(
         &self,

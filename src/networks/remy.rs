@@ -11,7 +11,7 @@ use crate::{
     quantities::{
         bits_per_second, milliseconds, seconds, Float, Information, InformationRate, TimeSpan,
     },
-    simulation::{DynComponent, HasSubEffect, SimulatorBuilder},
+    simulation::{DynComponent, HasVariant, SimulatorBuilder},
     util::{
         logging::NothingLogger,
         meters::FlowMeter,
@@ -36,20 +36,20 @@ pub struct RemyNetworkBuilder {
     pub on_time: PositiveContinuousDistribution<TimeSpan>,
 }
 
-pub trait HasRemyNetworkSubEffects<'sim, E>:
-    HasSubEffect<LossySenderEffect<'sim, E>>
-    + HasSubEffect<Packet<'sim, E>>
-    + HasSubEffect<Toggle>
-    + HasSubEffect<Never>
+pub trait HasRemyNetworkVariants<'sim, E>:
+    HasVariant<LossySenderEffect<'sim, E>>
+    + HasVariant<Packet<'sim, E>>
+    + HasVariant<Toggle>
+    + HasVariant<Never>
     + 'sim
 {
 }
 
-impl<'sim, E, T> HasRemyNetworkSubEffects<'sim, E> for T where
-    T: HasSubEffect<LossySenderEffect<'sim, E>>
-        + HasSubEffect<Packet<'sim, E>>
-        + HasSubEffect<Toggle>
-        + HasSubEffect<Never>
+impl<'sim, E, T> HasRemyNetworkVariants<'sim, E> for T where
+    T: HasVariant<LossySenderEffect<'sim, E>>
+        + HasVariant<Packet<'sim, E>>
+        + HasVariant<Toggle>
+        + HasVariant<Never>
         + 'sim
 {
 }
@@ -57,7 +57,7 @@ impl<'sim, E, T> HasRemyNetworkSubEffects<'sim, E> for T where
 impl<G> Network<G> for RemyNetworkBuilder
 where
     G: WithLifetime,
-    for<'sim> G::Type<'sim>: HasRemyNetworkSubEffects<'sim, G::Type<'sim>>,
+    for<'sim> G::Type<'sim>: HasRemyNetworkVariants<'sim, G::Type<'sim>>,
 {
     fn populate_sim<'sim, 'a, C, F>(
         &self,
@@ -154,7 +154,7 @@ impl Distribution<RemyNetworkBuilder> for RemyNetworkConfig {
 impl<G> NetworkDistribution<G> for RemyNetworkConfig
 where
     G: WithLifetime,
-    for<'sim> G::Type<'sim>: HasRemyNetworkSubEffects<'sim, G::Type<'sim>>,
+    for<'sim> G::Type<'sim>: HasRemyNetworkVariants<'sim, G::Type<'sim>>,
 {
     type Network = RemyNetworkBuilder;
 }
