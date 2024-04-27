@@ -7,15 +7,84 @@ use flowforge::{
 };
 use generativity::make_guard;
 
-struct PingPrinter;
+struct Ping<'sim, E> {
+    source: Address<'sim, Pong, E>,
+}
+struct Pong {
+    name: String,
+}
 
-struct Ping;
-struct Pong;
+#[derive(Debug)]
+struct Printer;
+
+impl<'sim, E> Component<'sim, E> for Printer {
+    type Receive = Ping<'sim, E>;
+
+    fn receive(&mut self, p: Ping<'sim, E>, _: Time) -> Vec<Message<'sim, E>> {
+        vec![p.source.create_message(Pong {
+            name: "Printer".into(),
+        })]
+    }
+}
+
+#[derive(Debug)]
+struct Toaster;
+
+impl<'sim, E> Component<'sim, E> for Toaster {
+    type Receive = Ping<'sim, E>;
+
+    fn receive(&mut self, p: Ping<'sim, E>, _: Time) -> Vec<Message<'sim, E>> {
+        vec![p.source.create_message(Pong {
+            name: "Toaster".into(),
+        })]
+    }
+}
+
+#[derive_where(Debug)]
+struct Server<'sim, E> {
+    address: Address<'sim, ServerMessage, E>,
+    devices: Vec<Address<'sim, Ping<'sim, E>, E>>,
+}
+
+struct PingDevices;
+
+#[derive(From, TryInto)]
+enum ServerMessage {
+    SendPing(PingDevices),
+    Pong(Pong),
+}
+
+impl<'sim, E> Component<'sim, E> for Server<'sim, E>
+where
+    E: 'sim,
+{
+    type Receive = ServerMessage;
+
+    fn receive(&mut self, e: ServerMessage, time: Time) -> Vec<Message<'sim, E>> {
+        match e {
+            ServerMessage::SendPing(PingDevices) => {
+                println!("Sent Pong at time {time}");
+                self.devices
+                    .iter()
+                    .map(|address| {
+                        address.create_message(Ping {
+                            source: self.address.clone().cast(),
+                        })
+                    })
+                    .collect()
+            }
+            ServerMessage::Pong(Pong { name }) => {
+                println!("Received Pong from {name} at time {time}");
+                vec![]
+            }
+        }
+    }
+}
 
 #[derive_where(Debug)]
 struct User<'sim, E> {
     next_send: Time,
-    server: Address<'sim, PingPrinter, E>,
+    server: Address<'sim, PingDevices, E>,
 }
 
 impl<'sim, E> Component<'sim, E> for User<'sim, E> {
@@ -27,78 +96,57 @@ impl<'sim, E> Component<'sim, E> for User<'sim, E> {
 
     fn tick(&mut self, _: Time) -> Vec<Message<'sim, E>> {
         self.next_send = self.next_send + seconds(1.);
-        vec![self.server.create_message(PingPrinter)]
+        vec![self.server.create_message(PingDevices)]
     }
 }
 
 #[derive(From, TryInto)]
-enum ServerMessage {
-    PingPrinter(PingPrinter),
-    Pong(Pong),
-}
-
-#[derive_where(Debug)]
-struct Server<'sim, E> {
-    printer: Address<'sim, Ping, E>,
-}
-
-impl<'sim, E> Component<'sim, E> for Server<'sim, E> {
-    type Receive = ServerMessage;
-
-    fn receive(&mut self, e: ServerMessage, time: Time) -> Vec<Message<'sim, E>> {
-        match e {
-            ServerMessage::PingPrinter(PingPrinter) => {
-                println!("Sent Pong at time {time}");
-                vec![self.printer.create_message(Ping)]
-            }
-            ServerMessage::Pong(Pong) => {
-                println!("Received Pong at time {time}");
-                vec![]
-            }
-        }
-    }
-}
-
-#[derive_where(Debug)]
-struct Printer<'sim, E> {
-    server: Address<'sim, Pong, E>,
-}
-
-impl<'sim, E> Component<'sim, E> for Printer<'sim, E> {
-    type Receive = Ping;
-
-    fn receive(&mut self, _: Ping, _: Time) -> Vec<Message<'sim, E>> {
-        vec![self.server.create_message(Pong)]
-    }
-}
-
-#[derive(From, TryInto)]
-enum GlobalMessage {
+enum GlobalMessage<'sim> {
     Server(ServerMessage),
-    Ping(Ping),
+    Ping(Ping<'sim, GlobalMessage<'sim>>),
     Pong(Pong),
     Never(Never),
 }
 
+#[allow(unused_variables)]
 fn main() {
     make_guard!(guard);
     let builder = SimulatorBuilder::<GlobalMessage>::new(guard);
 
-    let printer_slot = builder.reserve_slot();
+    let printer_address = builder.insert(Printer);
+    let toaster_address = builder.insert(Toaster);
+
     let server_slot = builder.reserve_slot();
+    let server = Server {
+        address: server_slot.address(),
+        devices: vec![printer_address, toaster_address],
+    };
+    let server_address = server_slot.fill(server);
 
-    let printer_address = printer_slot.fill(Printer {
-        server: server_slot.address().cast(),
-    });
-
-    let server_address = server_slot.fill(Server {
-        printer: printer_address,
-    });
+    // builder.insert(User {
+    //     next_send: Time::SIM_START,
+    //     server: printer_address.cast(),
+    // });
+    // COMPILE ERROR - expected Address<PING_PRINTER, _>, found Address<PING, _>
 
     builder.insert(User {
         next_send: Time::SIM_START,
         server: server_address.cast(),
     });
+
+    // let builder = SimulatorBuilder::<GlobalMessage>::new(guard);
+    // COMPILE ERROR - guard moved
+
+    // let builder = SimulatorBuilder::<GlobalMessage>::new(Guard::new( ... ));
+    // COMPILE ERROR - unsafe
+
+    make_guard!(guard);
+    let builder2 = SimulatorBuilder::<GlobalMessage>::new(guard);
+
+    // builder2.insert(User {
+    //     next_send: Time::SIM_START,
+    //     server: server_address.cast()
+    // }); COMPILE ERROR - invariant lifetime clash due to mixing simulations
 
     builder
         .build(NothingLogger)
