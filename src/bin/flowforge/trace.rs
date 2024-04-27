@@ -5,7 +5,7 @@ use flowforge::{
     flow::{UtilityConfig, UtilityFunction},
     networks::DefaultNetworkConfig,
     quantities::{milliseconds, seconds, Float, InformationRate, Time, TimeSpan},
-    simulation::{DynComponent, SimulatorBuilder},
+    simulation::SimulatorBuilder,
     trainers::{
         delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer,
         DefaultEffect,
@@ -66,7 +66,7 @@ where
     let cca_template = T::CcaTemplate::default();
     let cca_gen = cca_template.with(&dna);
     let builder = SimulatorBuilder::new(guard);
-    builder.insert(DynComponent::Owned(Ticker::new(milliseconds(1.), |time| {
+    builder.insert(Ticker::new(milliseconds(1.), |time| {
         timestamps.push((time - Time::SIM_START).seconds());
         let properties = flows
             .iter()
@@ -97,7 +97,7 @@ where
                 .utility(&active_properties)
                 .unwrap_or(Float::NAN),
         );
-    })));
+    }));
     let new_flow = || {
         let index = flows.push(RefCell::new(CurrentFlowMeter::new_disabled(
             Time::SIM_START,

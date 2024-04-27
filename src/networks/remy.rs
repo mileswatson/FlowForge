@@ -11,7 +11,7 @@ use crate::{
     quantities::{
         bits_per_second, milliseconds, seconds, Float, Information, InformationRate, TimeSpan,
     },
-    simulation::{DynComponent, HasVariant, SimulatorBuilder},
+    simulation::{HasVariant, SimulatorBuilder},
     util::{
         logging::NothingLogger,
         meters::FlowMeter,
@@ -70,19 +70,19 @@ where
         F: FlowMeter + 'a,
         'sim: 'a,
     {
-        let sender_link_id = builder.insert(DynComponent::Owned(Link::create(
+        let sender_link_id = builder.insert(Link::create(
             self.rtt,
             self.packet_rate,
             self.loss_rate,
             self.buffer_size,
             rng.create_child(),
             NothingLogger,
-        )));
+        ));
         for _ in 0..self.num_senders {
             let slot = builder.reserve_slot();
             let address = slot.address();
             let packet_address = address.clone().cast();
-            slot.set(DynComponent::Owned(LossySender::new(
+            slot.fill(LossySender::new(
                 packet_address.clone(),
                 sender_link_id.clone(),
                 packet_address,
@@ -91,13 +91,13 @@ where
                 true,
                 rng.create_child(),
                 NothingLogger,
-            )));
-            builder.insert(DynComponent::Owned(Toggler::new(
+            ));
+            builder.insert(Toggler::new(
                 address.cast(),
                 self.on_time.clone(),
                 self.off_time.clone(),
                 rng.create_child(),
-            )));
+            ));
         }
     }
 }

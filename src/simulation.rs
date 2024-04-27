@@ -1,3 +1,4 @@
+use derive_more::From;
 use derive_where::derive_where;
 use generativity::{Guard, Id};
 use std::{
@@ -14,7 +15,7 @@ pub trait HasVariant<P>: From<P> + TryInto<P> {}
 
 impl<E, P> HasVariant<P> for E where E: From<P> + TryInto<P> {}
 
-#[derive(Debug)]
+#[derive(Debug, From)]
 pub enum DynComponent<'a, C> {
     Owned(C),
     Borrowed(&'a mut C),
@@ -100,11 +101,18 @@ impl<'sim, E> Message<'sim, E> {
     }
 }
 
+#[allow(unused_variables)]
 pub trait Component<'sim, E>: Debug {
     type Receive;
-    fn next_tick(&self, time: Time) -> Option<Time>;
-    fn tick(&mut self, time: Time) -> Vec<Message<'sim, E>>;
-    fn receive(&mut self, e: Self::Receive, time: Time) -> Vec<Message<'sim, E>>;
+    fn next_tick(&self, time: Time) -> Option<Time> {
+        None
+    }
+    fn tick(&mut self, time: Time) -> Vec<Message<'sim, E>> {
+        panic!()
+    }
+    fn receive(&mut self, e: Self::Receive, time: Time) -> Vec<Message<'sim, E>> {
+        vec![]
+    }
 }
 
 #[derive(Debug)]
@@ -184,7 +192,7 @@ where
 
 impl<'sim, 'a, 'b, C, E> ComponentSlot<'sim, 'a, 'b, C, E>
 where
-    C: Component<'sim, E>,
+    C: Component<'sim, E> + 'a,
     E: HasVariant<C::Receive>,
 {
     #[must_use]
@@ -192,11 +200,10 @@ where
         self.address.clone()
     }
 
-    #[allow(clippy::must_use_candidate)]
-    pub fn set(self, component: DynComponent<'a, C>) -> Address<'sim, C::Receive, E> {
+    pub fn fill(self, component: impl Into<DynComponent<'a, C>>) -> Address<'sim, C::Receive, E> {
         let mut components = self.builder.components.borrow_mut();
         assert!(components[self.index].is_none());
-        components[self.index] = Some(Box::new(component));
+        components[self.index] = Some(Box::new(component.into()));
         self.address
     }
 }
@@ -219,15 +226,18 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         }
     }
 
-    pub fn insert<C>(&self, component: DynComponent<'a, C>) -> Address<'sim, C::Receive, E>
+    pub fn insert<C>(
+        &self,
+        component: impl Into<DynComponent<'a, C>>,
+    ) -> Address<'sim, C::Receive, E>
     where
-        C: Component<'sim, E>,
+        C: Component<'sim, E> + 'a,
         C::Receive: 'sim,
         E: HasVariant<C::Receive> + 'sim,
     {
         let mut components = self.components.borrow_mut();
         let id = ComponentId::new(components.len(), self.id);
-        components.push(Some(Box::new(component)));
+        components.push(Some(Box::new(component.into())));
         Address::new(id)
     }
 

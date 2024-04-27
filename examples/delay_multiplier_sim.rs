@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use flowforge::{
     components::{bouncer::LossyBouncer, link::Link, senders::lossy::LossySender},
     quantities::{packets, packets_per_second, seconds, Time},
-    simulation::{DynComponent, SimulatorBuilder},
+    simulation::SimulatorBuilder,
     trainers::{
         delay_multiplier::{DelayMultiplierCcaTemplate, DelayMultiplierDna},
         DefaultEffect,
@@ -28,9 +28,9 @@ fn main() {
     let builder = ManuallyDrop::new(SimulatorBuilder::<DefaultEffect>::new(guard));
 
     let sender_slot = builder.reserve_slot();
-    let link1_slot = builder.reserve_slot();
-    let receiver_slot = builder.reserve_slot();
-    let link2_slot = builder.reserve_slot();
+    let link1_slot = builder.reserve_slot::<Link<_, _>>();
+    let receiver_slot = builder.reserve_slot::<LossyBouncer<_, _>>();
+    let link2_slot = builder.reserve_slot::<Link<_, _>>();
 
     let sender_address = sender_slot.address().cast();
 
@@ -39,7 +39,7 @@ fn main() {
         CurrentFlowMeter::new_disabled(Time::SIM_START, seconds(10.)),
     );
 
-    sender_slot.set(DynComponent::Owned(LossySender::new(
+    sender_slot.fill(LossySender::new(
         sender_address,
         link1_slot.address().cast(),
         receiver_slot.address().cast(),
@@ -48,7 +48,7 @@ fn main() {
         false,
         rng.create_child(),
         table.logger(1),
-    )));
+    ));
     let mut link1 = Link::create(
         seconds(1.5),
         packets_per_second(0.2),
@@ -67,9 +67,9 @@ fn main() {
         table.logger(4),
     );
 
-    link1_slot.set(DynComponent::Borrowed(&mut link1));
-    receiver_slot.set(DynComponent::Borrowed(&mut receiver));
-    link2_slot.set(DynComponent::Borrowed(&mut link2));
+    link1_slot.fill(&mut link1);
+    receiver_slot.fill(&mut receiver);
+    link2_slot.fill(&mut link2);
 
     let sim = ManuallyDrop::into_inner(builder)
         .build(table.logger(0))
