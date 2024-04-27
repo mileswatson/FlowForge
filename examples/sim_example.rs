@@ -104,7 +104,6 @@ impl<'sim, E> Component<'sim, E> for User<'sim, E> {
 enum GlobalMessage<'sim> {
     Server(ServerMessage),
     Ping(Ping<'sim, GlobalMessage<'sim>>),
-    Pong(Pong),
     Never(Never),
 }
 
