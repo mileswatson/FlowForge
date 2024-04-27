@@ -26,10 +26,6 @@ where
 {
     type Receive = Packet<'sim, E>;
 
-    fn tick(&mut self, _: Time) -> Vec<Message<'sim, E>> {
-        vec![]
-    }
-
     fn receive(&mut self, packet: Self::Receive, _: Time) -> Vec<Message<'sim, E>> {
         let seq = packet.seq;
         let message = self.link.create_message(Packet {
@@ -44,9 +40,5 @@ where
             message.destination()
         );
         vec![message]
-    }
-
-    fn next_tick(&self, _time: Time) -> Option<Time> {
-        None
     }
 }

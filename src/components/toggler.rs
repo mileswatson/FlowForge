@@ -62,10 +62,6 @@ impl<'sim, E> Component<'sim, E> for Toggler<'sim, E> {
         effects
     }
 
-    fn receive(&mut self, _e: Never, _time: Time) -> Vec<Message<'sim, E>> {
-        panic!()
-    }
-
     fn next_tick(&self, _time: Time) -> Option<Time> {
         Some(self.next_toggle)
     }

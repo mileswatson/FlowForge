@@ -54,8 +54,4 @@ where
         (self.action)(time);
         vec![]
     }
-
-    fn receive(&mut self, _e: Self::Receive, _time: Time) -> Vec<Message<'sim, E>> {
-        panic!()
-    }
 }
