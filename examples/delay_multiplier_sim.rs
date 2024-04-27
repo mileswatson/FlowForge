@@ -71,7 +71,9 @@ fn main() {
     receiver_slot.set(DynComponent::Borrowed(&mut receiver));
     link2_slot.set(DynComponent::Borrowed(&mut link2));
 
-    let sim = ManuallyDrop::into_inner(builder).build(table.logger(0));
+    let sim = ManuallyDrop::into_inner(builder)
+        .build(table.logger(0))
+        .unwrap();
     let sim_end = Time::from_sim_start(seconds(100.));
     sim.run_while(|t| t < sim_end);
 

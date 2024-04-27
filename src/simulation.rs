@@ -1,10 +1,9 @@
 use derive_where::derive_where;
 use generativity::{Guard, Id};
-use itertools::Itertools;
 use std::{
     cell::RefCell,
     collections::VecDeque,
-    fmt::{Debug, Formatter, Result},
+    fmt::{self, Debug, Formatter},
     rc::Rc,
 };
 use vec_map::VecMap;
@@ -29,7 +28,7 @@ pub struct ComponentId<'sim> {
 }
 
 impl<'sim> Debug for ComponentId<'sim> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_tuple("ComponentId").field(&self.index).finish()
     }
 }
@@ -47,7 +46,7 @@ pub struct Address<'sim, I, E> {
 }
 
 impl<'sim, I, E> Debug for Address<'sim, I, E> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Address").finish()
     }
 }
@@ -208,6 +207,9 @@ pub struct SimulatorBuilder<'sim, 'a, E> {
     components: RefCell<Vec<Option<Box<dyn Component<'sim, E, Receive = E> + 'a>>>>,
 }
 
+#[derive(Debug)]
+pub struct EmptySlot;
+
 impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
     #[must_use]
     pub fn new(guard: Guard<'sim>) -> SimulatorBuilder<'sim, 'a, E> {
@@ -245,19 +247,20 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         }
     }
 
-    pub fn build<L>(self, logger: L) -> Simulator<'sim, 'a, E, L> {
+    pub fn build<L>(self, logger: L) -> Result<Simulator<'sim, 'a, E, L>, EmptySlot> {
         let components = self
             .components
             .into_inner()
             .into_iter()
-            .map(Option::unwrap)
-            .collect_vec();
-        Simulator {
-            id: self.id,
-            tick_queue: TickQueue::with_capacity(components.len()),
-            components,
-            logger,
-        }
+            .collect::<Option<Vec<_>>>();
+        components
+            .map(|components| Simulator {
+                id: self.id,
+                tick_queue: TickQueue::with_capacity(components.len()),
+                components,
+                logger,
+            })
+            .ok_or(EmptySlot)
     }
 }
 
