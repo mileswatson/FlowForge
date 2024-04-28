@@ -15,13 +15,6 @@ pub trait HasVariant<P>: From<P> + TryInto<P> {}
 
 impl<E, P> HasVariant<P> for E where E: From<P> + TryInto<P> {}
 
-#[derive(Debug, From)]
-pub enum DynComponent<'a, C> {
-    Owned(C),
-    Borrowed(&'a mut C),
-    Shared(Rc<RefCell<C>>),
-}
-
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ComponentId<'sim> {
     index: usize,
@@ -115,6 +108,44 @@ pub trait Component<'sim, E>: Debug {
     }
 }
 
+impl<'sim, E, C> Component<'sim, E> for &mut C
+where
+    C: Component<'sim, E>,
+{
+    type Receive = C::Receive;
+
+    fn next_tick(&self, time: Time) -> Option<Time> {
+        (**self).next_tick(time)
+    }
+
+    fn tick(&mut self, time: Time) -> Vec<Message<'sim, E>> {
+        (*self).tick(time)
+    }
+
+    fn receive(&mut self, e: Self::Receive, time: Time) -> Vec<Message<'sim, E>> {
+        (*self).receive(e, time)
+    }
+}
+
+impl<'sim, E, C> Component<'sim, E> for Rc<RefCell<C>>
+where
+    C: Component<'sim, E>,
+{
+    type Receive = C::Receive;
+
+    fn next_tick(&self, time: Time) -> Option<Time> {
+        self.borrow().next_tick(time)
+    }
+
+    fn tick(&mut self, time: Time) -> Vec<Message<'sim, E>> {
+        self.borrow_mut().tick(time)
+    }
+
+    fn receive(&mut self, e: Self::Receive, time: Time) -> Vec<Message<'sim, E>> {
+        self.borrow_mut().receive(e, time)
+    }
+}
+
 #[derive(Debug)]
 /// TODO: Heapify?
 pub struct TickQueue {
@@ -200,10 +231,10 @@ where
         self.address.clone()
     }
 
-    pub fn fill(self, component: impl Into<DynComponent<'a, C>>) -> Address<'sim, C::Receive, E> {
+    pub fn fill(self, component: C) -> Address<'sim, C::Receive, E> {
         let mut components = self.builder.components.borrow_mut();
         assert!(components[self.index].is_none());
-        components[self.index] = Some(Box::new(component.into()));
+        components[self.index] = Some(Box::new(AssertWrapper(component)));
         self.address
     }
 }
@@ -226,10 +257,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         }
     }
 
-    pub fn insert<C>(
-        &self,
-        component: impl Into<DynComponent<'a, C>>,
-    ) -> Address<'sim, C::Receive, E>
+    pub fn insert<C>(&self, component: C) -> Address<'sim, C::Receive, E>
     where
         C: Component<'sim, E> + 'a,
         C::Receive: 'sim,
@@ -237,7 +265,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
     {
         let mut components = self.components.borrow_mut();
         let id = ComponentId::new(components.len(), self.id);
-        components.push(Some(Box::new(component.into())));
+        components.push(Some(Box::new(AssertWrapper(component))));
         Address::new(id)
     }
 
@@ -274,7 +302,10 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
     }
 }
 
-impl<'sim, 'a, C, E> Component<'sim, E> for DynComponent<'a, C>
+#[derive(Debug, From)]
+struct AssertWrapper<C>(C);
+
+impl<'sim, C, E> Component<'sim, E> for AssertWrapper<C>
 where
     C: Component<'sim, E>,
     E: HasVariant<C::Receive>,
@@ -282,30 +313,18 @@ where
     type Receive = E;
 
     fn next_tick(&self, time: Time) -> Option<Time> {
-        match self {
-            DynComponent::Owned(x) => x.next_tick(time),
-            DynComponent::Shared(x) => x.borrow().next_tick(time),
-            DynComponent::Borrowed(x) => x.next_tick(time),
-        }
+        self.0.next_tick(time)
     }
 
     fn tick(&mut self, time: Time) -> Vec<Message<'sim, E>> {
-        match self {
-            DynComponent::Owned(x) => x.tick(time),
-            DynComponent::Shared(x) => x.borrow_mut().tick(time),
-            DynComponent::Borrowed(x) => x.tick(time),
-        }
+        self.0.tick(time)
     }
 
     fn receive(&mut self, e: E, time: Time) -> Vec<Message<'sim, E>> {
         let e = e
             .try_into()
             .map_or_else(|_| panic!("Incorrect message type!"), |x| x);
-        match self {
-            DynComponent::Owned(x) => x.receive(e, time),
-            DynComponent::Shared(x) => x.borrow_mut().receive(e, time),
-            DynComponent::Borrowed(x) => x.receive(e, time),
-        }
+        self.0.receive(e, time)
     }
 }
 

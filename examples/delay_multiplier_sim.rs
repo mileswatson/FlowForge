@@ -28,9 +28,9 @@ fn main() {
     let builder = ManuallyDrop::new(SimulatorBuilder::<DefaultEffect>::new(guard));
 
     let sender_slot = builder.reserve_slot();
-    let link1_slot = builder.reserve_slot::<Link<_, _>>();
-    let receiver_slot = builder.reserve_slot::<LossyBouncer<_, _>>();
-    let link2_slot = builder.reserve_slot::<Link<_, _>>();
+    let link1_slot = builder.reserve_slot();
+    let receiver_slot = builder.reserve_slot();
+    let link2_slot = builder.reserve_slot();
 
     let sender_address = sender_slot.address().cast();
 
