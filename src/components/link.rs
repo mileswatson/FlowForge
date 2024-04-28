@@ -3,10 +3,10 @@ use std::collections::VecDeque;
 use derive_where::derive_where;
 
 use crate::{
-    util::logging::Logger,
-    util::rand::{ContinuousDistribution, Rng},
     quantities::{earliest_opt, latest, Information, InformationRate, Time, TimeSpan},
     simulation::{Component, Message},
+    util::logging::Logger,
+    util::rand::{ContinuousDistribution, Rng},
 };
 
 use super::packet::Packet;

@@ -15,6 +15,20 @@ pub trait HasVariant<P>: From<P> + TryInto<P> {}
 
 impl<E, P> HasVariant<P> for E where E: From<P> + TryInto<P> {}
 
+#[derive(Clone)]
+pub struct Clock(Rc<RefCell<Time>>);
+
+impl Clock {
+    #[must_use]
+    pub fn time(&self) -> Time {
+        *self.0.borrow()
+    }
+
+    fn set(&self, time: Time) {
+        *self.0.borrow_mut() = time;
+    }
+}
+
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
 pub struct ComponentId<'sim> {
     index: usize,
@@ -176,7 +190,7 @@ impl TickQueue {
         self.waiting.values().min().copied()
     }
 
-    pub fn pop_next(&mut self) -> Option<(Time, usize)> {
+    pub fn pop_next(&mut self) -> (Time, Option<usize>) {
         if let Some((idx, time)) = self
             .waiting
             .iter()
@@ -185,9 +199,9 @@ impl TickQueue {
         {
             self.current_time = time;
             self.waiting.remove(idx);
-            Some((time, idx))
+            (time, Some(idx))
         } else {
-            None
+            (Time::MAX, None)
         }
     }
 }
@@ -241,6 +255,7 @@ where
 
 pub struct SimulatorBuilder<'sim, 'a, E> {
     id: Id<'sim>,
+    clock: Clock,
     #[allow(clippy::type_complexity)]
     components: RefCell<Vec<Option<Box<dyn Component<'sim, E, Receive = E> + 'a>>>>,
 }
@@ -254,6 +269,7 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
         SimulatorBuilder {
             id: guard.into(),
             components: RefCell::new(Vec::new()),
+            clock: Clock(Rc::new(RefCell::new(Time::SIM_START))),
         }
     }
 
@@ -292,13 +308,27 @@ impl<'sim, 'a, E> SimulatorBuilder<'sim, 'a, E> {
             .into_iter()
             .collect::<Option<Vec<_>>>();
         components
-            .map(|components| Simulator {
-                id: self.id,
-                tick_queue: TickQueue::with_capacity(components.len()),
-                components,
-                logger,
+            .map(|components| {
+                let mut tick_queue = TickQueue::with_capacity(components.len());
+                components.iter().enumerate().for_each(|(idx, component)| {
+                    tick_queue.update(idx, component.next_tick(Time::SIM_START));
+                });
+                let (next_time, next_tick) = tick_queue.pop_next();
+                self.clock.set(next_time);
+                Simulator {
+                    id: self.id,
+                    tick_queue,
+                    components,
+                    logger,
+                    clock: self.clock,
+                    next_tick,
+                }
             })
             .ok_or(EmptySlot)
+    }
+
+    pub fn clock(&self) -> Clock {
+        self.clock.clone()
     }
 }
 
@@ -332,6 +362,8 @@ pub struct Simulator<'sim, 'a, E, L> {
     id: Id<'sim>,
     components: Vec<Box<dyn Component<'sim, E, Receive = E> + 'a>>,
     tick_queue: TickQueue,
+    next_tick: Option<usize>,
+    clock: Clock,
     logger: L,
 }
 
@@ -367,29 +399,22 @@ where
         effects.push_all(messages);
     }
 
-    fn tick(&mut self, component_id: ComponentId<'sim>, time: Time) {
-        log!(self.logger, "time = {}", &time);
-        let mut effects = EffectQueue::new();
-        self.tick_without_messages(component_id, time, &mut effects);
-        self.handle_messages(time, &mut effects);
+    pub fn tick(&mut self) -> bool {
+        self.next_tick
+            .map(|idx| {
+                let time = self.clock.time();
+                log!(self.logger, "time = {}", &time);
+                let mut effects = EffectQueue::new();
+                self.tick_without_messages(ComponentId::new(idx, self.id), time, &mut effects);
+                self.handle_messages(time, &mut effects);
+                let (next_time, next_tick) = self.tick_queue.pop_next();
+                self.clock.set(next_time);
+                self.next_tick = next_tick;
+            })
+            .is_some()
     }
 
-    pub fn run_while(mut self, f: impl Fn(Time) -> bool) -> Time {
-        self.components
-            .iter()
-            .enumerate()
-            .for_each(|(idx, component)| {
-                self.tick_queue
-                    .update(idx, component.next_tick(Time::SIM_START));
-            });
-        let mut last_time = Time::SIM_START;
-        while let Some((time, idx)) = self.tick_queue.pop_next() {
-            last_time = time;
-            if !f(time) {
-                break;
-            }
-            self.tick(ComponentId::new(idx, self.id), time);
-        }
-        last_time
+    pub fn time(&self) -> Time {
+        self.clock.time()
     }
 }

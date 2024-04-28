@@ -107,8 +107,9 @@ where
         &flows[index]
     };
     n.populate_sim(&builder, &cca_gen, rng, new_flow);
-    let sim = builder.build(NothingLogger).unwrap();
-    sim.run_while(|t| t < Time::from_sim_start(seconds(100.)));
+    let mut sim = builder.build(NothingLogger).unwrap();
+    while sim.time() < Time::from_sim_start(seconds(100.)) && sim.tick() {}
+    drop(sim);
     TraceResult {
         active_senders,
         network: n,

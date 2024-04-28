@@ -58,9 +58,10 @@ impl EvaluationConfig {
             make_guard!(guard);
             let builder = SimulatorBuilder::new(guard);
             n.populate_sim(&builder, &new_cca, &mut rng, new_flow);
-            let sim = builder.build(NothingLogger).unwrap();
+            let clock = builder.clock();
+            let mut sim = builder.build(NothingLogger).unwrap();
             let sim_end = Time::from_sim_start(self.run_sim_for);
-            sim.run_while(|t| t < sim_end);
+            while clock.time() < sim_end && sim.tick() {}
             let flow_stats = flows
                 .iter()
                 .filter_map(|x| x.borrow().average_properties(sim_end).ok())

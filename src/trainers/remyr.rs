@@ -3,6 +3,7 @@ use std::{
     collections::VecDeque,
     f32::consts::{E, PI},
     iter::once,
+    mem::ManuallyDrop,
 };
 
 use append_only_vec::AppendOnlyVec;
@@ -276,10 +277,10 @@ impl<'a, F, S> std::fmt::Debug for RolloutWrapper<'a, F, S> {
 
 impl<'a, F, S> RemyPolicy for RolloutWrapper<'a, F, S>
 where
-    F: Fn(Record, Time),
+    F: Fn(Record),
     S: Fn() -> usize,
 {
-    fn action(&self, point: &Point, time: Time) -> Option<Action> {
+    fn action(&self, point: &Point) -> Option<Action> {
         Some(self.dna.raw_action(point, |observation, mean| {
             let mut samples = self.samples.borrow_mut();
             let (total, samples) = &mut *samples;
@@ -313,15 +314,12 @@ where
                     mean.reshape(),
                     self.stddev.clone().reshape(),
                 );
-                (self.f)(
-                    Record {
-                        observation: observation.array(),
-                        action: action.array(),
-                        action_log_prob: action_log_prob.reshape::<()>().array(),
-                        num_senders: (self.num_senders)(),
-                    },
-                    time,
-                );
+                (self.f)(Record {
+                    observation: observation.array(),
+                    action: action.array(),
+                    action_log_prob: action_log_prob.reshape::<()>().array(),
+                    num_senders: (self.num_senders)(),
+                });
                 action
             }
         }))
@@ -365,10 +363,14 @@ fn rollout<G: WithLifetime>(
                     utility_function.utility(&flow_stats).unwrap_or(0.) as f32
                 };
                 let mut policy_rng = rng.create_child();
+                make_guard!(guard);
+                let builder = SimulatorBuilder::new(guard);
+                let clock = ManuallyDrop::new(builder.clock());
                 let dna = RolloutWrapper {
                     stddev,
                     dna,
-                    f: &|rec, time| {
+                    f: &|rec| {
+                        let time = clock.time();
                         let mut records = records.borrow_mut();
                         records.0.push(rec);
                         records.1.push((current_utility(time), time));
@@ -379,13 +381,12 @@ fn rollout<G: WithLifetime>(
                     num_senders: &|| flows.iter().filter(|x| x.borrow().active()).count(),
                 };
                 let cca_template = RemyCcaTemplate::new(repeat_actions.clone());
-                let cca_gen = cca_template.with_not_sync(dna);
-                make_guard!(guard);
-                let builder = SimulatorBuilder::new(guard);
-                n.populate_sim(&builder, &cca_gen, &mut rng, new_flow);
-                let sim = builder.build(NothingLogger).unwrap();
+                let cca_gen = ManuallyDrop::new(cca_template.with_not_sync(dna));
+                n.populate_sim(&builder, &*cca_gen, &mut rng, new_flow);
+                let clock = builder.clock();
+                let mut sim = builder.build(NothingLogger).unwrap();
                 let sim_end = Time::from_sim_start(training_config.run_sim_for);
-                sim.run_while(|t| t < sim_end);
+                while clock.time() < sim_end && sim.tick() {}
                 (current_utility(sim_end), sim_end)
             };
             let mut records = records.into_inner();
@@ -564,7 +565,7 @@ mod tests {
         eval::EvaluationConfig,
         flow::AlphaFairness,
         networks::DefaultNetworkConfig,
-        quantities::{milliseconds, seconds, Float, Time},
+        quantities::{milliseconds, seconds, Float},
         trainers::DefaultEffect,
         util::rand::{ContinuousDistribution, Rng},
         Trainer,
@@ -604,7 +605,7 @@ mod tests {
         };
         let precision = 10_000.;
         let actions = (0..100)
-            .map(|_| result.action(&random_point(), Time::SIM_START).unwrap())
+            .map(|_| result.action(&random_point()).unwrap())
             .map(
                 |Action {
                      window_multiplier,

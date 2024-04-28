@@ -8,7 +8,7 @@ use flowforge::{
             net::{HiddenLayers, PolicyNet},
         },
     },
-    quantities::{seconds, Float, Time},
+    quantities::{seconds, Float},
     Config, Custom,
 };
 use itertools::Itertools;
@@ -54,7 +54,7 @@ fn inspect_rule_tree(rule_tree: &(impl RemyPolicy + Sync)) -> PolicySummary {
         .into_par_iter()
         .map(|point| {
             rule_tree
-                .action(&point, Time::SIM_START)
+                .action(&point)
                 .map(|a| {
                     (
                         (

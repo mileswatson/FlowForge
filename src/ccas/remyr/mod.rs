@@ -1,9 +1,6 @@
 use dfdx::prelude::*;
 
-use crate::{
-    quantities::{Time, TimeSpan},
-    util::rand::Wrapper,
-};
+use crate::{quantities::TimeSpan, util::rand::Wrapper};
 
 use self::{
     dna::RemyrDna,
@@ -69,7 +66,7 @@ impl RemyrDna {
 }
 
 impl RemyPolicy for RemyrDna {
-    fn action(&self, point: &Point, _time: Time) -> Option<Action> {
+    fn action(&self, point: &Point) -> Option<Action> {
         Some(self.deterministic_action(point))
     }
 }

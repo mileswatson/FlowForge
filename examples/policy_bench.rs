@@ -16,7 +16,7 @@ use flowforge::{
     eval::EvaluationConfig,
     flow::AlphaFairness,
     networks::remy::RemyNetworkConfig,
-    quantities::{seconds, Time},
+    quantities::seconds,
     trainers::DefaultEffect,
     util::rand::Rng,
     CcaTemplate, Config, Custom,
@@ -47,13 +47,13 @@ pub struct TimerWrapper<'a, P> {
     durations: &'a Mutex<Vec<Duration>>,
 }
 
-impl<'a, P> RemyPolicy<false> for TimerWrapper<'a, P>
+impl<'a, P> RemyPolicy for TimerWrapper<'a, P>
 where
     P: RemyPolicy,
 {
-    fn action(&self, point: &Point, time: Time) -> Option<Action> {
+    fn action(&self, point: &Point) -> Option<Action> {
         let start = Instant::now();
-        let action = self.dna.action(point, time);
+        let action = self.dna.action(point);
         let end = Instant::now();
         self.durations.lock().unwrap().push(end - start);
         action

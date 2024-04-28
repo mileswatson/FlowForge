@@ -2,7 +2,7 @@ use anyhow::Result;
 use protobuf::Message;
 use serde::Serialize;
 
-use crate::{quantities::Time, Dna};
+use crate::Dna;
 
 use super::{
     action::Action, autogen::remy_dna::WhiskerTree, point::Point, rule_tree::RuleTree, RemyPolicy,
@@ -36,7 +36,7 @@ impl<const TESTING: bool> Dna for RemyDna<TESTING> {
 }
 
 impl RemyPolicy for RemyDna {
-    fn action(&self, point: &Point, time: Time) -> Option<Action> {
-        self.tree.action(point, time)
+    fn action(&self, point: &Point) -> Option<Action> {
+        self.tree.action(point)
     }
 }

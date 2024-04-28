@@ -70,13 +70,12 @@ fn main() {
     link1_slot.fill(&mut link1);
     receiver_slot.fill(&mut receiver);
     link2_slot.fill(&mut link2);
-
-    let sim = ManuallyDrop::into_inner(builder)
+    let mut sim = ManuallyDrop::into_inner(builder)
         .build(table.logger(0))
         .unwrap();
     let sim_end = Time::from_sim_start(seconds(100.));
-    sim.run_while(|t| t < sim_end);
-
+    while sim.time() < sim_end && sim.tick() {}
+    drop(sim);
     drop(link1);
 
     println!("{}", table.build());

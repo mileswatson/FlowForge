@@ -7,7 +7,7 @@ use itertools::Itertools;
 use protobuf::MessageField;
 use serde::Serialize;
 
-use crate::quantities::{Float, Time};
+use crate::quantities::Float;
 
 use super::{
     action::Action,
@@ -24,7 +24,7 @@ pub struct AugmentedRuleTree<'a> {
 }
 
 impl<'a> RemyPolicy for AugmentedRuleTree<'a> {
-    fn action(&self, point: &Point, _time: Time) -> Option<Action> {
+    fn action(&self, point: &Point) -> Option<Action> {
         self.tree._action(self.tree.root, point, &|idx| {
             if idx == self.rule_override.0 {
                 Some(self.rule_override.1.clone())
@@ -42,7 +42,7 @@ pub struct CountingRuleTree<'a> {
 }
 
 impl<'a> RemyPolicy for CountingRuleTree<'a> {
-    fn action(&self, point: &Point, _time: Time) -> Option<Action> {
+    fn action(&self, point: &Point) -> Option<Action> {
         self.tree._action(self.tree.root, point, &|idx| {
             self.counts[idx].fetch_add(1, Ordering::Relaxed);
             None
@@ -399,7 +399,7 @@ impl RuleTree {
 }
 
 impl RemyPolicy for RuleTree {
-    fn action(&self, point: &Point, _time: Time) -> Option<Action> {
+    fn action(&self, point: &Point) -> Option<Action> {
         self._action(self.root, point, &|_| None)
     }
 }

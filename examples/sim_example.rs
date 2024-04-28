@@ -147,8 +147,6 @@ fn main() {
     //     server: server_address.cast()
     // }); COMPILE ERROR - invariant lifetime clash due to mixing simulations
 
-    builder
-        .build(NothingLogger)
-        .unwrap()
-        .run_while(|t| t < Time::from_sim_start(seconds(3.)));
+    let mut sim = builder.build(NothingLogger).unwrap();
+    while sim.time() < Time::from_sim_start(seconds(3.)) && sim.tick() {}
 }

@@ -89,9 +89,9 @@ where
         }
     }
 
-    fn action(&self, time: Time) -> Action {
+    fn action(&self) -> Action {
         self.rule_tree
-            .action(&self.point(), time)
+            .action(&self.point())
             .unwrap_or_else(|| panic!("Expected {} to map to an action", self.point()))
     }
 
@@ -177,7 +177,7 @@ where
                 a
             }
             None => {
-                let action = self.action(received_time);
+                let action = self.action();
                 let a = action.as_ref().clone();
                 self.next_change = self
                     .repeat_actions
@@ -244,15 +244,15 @@ where
     }
 }
 
-pub trait RemyPolicy<const TESTING: bool = false>: Debug {
-    fn action(&self, point: &Point, time: Time) -> Option<Action>;
+pub trait RemyPolicy: Debug {
+    fn action(&self, point: &Point) -> Option<Action>;
 }
 
 impl<T> RemyPolicy for &T
 where
     T: RemyPolicy,
 {
-    fn action(&self, point: &Point, time: Time) -> Option<Action> {
-        T::action(self, point, time)
+    fn action(&self, point: &Point) -> Option<Action> {
+        T::action(self, point)
     }
 }
