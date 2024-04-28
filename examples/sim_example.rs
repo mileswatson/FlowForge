@@ -63,7 +63,7 @@ where
     fn receive(&mut self, e: ServerMessage, time: Time) -> Vec<Message<'sim, E>> {
         match e {
             ServerMessage::SendPing(PingDevices) => {
-                println!("Sent Pong at time {time}");
+                println!("Sent pings at time {time}");
                 self.devices
                     .iter()
                     .map(|address| {
@@ -74,7 +74,7 @@ where
                     .collect()
             }
             ServerMessage::Pong(Pong { name }) => {
-                println!("Received Pong from {name} at time {time}");
+                println!("Received pong from {name} at time {time}");
                 vec![]
             }
         }
@@ -150,5 +150,5 @@ fn main() {
     builder
         .build(NothingLogger)
         .unwrap()
-        .run_while(|t| t < Time::from_sim_start(seconds(10.)));
+        .run_while(|t| t < Time::from_sim_start(seconds(3.)));
 }
