@@ -421,8 +421,8 @@ mod tests {
     }
 
     fn check_to_pb(dna: &RemyDna<true>) {
-        let cycled = RuleTree::<true>::from_whisker_tree(&dna.tree.to_whisker_tree());
-        assert_eq!(dna.tree, cycled);
+        let cycled = RuleTree::<true>::from_whisker_tree(&dna.0.to_whisker_tree());
+        assert_eq!(dna.0, cycled);
     }
 
     fn check_to_dna(pb: &WhiskerTree) {

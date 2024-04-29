@@ -15,7 +15,7 @@ use flowforge::{
     },
     eval::EvaluationConfig,
     flow::AlphaFairness,
-    networks::remy::RemyNetworkConfig,
+    networks::remy::RemyNetworkDistribution,
     quantities::seconds,
     trainers::DefaultEffect,
     util::rand::Rng,
@@ -68,7 +68,7 @@ pub fn main() {
         network_samples: 30,
         run_sim_for: seconds(30.),
     };
-    let network = RemyNetworkConfig::default();
+    let network = RemyNetworkDistribution::default();
     let utility = AlphaFairness::PROPORTIONAL_THROUGHPUT_DELAY_FAIRNESS;
     match args.mode {
         Mode::Remy => {

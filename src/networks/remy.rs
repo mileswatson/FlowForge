@@ -6,7 +6,7 @@ use crate::{
         link::Link,
         packet::Packet,
         senders::lossy::{LossySender, LossySenderEffect},
-        toggler::{Toggle, Toggler},
+        toggler::Toggler,
     },
     quantities::{
         bits_per_second, milliseconds, seconds, Float, Information, InformationRate, TimeSpan,
@@ -26,7 +26,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, Serialize)]
-pub struct RemyNetworkBuilder {
+pub struct RemyNetwork {
     pub rtt: TimeSpan,
     pub packet_rate: InformationRate,
     pub loss_rate: Float,
@@ -37,24 +37,19 @@ pub struct RemyNetworkBuilder {
 }
 
 pub trait HasRemyNetworkVariants<'sim, E>:
-    HasVariant<LossySenderEffect<'sim, E>>
-    + HasVariant<Packet<'sim, E>>
-    + HasVariant<Toggle>
-    + HasVariant<Never>
-    + 'sim
+    HasVariant<LossySenderEffect<'sim, E>> + HasVariant<Packet<'sim, E>> + HasVariant<Never> + 'sim
 {
 }
 
 impl<'sim, E, T> HasRemyNetworkVariants<'sim, E> for T where
     T: HasVariant<LossySenderEffect<'sim, E>>
         + HasVariant<Packet<'sim, E>>
-        + HasVariant<Toggle>
         + HasVariant<Never>
         + 'sim
 {
 }
 
-impl<G> Network<G> for RemyNetworkBuilder
+impl<G> Network<G> for RemyNetwork
 where
     G: WithLifetime,
     for<'sim> G::Type<'sim>: HasRemyNetworkVariants<'sim, G::Type<'sim>>,
@@ -103,7 +98,7 @@ where
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct RemyNetworkConfig {
+pub struct RemyNetworkDistribution {
     pub rtt: PositiveContinuousDistribution<TimeSpan>,
     pub bandwidth: PositiveContinuousDistribution<InformationRate>,
     pub loss_rate: ProbabilityDistribution,
@@ -113,9 +108,9 @@ pub struct RemyNetworkConfig {
     pub on_time: PositiveContinuousDistribution<TimeSpan>,
 }
 
-impl Default for RemyNetworkConfig {
-    fn default() -> RemyNetworkConfig {
-        RemyNetworkConfig {
+impl Default for RemyNetworkDistribution {
+    fn default() -> RemyNetworkDistribution {
+        RemyNetworkDistribution {
             rtt: PositiveContinuousDistribution(ContinuousDistribution::Uniform {
                 min: milliseconds(100.),
                 max: milliseconds(200.),
@@ -137,9 +132,9 @@ impl Default for RemyNetworkConfig {
     }
 }
 
-impl Distribution<RemyNetworkBuilder> for RemyNetworkConfig {
-    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> RemyNetworkBuilder {
-        RemyNetworkBuilder {
+impl Distribution<RemyNetwork> for RemyNetworkDistribution {
+    fn sample<R: rand::Rng + ?Sized>(&self, rng: &mut R) -> RemyNetwork {
+        RemyNetwork {
             rtt: rng.sample(&self.rtt),
             packet_rate: rng.sample(&self.bandwidth),
             loss_rate: rng.sample(&self.loss_rate),
@@ -151,10 +146,10 @@ impl Distribution<RemyNetworkBuilder> for RemyNetworkConfig {
     }
 }
 
-impl<G> NetworkDistribution<G> for RemyNetworkConfig
+impl<G> NetworkDistribution<G> for RemyNetworkDistribution
 where
     G: WithLifetime,
     for<'sim> G::Type<'sim>: HasRemyNetworkVariants<'sim, G::Type<'sim>>,
 {
-    type Network = RemyNetworkBuilder;
+    type Network = RemyNetwork;
 }

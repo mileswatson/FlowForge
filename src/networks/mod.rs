@@ -7,7 +7,7 @@ use crate::{
     Cca, Network, NetworkDistribution,
 };
 
-use self::remy::{HasRemyNetworkVariants, RemyNetworkBuilder, RemyNetworkConfig};
+use self::remy::{HasRemyNetworkVariants, RemyNetwork, RemyNetworkDistribution};
 
 pub mod remy;
 
@@ -17,18 +17,18 @@ impl<'sim, E, T> HasDefaultNetworkVariants<'sim, E> for T where T: HasRemyNetwor
 
 #[derive(Serialize, Deserialize)]
 pub enum DefaultNetworkConfig {
-    Remy(RemyNetworkConfig),
+    Remy(RemyNetworkDistribution),
 }
 
 impl Default for DefaultNetworkConfig {
     fn default() -> Self {
-        DefaultNetworkConfig::Remy(RemyNetworkConfig::default())
+        DefaultNetworkConfig::Remy(RemyNetworkDistribution::default())
     }
 }
 
 #[derive(Clone, Serialize)]
 pub enum DefaultNetworkBuilder {
-    Remy(RemyNetworkBuilder),
+    Remy(RemyNetwork),
 }
 
 impl Distribution<DefaultNetworkBuilder> for DefaultNetworkConfig {
@@ -66,13 +66,7 @@ where
     {
         match self {
             DefaultNetworkBuilder::Remy(n) => {
-                <RemyNetworkBuilder as Network<G>>::populate_sim(
-                    n,
-                    builder,
-                    new_cca,
-                    rng,
-                    new_flow_meter,
-                );
+                <RemyNetwork as Network<G>>::populate_sim(n, builder, new_cca, rng, new_flow_meter);
             }
         }
     }
