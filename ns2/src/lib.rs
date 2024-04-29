@@ -8,7 +8,7 @@ use flowforge::{
         remy::{dna::RemyDna, point::Point, RemyPolicy},
         remyr::dna::RemyrDna,
     },
-    quantities::{milliseconds, Time},
+    quantities::milliseconds,
     Config, Custom,
 };
 
@@ -54,7 +54,7 @@ unsafe extern "C" fn get_action(
         rtt_ratio,
     };
 
-    let action = dna.action(&point, Time::SIM_START).unwrap();
+    let action = dna.action(&point).unwrap();
 
     CAction {
         new_window: action.apply_to(current_window),
