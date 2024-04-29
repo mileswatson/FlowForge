@@ -162,7 +162,7 @@ impl Trainer for RemyTrainer {
     ) -> RemyDna {
         let new_eval_rng = rng.identical_child_factory();
         let eval_and_count = coerce(|dna: &mut RemyDna| {
-            let counting_tree = CountingRuleTree::new(&mut dna.tree);
+            let counting_tree = CountingRuleTree::new(&mut dna.0);
             self.count_rule_usage_config
                 .evaluate::<_, G, _>(
                     RemyCcaTemplate::default().with_not_sync(&counting_tree),
@@ -266,7 +266,7 @@ impl Trainer for RemyTrainer {
                     }
                     leaf.mark_optimized();
                 }
-                dna.tree.mark_all_unoptimized();
+                dna.0.mark_all_unoptimized();
             }
         }
         eval_and_count(&mut dna);
