@@ -258,37 +258,7 @@ fn _push_whisker_tree<const TESTING: bool>(
     nodes.len() - 1
 }
 
-fn push_tree<const TESTING: bool>(
-    nodes: &mut Vec<RuleTreeNode<TESTING>>,
-    root: usize,
-    tree: &RuleTree<TESTING>,
-) -> usize {
-    let new_node = match &tree.nodes[root] {
-        RuleTreeNode::Node { domain, children } => RuleTreeNode::Node {
-            children: children
-                .iter()
-                .map(|child| push_tree(nodes, *child, tree))
-                .collect(),
-            domain: domain.clone(),
-        },
-        RuleTreeNode::Leaf { domain, action, .. } => RuleTreeNode::Leaf {
-            domain: domain.clone(),
-            action: action.clone(),
-            optimized: false,
-        },
-    };
-    nodes.push(new_node);
-    nodes.len() - 1
-}
-
 impl<const TESTING: bool> RuleTree<TESTING> {
-    #[must_use]
-    pub fn from_tree(self: &RuleTree<TESTING>) -> RuleTree<TESTING> {
-        let mut nodes = Vec::new();
-        let root = push_tree(&mut nodes, self.root, self);
-        RuleTree { root, nodes }
-    }
-
     fn _action<F>(
         &self,
         mut current_idx: usize,
