@@ -32,7 +32,7 @@ struct Rtt {
 }
 
 pub struct RemyCca<T> {
-    rule_tree: T,
+    policy: T,
     last_ack: Option<Time>,
     last_ack_send: Option<Time>,
     ack_ewma: EWMA<TimeSpan>,
@@ -47,7 +47,7 @@ pub struct RemyCca<T> {
 impl<T> Debug for RemyCca<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RemyCca")
-            .field("rule_tree", &"")
+            .field("policy", &"")
             .field("last_ack", &self.last_ack)
             .field("last_ack_send", &self.last_ack_send)
             .field("ack_ewma", &self.ack_ewma)
@@ -68,7 +68,7 @@ where
     pub fn new(rule_tree: T, repeat_actions: Option<DiscreteDistribution<u32>>) -> RemyCca<T> {
         let settings = RemyCwndSettings::default();
         RemyCca {
-            rule_tree,
+            policy: rule_tree,
             ack_ewma: EWMA::new(1. / 8.),
             send_ewma: EWMA::new(1. / 8.),
             last_ack: None,
@@ -90,7 +90,7 @@ where
     }
 
     fn action(&self) -> Action {
-        self.rule_tree
+        self.policy
             .action(&self.point())
             .unwrap_or_else(|| panic!("Expected {} to map to an action", self.point()))
     }
