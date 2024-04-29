@@ -77,7 +77,7 @@ fn inspect_rule_tree(rule_tree: &(impl RemyPolicy + Sync)) -> PolicySummary {
 fn inspect_remy(dna: &Path) -> String {
     let dna = RemyDna::load(dna).unwrap();
     serde_json::to_string(&RemyInspection {
-        maximum_depth: dna.tree.num_parents() as u64,
+        maximum_depth: dna.0.num_parents() as u64,
         policy: inspect_rule_tree(&dna),
     })
     .unwrap()
