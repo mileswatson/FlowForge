@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 use super::dna::SerializeTensors;
 
 pub const OBSERVATION: usize = 3;
-pub const STATE: usize = OBSERVATION + 1;
+pub const GLOBAL_STATE: usize = 1;
+pub const AGENT_SPECIFIC_GLOBAL_STATE: usize = OBSERVATION + GLOBAL_STATE;
 pub const ACTION: usize = 3;
 
 pub type PolicyArchitecture = (
@@ -14,7 +15,7 @@ pub type PolicyArchitecture = (
 );
 
 pub type CriticArchitecture = (
-    (LinearConfig<Const<STATE>, usize>, FastGeLU),
+    (LinearConfig<Const<AGENT_SPECIFIC_GLOBAL_STATE>, usize>, FastGeLU),
     (LinearConfig<usize, usize>, FastGeLU),
     (LinearConfig<usize, Const<1>>,),
 );
@@ -57,7 +58,7 @@ impl HiddenLayers {
     #[must_use]
     pub fn critic_arch(self) -> CriticArchitecture {
         (
-            (LinearConfig::new(Const::<STATE>, self.0), FastGeLU),
+            (LinearConfig::new(Const::<AGENT_SPECIFIC_GLOBAL_STATE>, self.0), FastGeLU),
             (LinearConfig::new(self.0, self.1), FastGeLU),
             (LinearConfig::new(self.1, Const::<1>),),
         )

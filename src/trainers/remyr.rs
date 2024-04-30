@@ -20,7 +20,8 @@ use crate::{
         remyr::{
             dna::RemyrDna,
             net::{
-                CopyToDevice, HiddenLayers, PolicyNet, PolicyNetwork, ACTION, OBSERVATION, STATE,
+                CopyToDevice, HiddenLayers, PolicyNet, PolicyNetwork, ACTION,
+                AGENT_SPECIFIC_GLOBAL_STATE, OBSERVATION,
             },
         },
     },
@@ -200,7 +201,7 @@ impl DiscountingMode {
 }
 
 struct RolloutResult<D: Device<f32>> {
-    states: Tensor<(usize, Const<STATE>), f32, D>,
+    states: Tensor<(usize, Const<AGENT_SPECIFIC_GLOBAL_STATE>), f32, D>,
     actions: Tensor<(usize, Const<ACTION>), f32, D>,
     action_log_probs: Tensor<(usize,), f32, D>,
     rewards_to_go_before_action: Tensor<(usize,), f32, D>,
@@ -235,7 +236,10 @@ impl<D: Device<f32>> RolloutResult<D> {
             .copied()
             .collect();
         RolloutResult {
-            states: dev.tensor_from_vec(observations, (num_timesteps, Const::<STATE>)),
+            states: dev.tensor_from_vec(
+                observations,
+                (num_timesteps, Const::<AGENT_SPECIFIC_GLOBAL_STATE>),
+            ),
             actions: dev.tensor_from_vec(actions, (num_timesteps, Const::<ACTION>)),
             action_log_probs: dev.tensor_from_vec(action_log_probs, (num_timesteps,)),
             rewards_to_go_before_action: dev
