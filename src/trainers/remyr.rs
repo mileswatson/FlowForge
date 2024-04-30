@@ -26,7 +26,7 @@ use crate::{
     },
     eval::EvaluationConfig,
     flow::UtilityFunction,
-    quantities::{milliseconds, seconds, Float, Time, TimeSpan},
+    quantities::{milliseconds, seconds, Time, TimeSpan},
     simulation::SimulatorBuilder,
     util::{
         logging::NothingLogger,
@@ -259,7 +259,6 @@ pub struct RolloutWrapper<'a, F, S> {
     num_senders: &'a S,
     dna: &'a RemyrDna,
     rng: &'a RefCell<&'a mut Rng>,
-    prob_deterministic: Float,
     stddev: &'a Tensor1D<ACTION>,
     samples: RefCell<(Tensor1D<ACTION>, VecDeque<Tensor1D<ACTION>>)>,
     f: &'a F,
@@ -270,7 +269,6 @@ impl<'a, F, S> std::fmt::Debug for RolloutWrapper<'a, F, S> {
         f.debug_struct("RolloutWrapper")
             .field("dna", &self.dna)
             .field("rng", &self.rng)
-            .field("prob_deterministic", &self.prob_deterministic)
             .finish()
     }
 }
@@ -301,27 +299,22 @@ where
                 *total = total.clone() + s.clone();
                 samples.push_back(s);
             }
-            if rng.sample(&ContinuousDistribution::Uniform { min: 0., max: 1. })
-                <= self.prob_deterministic
-            {
-                mean
-            } else {
-                #[allow(clippy::cast_precision_loss)]
-                let action: Tensor1D<ACTION> = mean.clone()
-                    + (total.clone() / (window_size as f32).sqrt()) * self.stddev.clone();
-                let action_log_prob = calculate_action_log_probs::<Const<1>, _, _>(
-                    action.clone().reshape(),
-                    mean.reshape(),
-                    self.stddev.clone().reshape(),
-                );
-                (self.f)(Record {
-                    observation: observation.array(),
-                    action: action.array(),
-                    action_log_prob: action_log_prob.reshape::<()>().array(),
-                    num_senders: (self.num_senders)(),
-                });
-                action
-            }
+
+            #[allow(clippy::cast_precision_loss)]
+            let action: Tensor1D<ACTION> =
+                mean.clone() + (total.clone() / (window_size as f32).sqrt()) * self.stddev.clone();
+            let action_log_prob = calculate_action_log_probs::<Const<1>, _, _>(
+                action.clone().reshape(),
+                mean.reshape(),
+                self.stddev.clone().reshape(),
+            );
+            (self.f)(Record {
+                observation: observation.array(),
+                action: action.array(),
+                action_log_prob: action_log_prob.reshape::<()>().array(),
+                num_senders: (self.num_senders)(),
+            });
+            action
         }))
     }
 }
@@ -334,7 +327,6 @@ fn rollout<G: WithLifetime>(
     training_config: &EvaluationConfig,
     half_life: TimeSpan,
     discounting_mode: &DiscountingMode,
-    prob_deterministic: Float,
     repeat_actions: &Option<DiscreteDistribution<u32>>,
     rng: &mut Rng,
 ) -> Vec<Trajectory> {
@@ -376,7 +368,6 @@ fn rollout<G: WithLifetime>(
                         records.1.push((current_utility(time), time));
                     },
                     rng: &RefCell::new(&mut policy_rng),
-                    prob_deterministic,
                     samples: RefCell::new((stddev.clone() * 0_f32, VecDeque::new())),
                     num_senders: &|| flows.iter().filter(|x| x.borrow().active()).count(),
                 };
@@ -462,7 +453,6 @@ impl Trainer for RemyrTrainer {
                 &self.rollout_config,
                 self.bandwidth_half_life,
                 &self.discounting_mode,
-                0.,
                 &self.repeat_actions,
                 rng,
             );
