@@ -1,6 +1,5 @@
 use std::{
     cell::RefCell,
-    collections::VecDeque,
     f32::consts::{E, PI},
     iter::once,
     mem::ManuallyDrop,
@@ -264,7 +263,6 @@ pub struct RolloutWrapper<'a, F, S> {
     dna: &'a RemyrDna,
     rng: &'a RefCell<&'a mut Rng>,
     stddev: &'a Tensor1D<ACTION>,
-    samples: RefCell<(Tensor1D<ACTION>, VecDeque<Tensor1D<ACTION>>)>,
     f: &'a F,
 }
 
@@ -284,11 +282,6 @@ where
 {
     fn action(&self, point: &Point) -> Option<Action> {
         Some(self.dna.raw_action(point, |observation, mean| {
-            let mut samples = self.samples.borrow_mut();
-            let (total, samples) = &mut *samples;
-            if let Some(s) = samples.pop_back() {
-                *total = total.clone() - s;
-            }
             let dev = self.dna.policy.device();
             let mut rng = self.rng.borrow_mut();
             let mut sample_normal = || {
@@ -297,16 +290,8 @@ where
                     std_dev: 1.,
                 }) as f32
             };
-            let window_size = 1;
-            while samples.len() < window_size {
-                let s = dev.tensor([sample_normal(), sample_normal(), sample_normal()]);
-                *total = total.clone() + s.clone();
-                samples.push_back(s);
-            }
-
-            #[allow(clippy::cast_precision_loss)]
-            let action: Tensor1D<ACTION> =
-                mean.clone() + (total.clone() / (window_size as f32).sqrt()) * self.stddev.clone();
+            let sample = dev.tensor([sample_normal(), sample_normal(), sample_normal()]);
+            let action: Tensor1D<ACTION> = mean.clone() + sample * self.stddev.clone();
             let action_log_prob = calculate_action_log_probs::<Const<1>, _, _>(
                 action.clone().reshape(),
                 mean.reshape(),
@@ -372,7 +357,6 @@ fn rollout<G: WithLifetime>(
                         records.1.push((current_utility(time), time));
                     },
                     rng: &RefCell::new(&mut policy_rng),
-                    samples: RefCell::new((stddev.clone() * 0_f32, VecDeque::new())),
                     num_senders: &|| flows.iter().filter(|x| x.borrow().active()).count(),
                 };
                 let cca_template = RemyCcaTemplate::new(repeat_actions.clone());
