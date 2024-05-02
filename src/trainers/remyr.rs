@@ -185,7 +185,7 @@ impl DiscountingMode {
                     .rev()
                     .scan(0., |acc, (delta_t, utility_after_action)| {
                         let gamma = (-alpha * delta_t).exp();
-                        *acc = alpha * (1. - gamma) * utility_after_action + gamma * *acc;
+                        *acc = (1. - gamma) / alpha * utility_after_action + gamma * *acc;
                         Some(*acc)
                     })
                     .collect_vec()
