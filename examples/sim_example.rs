@@ -126,7 +126,7 @@ fn main() {
     //     next_send: Time::SIM_START,
     //     server: printer_address.cast(),
     // });
-    // COMPILE ERROR - expected Address<PING_PRINTER, _>, found Address<PING, _>
+    // COMPILE ERROR - expected Address<PingDevices, _>, found Address<PING, _>
 
     builder.insert(User {
         next_send: Time::SIM_START,
