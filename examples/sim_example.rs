@@ -149,4 +149,14 @@ fn main() {
 
     let mut sim = builder.build(NothingLogger).unwrap();
     while sim.time() < Time::from_sim_start(seconds(3.)) && sim.tick() {}
+
+    // Sent pings at time 0.00st
+    // Received pong from Printer at time 0.00st
+    // Received pong from Toaster at time 0.00st
+    // Sent pings at time 1.00st
+    // Received pong from Printer at time 1.00st
+    // Received pong from Toaster at time 1.00st
+    // Sent pings at time 2.00st
+    // Received pong from Printer at time 2.00st
+    // Received pong from Toaster at time 2.00st
 }
