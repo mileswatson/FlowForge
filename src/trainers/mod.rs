@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     components::{packet::Packet, senders::lossy::LossySenderEffect, toggler::Toggle},
-    util::{never::Never, WithLifetime},
+    util::{never::Never, OfLifetime},
 };
 
 use self::{delay_multiplier::DelayMultiplierTrainer, remy::RemyTrainer, remyr::RemyrTrainer};
@@ -29,6 +29,6 @@ pub enum DefaultEffect<'sim> {
     Never(Never),
 }
 
-impl<'sim> WithLifetime for DefaultEffect<'sim> {
-    type Type<'a> = DefaultEffect<'a>;
+impl<'sim> OfLifetime for DefaultEffect<'sim> {
+    type Of<'a> = DefaultEffect<'a>;
 }

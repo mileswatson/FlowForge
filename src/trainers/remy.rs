@@ -16,7 +16,7 @@ use crate::{
     eval::EvaluationConfig,
     flow::UtilityFunction,
     quantities::{milliseconds, seconds, Float, TimeSpan},
-    util::{rand::Rng, WithLifetime},
+    util::{rand::Rng, OfLifetime},
     NetworkDistribution, ProgressHandler, Trainer,
 };
 
@@ -153,7 +153,7 @@ impl Trainer for RemyTrainer {
     type CcaTemplate<'a> = RemyCcaTemplate<&'a RemyDna>;
 
     #[allow(clippy::too_many_lines)]
-    fn train<G: WithLifetime>(
+    fn train<G: OfLifetime>(
         &self,
         network_config: &impl NetworkDistribution<G>,
         utility_function: &impl UtilityFunction,

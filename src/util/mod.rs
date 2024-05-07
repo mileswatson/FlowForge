@@ -5,6 +5,6 @@ pub mod meters;
 pub mod never;
 pub mod rand;
 
-pub trait WithLifetime {
-    type Type<'a>;
+pub trait OfLifetime {
+    type Of<'a>;
 }

@@ -15,7 +15,7 @@ use crate::{
         logging::NothingLogger,
         meters::AverageFlowMeter,
         rand::Rng,
-        WithLifetime,
+        OfLifetime,
     },
     Cca, Network, NetworkDistribution,
 };
@@ -47,7 +47,7 @@ impl EvaluationConfig {
     where
         B: Network<G>,
         C: Cca,
-        G: WithLifetime,
+        G: OfLifetime,
     {
         let score_network = |(n, mut rng): (B, Rng)| {
             let flows = AppendOnlyVec::new();

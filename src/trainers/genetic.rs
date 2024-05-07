@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     eval::EvaluationConfig,
     flow::UtilityFunction,
-    util::{rand::Rng, WithLifetime},
+    util::{rand::Rng, OfLifetime},
     CcaTemplate, Dna, NetworkDistribution, ProgressHandler, Trainer,
 };
 
@@ -57,7 +57,7 @@ where
         rng: &mut Rng,
     ) -> T::Policy
     where
-        G: WithLifetime,
+        G: OfLifetime,
     {
         let config = self.genetic_config();
         let mut population = (0..config.population_size)

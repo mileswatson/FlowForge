@@ -6,7 +6,7 @@ use crate::{
     ccas::delay_multiplier::DelayMultiplierCca,
     util::{
         rand::{ContinuousDistribution, Rng},
-        WithLifetime,
+        OfLifetime,
     },
     CcaTemplate, Dna,
 };
@@ -30,8 +30,8 @@ impl<'a> CcaTemplate<'a> for DelayMultiplierCcaTemplate {
     }
 }
 
-impl WithLifetime for DelayMultiplierCcaTemplate {
-    type Type<'a> = DelayMultiplierCcaTemplate;
+impl OfLifetime for DelayMultiplierCcaTemplate {
+    type Of<'a> = DelayMultiplierCcaTemplate;
 }
 
 #[derive(Serialize, Deserialize, Debug)]

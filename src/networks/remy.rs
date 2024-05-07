@@ -20,7 +20,7 @@ use crate::{
             ContinuousDistribution, DiscreteDistribution, PositiveContinuousDistribution,
             ProbabilityDistribution, Rng,
         },
-        WithLifetime,
+        OfLifetime,
     },
     Cca, Network, NetworkDistribution,
 };
@@ -51,12 +51,12 @@ impl<'sim, E, T> HasRemyNetworkVariants<'sim, E> for T where
 
 impl<G> Network<G> for RemyNetwork
 where
-    G: WithLifetime,
-    for<'sim> G::Type<'sim>: HasRemyNetworkVariants<'sim, G::Type<'sim>>,
+    G: OfLifetime,
+    for<'sim> G::Of<'sim>: HasRemyNetworkVariants<'sim, G::Of<'sim>>,
 {
     fn populate_sim<'sim, 'a, C, F>(
         &self,
-        builder: &SimulatorBuilder<'sim, 'a, <G>::Type<'sim>>,
+        builder: &SimulatorBuilder<'sim, 'a, <G>::Of<'sim>>,
         new_cca: impl Fn() -> C + Clone + 'a,
         rng: &'a mut Rng,
         mut new_flow_meter: impl FnMut() -> F,
@@ -148,8 +148,8 @@ impl Distribution<RemyNetwork> for RemyNetworkDistribution {
 
 impl<G> NetworkDistribution<G> for RemyNetworkDistribution
 where
-    G: WithLifetime,
-    for<'sim> G::Type<'sim>: HasRemyNetworkVariants<'sim, G::Type<'sim>>,
+    G: OfLifetime,
+    for<'sim> G::Of<'sim>: HasRemyNetworkVariants<'sim, G::Of<'sim>>,
 {
     type Network = RemyNetwork;
 }

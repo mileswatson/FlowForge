@@ -32,7 +32,7 @@ use crate::{
         logging::NothingLogger,
         meters::CurrentFlowMeter,
         rand::{ContinuousDistribution, DiscreteDistribution, Rng},
-        WithLifetime,
+        OfLifetime,
     },
     Network, NetworkDistribution, ProgressHandler, Trainer,
 };
@@ -308,7 +308,7 @@ where
     }
 }
 
-fn rollout<G: WithLifetime>(
+fn rollout<G: OfLifetime>(
     dna: &RemyrDna,
     stddev: &Tensor1D<ACTION>,
     network_config: &impl NetworkDistribution<G>,
@@ -388,19 +388,18 @@ impl Trainer for RemyrTrainer {
         rng: &mut crate::util::rand::Rng,
     ) -> Self::Dna
     where
-        G: WithLifetime,
+        G: OfLifetime,
     {
         let dev = AutoDevice::default();
-        let mut nets = dev.build_module((
+        let mut theta = dev.build_module((
             self.hidden_layers.policy_arch(),
             Bias1DConfig(Const::<ACTION>),
             self.hidden_layers.critic_arch(),
         ));
-        nets.1.bias = nets.1.bias + 0.5;
+        theta.1.bias = theta.1.bias + 0.5;
 
-        let mut gradients = nets.alloc_grads();
         let mut optimizer = Adam::new(
-            &nets,
+            &theta,
             AdamConfig {
                 lr: self.learning_rate,
                 weight_decay: self.weight_decay.map(WeightDecay::Decoupled),
@@ -412,7 +411,7 @@ impl Trainer for RemyrTrainer {
         let sim_dev = Cpu::default();
 
         for i in 0..self.iters {
-            let dna = self.initial_dna(nets.0.copy_to(&sim_dev));
+            let dna = self.initial_dna(theta.0.copy_to(&sim_dev));
 
             let frac = f64::from(i) / f64::from(self.iters);
             progress_handler.update_progress(frac, &dna);
@@ -428,7 +427,7 @@ impl Trainer for RemyrTrainer {
             };
 
             let sim_stddevs = Bias1D {
-                bias: sim_dev.tensor(nets.1.bias.array()),
+                bias: sim_dev.tensor(theta.1.bias.array()),
             }
             .forward(sim_dev.zeros::<Rank1<OBSERVATION>>())
             .reshape();
@@ -451,7 +450,7 @@ impl Trainer for RemyrTrainer {
                 rewards_to_go_before_action,
             } = RolloutResult::new(&trajectories, &dev);
 
-            let estimated_values = nets.2.forward(states.clone()); // V
+            let estimated_values = theta.2.forward(states.clone()); // V
 
             let advantages = {
                 let shape = (estimated_values.shape().0,);
@@ -472,9 +471,14 @@ impl Trainer for RemyrTrainer {
                         .slice((.., ..OBSERVATION))
                         .reshape_like(&(batch_len, Const::<OBSERVATION>));
 
-                    let batch_means = nets.0.forward(batch_observations.traced(gradients));
+                    let batch_means = theta
+                        .0
+                        .forward(batch_observations.put_tape(OwnedTape::default()));
 
-                    let stddevs = nets.1.forward(dev.zeros::<Rank1<OBSERVATION>>().retaped());
+                    let stddevs = theta.1.forward(
+                        dev.zeros::<Rank1<OBSERVATION>>()
+                            .put_tape(OwnedTape::default()),
+                    );
 
                     let batch_stddevs = stddevs
                         .with_empty_tape()
@@ -503,7 +507,7 @@ impl Trainer for RemyrTrainer {
 
                     // critic
                     let batch_estimated_values =
-                        nets.2.forward(batch_states.retaped::<OwnedTape<_, _>>());
+                        theta.2.forward(batch_states.put_tape(OwnedTape::default()));
 
                     let batch_rewards_to_go_before_action =
                         rewards_to_go_before_action.clone().gather(batch_indices);
@@ -519,13 +523,12 @@ impl Trainer for RemyrTrainer {
                     let loss = policy_loss + critic_loss * self.value_function_coefficient
                         - entropy * self.entropy_coefficient;
 
-                    gradients = loss.backward();
-                    optimizer.update(&mut nets, &gradients).unwrap();
-                    nets.zero_grads(&mut gradients);
+                    let gradients = loss.backward();
+                    optimizer.update(&mut theta, &gradients).unwrap();
                 }
             }
         }
-        let dna = self.initial_dna(nets.0.copy_to(&sim_dev));
+        let dna = self.initial_dna(theta.0.copy_to(&sim_dev));
         progress_handler.update_progress(1., &dna);
         dna
     }

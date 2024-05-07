@@ -24,7 +24,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use flow::UtilityFunction;
 use quantities::{Float, Time};
 use simulation::SimulatorBuilder;
-use util::{logging::Logger, meters::FlowMeter, rand::Rng, WithLifetime};
+use util::{logging::Logger, meters::FlowMeter, rand::Rng, OfLifetime};
 
 #[macro_use]
 pub mod util;
@@ -121,11 +121,11 @@ impl<P, F: FnMut(Float, &P) + Send> ProgressHandler<P> for F {
 
 pub trait Network<G>: Clone + Send
 where
-    G: WithLifetime,
+    G: OfLifetime,
 {
     fn populate_sim<'sim, 'a, C, F>(
         &self,
-        builder: &SimulatorBuilder<'sim, 'a, G::Type<'sim>>,
+        builder: &SimulatorBuilder<'sim, 'a, G::Of<'sim>>,
         new_cca: impl Fn() -> C + Clone + 'a,
         rng: &'a mut Rng,
         new_flow_meter: impl FnMut() -> F,
@@ -137,7 +137,7 @@ where
 
 pub trait NetworkDistribution<G>: Distribution<Self::Network> + Sync
 where
-    G: WithLifetime,
+    G: OfLifetime,
 {
     type Network: Network<G>;
 }
@@ -155,7 +155,7 @@ pub trait Cca: Debug {
 }
 
 pub trait CcaTemplate<'a>: Default + Debug {
-    type Policy: 'a + ?Sized;
+    type Policy: 'a;
     type Cca: Cca + 'a;
     fn with(&self, policy: Self::Policy) -> impl Fn() -> Self::Cca + Sync;
 }
@@ -181,5 +181,5 @@ pub trait Trainer {
         rng: &mut Rng,
     ) -> Self::Dna
     where
-        G: WithLifetime;
+        G: OfLifetime;
 }

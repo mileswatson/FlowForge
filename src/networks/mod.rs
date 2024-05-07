@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     simulation::SimulatorBuilder,
-    util::{meters::FlowMeter, rand::Rng, WithLifetime},
+    util::{meters::FlowMeter, rand::Rng, OfLifetime},
     Cca, Network, NetworkDistribution,
 };
 
@@ -41,20 +41,20 @@ impl Distribution<DefaultNetworkBuilder> for DefaultNetworkConfig {
 
 impl<G> NetworkDistribution<G> for DefaultNetworkConfig
 where
-    G: WithLifetime,
-    for<'sim> G::Type<'sim>: HasDefaultNetworkVariants<'sim, G::Type<'sim>>,
+    G: OfLifetime,
+    for<'sim> G::Of<'sim>: HasDefaultNetworkVariants<'sim, G::Of<'sim>>,
 {
     type Network = DefaultNetworkBuilder;
 }
 
 impl<G> Network<G> for DefaultNetworkBuilder
 where
-    G: WithLifetime,
-    for<'sim> G::Type<'sim>: HasDefaultNetworkVariants<'sim, G::Type<'sim>>,
+    G: OfLifetime,
+    for<'sim> G::Of<'sim>: HasDefaultNetworkVariants<'sim, G::Of<'sim>>,
 {
     fn populate_sim<'sim, 'a, C, F>(
         &self,
-        builder: &SimulatorBuilder<'sim, 'a, <G as WithLifetime>::Type<'sim>>,
+        builder: &SimulatorBuilder<'sim, 'a, <G as OfLifetime>::Of<'sim>>,
         new_cca: impl Fn() -> C + Clone + 'a,
         rng: &'a mut Rng,
         new_flow_meter: impl FnMut() -> F,
