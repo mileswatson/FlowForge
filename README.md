@@ -18,9 +18,9 @@
 <h1></h1><br/>
 
 <p align="center">
-  <a href="https://github.com/mileswatson/flowforge/blob/master/LICENSE"><img alt="GitHub license" src="https://img.shields.io/github/license/mileswatson/flowforge?color=blue"></a>
-  <a href="https://github.com/mileswatson/flowforge/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/mileswatson/flowforge?color=gold"></a>
-  <a href="https://github.com/mileswatson/flowforge/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/mileswatson/flowforge"></a>
+  <a href="https://github.com/mileswatson/FlowForge/blob/master/LICENSE"><img alt="GitHub license" src="https://img.shields.io/github/license/mileswatson/FlowForge?color=blue"></a>
+  <a href="https://github.com/mileswatson/FlowForge/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/mileswatson/FlowForge?color=gold"></a>
+  <a href="https://github.com/mileswatson/FlowForge/issues"><img alt="GitHub issues" src="https://img.shields.io/github/issues/mileswatson/FlowForge"></a>
   <img alt="Rust" src="https://img.shields.io/static/v1?label=&message=Rust&color=b6400e&logo=Rust&logoColor=white">
   <img alt="Windows" src="https://img.shields.io/static/v1?label=&message=Windows&color=0078D6&logo=Windows">
   <img alt="Linux" src="https://img.shields.io/static/v1?label=&message=Linux&color=FCC624&logo=Linux&logoColor=black">
@@ -41,4 +41,6 @@ or
 ```
 cargo run --features cuda
 ```
+### Help
 
+For more information, consider reading my undergraduate dissertation on this project - [TCP ex Machina](https://docs.google.com/viewer?url=https://raw.githubusercontent.com/mileswatson/tcp-ex-machina/main/TCP%20ex%20Machina.pdf).
