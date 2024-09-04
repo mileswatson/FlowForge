@@ -8,7 +8,7 @@
 </h3>
 
 <div align="center" margin="50px">
-  FlowForge is a performant, open source framework for tailoring congestion control algorithms to specific networks.
+  FlowForge is a performant, open source framework for tailoring congestion control algorithms to simulated networks.
 </div>
 
 <p align="center" style="font-size:125%">
