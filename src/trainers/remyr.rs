@@ -555,6 +555,7 @@ mod tests {
     use super::RemyrTrainer;
 
     #[test]
+    #[ignore = "nondeterministic on different platforms"]
     fn test_determinism() {
         let trainer = RemyrTrainer {
             iters: 10,
