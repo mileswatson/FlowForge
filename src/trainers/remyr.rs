@@ -266,7 +266,7 @@ pub struct RolloutWrapper<'a, F, S> {
     f: &'a F,
 }
 
-impl<'a, F, S> std::fmt::Debug for RolloutWrapper<'a, F, S> {
+impl<F, S> std::fmt::Debug for RolloutWrapper<'_, F, S> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("RolloutWrapper")
             .field("dna", &self.dna)
@@ -275,7 +275,7 @@ impl<'a, F, S> std::fmt::Debug for RolloutWrapper<'a, F, S> {
     }
 }
 
-impl<'a, F, S> RemyPolicy for RolloutWrapper<'a, F, S>
+impl<F, S> RemyPolicy for RolloutWrapper<'_, F, S>
 where
     F: Fn(Record),
     S: Fn() -> usize,
@@ -316,7 +316,7 @@ fn rollout<G: OfLifetime>(
     training_config: &EvaluationConfig,
     half_life: TimeSpan,
     discounting_mode: &DiscountingMode,
-    repeat_actions: &Option<DiscreteDistribution<u32>>,
+    repeat_actions: Option<&DiscreteDistribution<u32>>,
     rng: &mut Rng,
 ) -> Vec<Trajectory> {
     let networks = (0..training_config.network_samples)
@@ -359,7 +359,7 @@ fn rollout<G: OfLifetime>(
                     rng: &RefCell::new(&mut policy_rng),
                     num_senders: &|| flows.iter().filter(|x| x.borrow().active()).count(),
                 };
-                let cca_template = RemyCcaTemplate::new(repeat_actions.clone());
+                let cca_template = RemyCcaTemplate::new(repeat_actions.cloned());
                 let cca_gen = ManuallyDrop::new(cca_template.with_not_sync(dna));
                 n.populate_sim(&builder, &*cca_gen, &mut rng, new_flow);
                 let clock = builder.clock();
@@ -440,7 +440,7 @@ impl Trainer for RemyrTrainer {
                 &self.rollout_config,
                 self.bandwidth_half_life,
                 &self.discounting_mode,
-                &self.repeat_actions,
+                self.repeat_actions.as_ref(),
                 rng,
             );
             let RolloutResult {

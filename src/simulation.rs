@@ -35,7 +35,7 @@ pub struct ComponentId<'sim> {
     sim_id: Id<'sim>,
 }
 
-impl<'sim> Debug for ComponentId<'sim> {
+impl Debug for ComponentId<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_tuple("ComponentId").field(&self.index).finish()
     }
@@ -43,7 +43,7 @@ impl<'sim> Debug for ComponentId<'sim> {
 
 impl<'sim> ComponentId<'sim> {
     #[must_use]
-    const fn new(index: usize, sim_id: Id<'sim>) -> ComponentId {
+    const fn new(index: usize, sim_id: Id<'sim>) -> ComponentId<'sim> {
         ComponentId { index, sim_id }
     }
 }
@@ -53,7 +53,7 @@ pub struct Address<'sim, I, E> {
     create_message: Rc<dyn Fn(I) -> Message<'sim, E> + 'sim>,
 }
 
-impl<'sim, I, E> Debug for Address<'sim, I, E> {
+impl<I, E> Debug for Address<'_, I, E> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Address").finish()
     }
@@ -235,7 +235,7 @@ where
     address: Address<'sim, C::Receive, E>,
 }
 
-impl<'sim, 'a, 'b, C, E> ComponentSlot<'sim, 'a, 'b, C, E>
+impl<'sim, 'a, C, E> ComponentSlot<'sim, 'a, '_, C, E>
 where
     C: Component<'sim, E> + 'a,
     E: HasVariant<C::Receive>,
@@ -352,8 +352,7 @@ where
 
     fn receive(&mut self, e: E, time: Time) -> Vec<Message<'sim, E>> {
         let e = e
-            .try_into()
-            .map_or_else(|_| panic!("Incorrect message type!"), |x| x);
+            .try_into().unwrap_or_else(|_| panic!("Incorrect message type!"));
         self.0.receive(e, time)
     }
 }
@@ -367,7 +366,7 @@ pub struct Simulator<'sim, 'a, E, L> {
     logger: L,
 }
 
-impl<'sim, 'a, E, L> Simulator<'sim, 'a, E, L>
+impl<'sim, E, L> Simulator<'sim, '_, E, L>
 where
     L: Logger,
 {

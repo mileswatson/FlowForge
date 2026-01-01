@@ -29,6 +29,6 @@ pub enum DefaultEffect<'sim> {
     Never(Never),
 }
 
-impl<'sim> OfLifetime for DefaultEffect<'sim> {
+impl OfLifetime for DefaultEffect<'_> {
     type Of<'a> = DefaultEffect<'a>;
 }

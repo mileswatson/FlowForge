@@ -15,7 +15,7 @@ pub struct LossyBouncer<'sim, E, L> {
 }
 
 impl<'sim, E, L> LossyBouncer<'sim, E, L> {
-    pub const fn new(link: PacketAddress<'sim, E>, logger: L) -> LossyBouncer<E, L> {
+    pub const fn new(link: PacketAddress<'sim, E>, logger: L) -> LossyBouncer<'sim, E, L> {
         LossyBouncer { link, logger }
     }
 }

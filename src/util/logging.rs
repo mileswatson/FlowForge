@@ -18,7 +18,7 @@ pub trait Logger: Debug {
     fn log(&mut self, msg: impl FnOnce() -> String);
 }
 
-impl<'a, T> Logger for &'a mut T
+impl<T> Logger for &mut T
 where
     T: Logger,
 {
@@ -45,7 +45,7 @@ impl Logger for PrintLogger {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct NothingLogger;
 
 impl NothingLogger {
@@ -81,7 +81,7 @@ impl LogTable {
         }
     }
 
-    pub const fn logger(&self, index: usize) -> TableLogger {
+    pub const fn logger(&self, index: usize) -> TableLogger<'_> {
         TableLogger { index, table: self }
     }
 

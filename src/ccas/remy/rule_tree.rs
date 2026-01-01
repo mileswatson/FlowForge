@@ -23,7 +23,7 @@ pub struct AugmentedRuleTree<'a> {
     rule_override: (usize, Action),
 }
 
-impl<'a> RemyPolicy for AugmentedRuleTree<'a> {
+impl RemyPolicy for AugmentedRuleTree<'_> {
     fn action(&self, point: &Point) -> Option<Action> {
         self.tree._action(self.tree.root, point, &|idx| {
             if idx == self.rule_override.0 {
@@ -41,7 +41,7 @@ pub struct CountingRuleTree<'a> {
     counts: Vec<AtomicU64>,
 }
 
-impl<'a> RemyPolicy for CountingRuleTree<'a> {
+impl RemyPolicy for CountingRuleTree<'_> {
     fn action(&self, point: &Point) -> Option<Action> {
         self.tree._action(self.tree.root, point, &|idx| {
             self.counts[idx].fetch_add(1, Ordering::Relaxed);
@@ -105,7 +105,7 @@ pub struct LeafHandle<'a> {
 
 impl<'a> LeafHandle<'a> {
     #[must_use]
-    pub fn augmented_tree(&'a self, new_action: Action) -> AugmentedRuleTree<'a> {
+    pub const fn augmented_tree(&'a self, new_action: Action) -> AugmentedRuleTree<'a> {
         AugmentedRuleTree {
             tree: self.tree,
             rule_override: (self.rule, new_action),
@@ -301,7 +301,7 @@ impl<const TESTING: bool> RuleTree<TESTING> {
             RuleTreeNode::Leaf { action, .. } => {
                 tree.leaf = MessageField::some(Whisker::create(action, &cube.min, &cube.max));
             }
-        };
+        }
         tree
     }
 

@@ -41,15 +41,12 @@ impl Average for FlowProperties {
     fn average(aggregator: Self::Aggregator) -> Self::Output {
         let (average_throughput, average_rtt) =
             AveragePair::<InformationRate, AverageIfSome<TimeSpan>>::average(aggregator);
-        match average_throughput {
-            Ok(average_throughput) => Ok(FlowProperties {
-                throughput: average_throughput,
-                rtt: average_rtt.map_err(|_| NoPacketsAcked),
-            }),
-            Err(NoItems) => {
-                assert!(average_rtt.is_err());
-                Err(NoItems)
-            }
+        if let Ok(average_throughput) = average_throughput { Ok(FlowProperties {
+            throughput: average_throughput,
+            rtt: average_rtt.map_err(|_| NoPacketsAcked),
+        }) } else {
+            assert!(average_rtt.is_err());
+            Err(NoItems)
         }
     }
 

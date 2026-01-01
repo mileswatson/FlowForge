@@ -7,7 +7,7 @@
     clippy::suboptimal_flops,
     clippy::too_many_arguments,
     clippy::cast_possible_truncation,
-    clippy::too_many_arguments
+    clippy::used_underscore_items
 )]
 
 use std::{

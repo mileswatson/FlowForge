@@ -25,12 +25,12 @@ pub struct Link<'sim, E, L> {
     logger: L,
 }
 
-impl<'sim, 'a, E, L> Link<'sim, E, L>
+impl<E, L> Link<'_, E, L>
 where
-    L: Logger + 'a,
+    L: Logger,
 {
     #[must_use]
-    pub fn create(
+    pub const fn create(
         delay: TimeSpan,
         packet_rate: InformationRate,
         loss: f64,

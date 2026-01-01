@@ -1,4 +1,4 @@
-use std::{cmp::Reverse, iter::repeat};
+use std::cmp::Reverse;
 
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -85,7 +85,7 @@ where
             scores.truncate(config.population_size as usize / 2);
             population = scores
                 .iter()
-                .flat_map(|x| repeat(&x.0).take(2))
+                .flat_map(|x| std::iter::repeat_n(&x.0, 2))
                 .map(|x| x.spawn_child(rng))
                 .collect();
         }

@@ -73,7 +73,7 @@ pub struct LossySender<'sim, 'a, C, F, G, E, L> {
     phantom: PhantomData<&'a ()>,
 }
 
-impl<'sim, 'a, C: Debug, F: Debug, G, E, L: Debug> Debug for LossySender<'sim, 'a, C, F, G, E, L> {
+impl<C: Debug, F: Debug, G, E, L: Debug> Debug for LossySender<'_, '_, C, F, G, E, L> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("LossySender")
             .field("id", &self.id)
@@ -88,7 +88,7 @@ impl<'sim, 'a, C: Debug, F: Debug, G, E, L: Debug> Debug for LossySender<'sim, '
     }
 }
 
-impl<'sim, 'a, C, F, G, E, L> LossySender<'sim, 'a, C, F, G, E, L>
+impl<'sim, C, F, G, E, L> LossySender<'sim, '_, C, F, G, E, L>
 where
     C: Cca,
     G: Fn() -> C,

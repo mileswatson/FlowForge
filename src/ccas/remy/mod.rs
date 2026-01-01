@@ -166,25 +166,22 @@ where
         });
         log!(logger, "Updated state to {:?}", self);
 
-        let action = match &mut self.next_change {
-            Some((remaining, a)) => {
-                let a = a.clone();
-                if *remaining == 0 {
-                    self.next_change = None;
-                } else {
-                    *remaining -= 1;
-                }
-                a
+        let action = if let Some((remaining, a)) = &mut self.next_change {
+            let a = a.clone();
+            if *remaining == 0 {
+                self.next_change = None;
+            } else {
+                *remaining -= 1;
             }
-            None => {
-                let action = self.action();
-                let a = action.as_ref().clone();
-                self.next_change = self
-                    .repeat_actions
-                    .as_ref()
-                    .map(|dist| (rng.sample(dist), a.clone()));
-                a
-            }
+            a
+        } else {
+            let action = self.action();
+            let a = action.as_ref().clone();
+            self.next_change = self
+                .repeat_actions
+                .as_ref()
+                .map(|dist| (rng.sample(dist), a.clone()));
+            a
         };
         self.current_settings = RemyCwndSettings {
             cwnd: action.apply_to(self.current_settings.cwnd),

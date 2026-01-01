@@ -90,7 +90,7 @@ impl<const TESTING: bool> Cube<TESTING> {
     }
 
     fn split_rtt_ratio(&self) -> Vec<Cube<TESTING>> {
-        let rtt_ratio = (self.max.rtt_ratio + self.min.rtt_ratio) / 2.;
+        let rtt_ratio = f64::midpoint(self.max.rtt_ratio, self.min.rtt_ratio);
         vec![
             Cube {
                 min: self.min.clone(),

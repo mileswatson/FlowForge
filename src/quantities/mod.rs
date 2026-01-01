@@ -57,7 +57,7 @@ pub trait Quantity: Wrapper + Copy + 'static {
 
 struct QuantityVisitor<Q>(PhantomData<Q>);
 
-impl<'de, Q> Visitor<'de> for QuantityVisitor<Q>
+impl<Q> Visitor<'_> for QuantityVisitor<Q>
 where
     Q: Quantity,
     Q::Underlying: FromStr,
